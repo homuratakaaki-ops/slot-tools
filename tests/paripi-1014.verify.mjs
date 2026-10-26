@@ -42,7 +42,8 @@ const ST_CERT=[['s2',2],['s3',3],['s4',4],['s5',5],['s6',6]];
 const rows=[],shisa=c.pages(ctx(state(),rows),()=> '')[2]();
 assert.deepEqual(rows.filter(r=>r.key.startsWith('bonusOver.')).map(r=>[r.key.slice(10),r.label,r.sub,r.hot,r.pct]),BONUS.map(b=>[b[0],b[1],b[2],true,false]));
 assert.deepEqual(rows.filter(r=>r.key.startsWith('edPic.')).map(r=>[r.key.slice(6),r.label,r.sub,r.hot,r.pct]),ED.map(e=>[e[0],e[1],e[2],e[3]>0,false]));
-assert.deepEqual(rows.map(r=>r.key.split('.')[0]),[...Array(12).fill('stEnd'),...Array(5).fill('bonusOver'),...Array(9).fill('edPic')]);
+// 10/26 にイイネ下3桁（iine.*）が枚数とEDの間に入った（tests/paripi-1026.verify.mjs）。10/14 分の並びはそれを除いて見る。
+assert.deepEqual(rows.filter(r=>!r.key.startsWith('iine.')).map(r=>r.key.split('.')[0]),[...Array(12).fill('stEnd'),...Array(5).fill('bonusOver'),...Array(9).fill('edPic')]);
 assert.ok(shisa.includes('<div class="hint">ED中に表示される1枚絵を記録します。ST終了画面とは別です。</div>'));
 assert.ok(shisa.indexOf('ST終了画面')<shisa.indexOf('ボーナス獲得枚数')&&shisa.indexOf('ボーナス獲得枚数')<shisa.indexOf('ED中の1枚絵'));
 const inputRows=[];c.pages(ctx(state(),inputRows),()=> '')[0]();
@@ -64,8 +65,11 @@ assert.ok(guide.includes('なな様テンプレ（v02）'));
 // レア役CZ率は説明だけ。通常時タブの行の表示（名前・サブ）は本件直前と同じ
 const oldBox={window:{}};vm.runInNewContext(execFileSync('git',['show',BASE+':checker-data/paripi.js'],{cwd:root,encoding:'utf8'}),oldBox);
 const old=oldBox.window.CheckerConfigs.paripi;
-assert.equal(c.pages(ctx(state()),()=> '')[1](),old.pages(ctx(clone(old.defaults)),()=> '')[1]());
-console.log('PASS 1: 出典照合 枚数5・ED9・CZ種別18・150G 6・レア役9、画面の行／ガイドの表、通常時タブは不変');
+// 10/26 に士気高揚ゾーンの小役別3行＋説明が入り、ｽﾃﾁｪﾝ⑤の説明が平均周期回数に変わった。その2か所を戻すと本件直前と同じ
+const tab1=c.pages(ctx(state()),()=> '')[1](),roleFrom=tab1.indexOf('\n      <div class="cgrid" style="margin-top:6px">'),roleTo=tab1.indexOf('</div>',tab1.indexOf('母数は読み替えません。'))+6;
+assert.ok(roleFrom>0&&roleTo>roleFrom);
+assert.equal((tab1.slice(0,roleFrom)+tab1.slice(roleTo)).replace(/\n *\.role-row[^\n]*/g,'').replace(/<div class="hint" data-fold="no">CZ天井までの平均周期回数[^<]*<\/div>/,'<div class="hint">設定差は公表されていません</div>'),old.pages(ctx(clone(old.defaults)),()=> '')[1]());
+console.log('PASS 1: 出典照合 枚数5・ED9・CZ種別18・150G 6・レア役9、画面の行／ガイドの表、通常時タブは本件（10/26）の追加分を除いて不変');
 
 // ---- 2. テンプレ v02 ----
 const v01=read('docs/specs/paripi-nana-template-v01.txt'),v02=read('docs/specs/paripi-nana-template-v02.txt');
@@ -74,9 +78,11 @@ assert.equal(createHash('sha256').update(v02).digest('hex'),'cade1fcb673c38fb9ca
 assert.equal(Buffer.byteLength(v02),1091);assert.ok(v02.startsWith(v01));assert.ok(!v02.includes('\r'));
 assert.equal(v02.slice(v01.length),['','','■ﾎﾞｰﾅｽ獲得枚数',...['222','456','555','803','666'].map(x=>x+' OVER'+P+' '),'','■ED中の1枚絵',
   ...['偶数弱\u3000','偶数強\u3000','高設定弱','高設定強','2以上\u3000','3以上\u3000','4以上\u3000','5以上\u3000'].map(x=>x+P+' '),'6濃厚\u3000'+P].join('\n'));
-assert.equal(vm.runInNewContext(source.match(/const TEMPLATE=.*;/)[0]+'TEMPLATE'),v02);
+// 10/26 にテンプレを v03 にした（2見出しの追加だけ・tests/paripi-1026.verify.mjs）。その2見出しを除くと v02 のまま
+const strip1026=t=>t.replace(/■士気高揚 小役別\n(?:[^\n]+\n){3}\n/,'').replace(/■ｲｲﾈ下3桁\nなし\n\n/,'');
+assert.equal(strip1026(vm.runInNewContext(source.match(/const TEMPLATE=.*;/)[0]+'TEMPLATE')),v02);
 const body=S=>c.template(ctx(S)).split('_______\n\n')[1].split('\n\nby slot-tools.jp')[0];
-assert.deepEqual(Buffer.from(body(state())),Buffer.from(v02.replace(blank,P+' 0回')));
+assert.deepEqual(Buffer.from(strip1026(body(state()))),Buffer.from(v02.replace(blank,P+' 0回')));
 // 新しい14項目は1つずつ +1 すると対応する1行だけが変わる
 const zeroLines=body(state()).split('\n');
 for(const [g,list,head] of [['bonusOver',BONUS,'■ﾎﾞｰﾅｽ獲得枚数'],['edPic',ED,'■ED中の1枚絵']]){
@@ -94,12 +100,13 @@ assert.deepEqual(clone(norm.bonusOver),Object.fromEntries(BONUS.map(b=>[b[0],0])
 assert.deepEqual(clone(norm.edPic),Object.fromEntries(ED.map(e=>[e[0],0])));
 assert.equal(norm.stEnd.kanban,2);assert.equal(norm.stEnd.s4,1);assert.equal(norm.counts.bonus,3);assert.equal(norm.future.keep,true);
 assert.deepEqual(clone(c.normalizeState(clone(norm))),clone(norm));
-assert.deepEqual(clone(c.mergeKeys).slice(-2),['bonusOver','edPic']);
+// 10/26 に iine・shikiRole を末尾に足した
+assert.deepEqual(clone(c.mergeKeys).slice(-4,-2),['bonusOver','edPic']);
 const bad=c.normalizeState({bonusOver:{o666:-1,o222:'2',future:5},edPic:{s6:NaN,even1:1.9}});
 assert.deepEqual([bad.bonusOver.o666,bad.bonusOver.o222,bad.bonusOver.future,bad.edPic.s6,bad.edPic.even1],[0,2,5,0,1.9]);
 // 旧データのテンプレは、本件直前の版の出力に新しい2見出し（全0）を足しただけ
 const oldOut=old.template(ctx(old.normalizeState(clone(legacy)))),newOut=c.template(ctx(norm));
-assert.equal(newOut,oldOut.replace('\n\nby slot-tools.jp','\n\n'+v02.slice(v01.length+2).replace(blank,P+' 0回')+'\n\nby slot-tools.jp'));
+assert.equal(strip1026(newOut),oldOut.replace('\n\nby slot-tools.jp','\n\n'+v02.slice(v01.length+2).replace(blank,P+' 0回')+'\n\nby slot-tools.jp'));
 console.log('PASS 3: 旧データ（stEnd のみ）で新キー14個が0で補完、既存値・未知キーを保持、冪等、テンプレは2見出しの追加だけ');
 
 // ---- 4. 確定演出サマリー：15項目 32768通り ----
@@ -120,7 +127,8 @@ for(let mask=0;mask<1<<15;mask++){
 }
 // 詳細カード
 const S4=state();S4.bonusOver.o803=1;S4.edPic.even2=2;S4.edPic.s5=1;
-const det=c.card.detail({S:S4});
+// 10/26 に「イイネ下3桁」が枚数とEDの間に入った。10/14 分の4セクションはそれを除いて見る
+const det=c.card.detail({S:S4}).filter(s=>s.title!=='イイネ下3桁');
 assert.deepEqual(clone(det.map(s=>s.title)),['初当り','ST終了画面','ボーナス獲得枚数','ED中の1枚絵','通常時']);
 assert.deepEqual(clone(det[2].items),BONUS.map(b=>({label:b[1]+' '+b[2],value:b[0]==='o803'?1:0,hot:true})));
 assert.deepEqual(clone(det[3].items),ED.map(e=>({label:e[1],value:{even2:2,s5:1}[e[0]]||0,hot:e[3]>0})));
@@ -179,7 +187,7 @@ async function load(page=PAGE,width=390,height=740,cfg=CFG){
 async function seed(obj,page,width,key=KEY,cfg=CFG){await evaluate(`localStorage.setItem(${JSON.stringify(key)},${JSON.stringify(JSON.stringify(obj))});`);await load(page,width,740,cfg);}
 async function clear(page=PAGE,width=390){await evaluate(`localStorage.removeItem(${JSON.stringify(KEY)});`);await load(page,width);}
 const overflow=()=>frame(`const m=d.getElementById('main');const W=w.innerWidth;
-  const bad=[...m.querySelectorAll('*')].filter(e=>{const r=e.getBoundingClientRect();return r.width>0&&(r.right>W+0.5||r.left<-0.5)&&!e.closest('details:not([open])');}).map(e=>(e.className||e.tagName)+":"+(e.textContent||"").trim().slice(0,12));
+  const bad=[...m.querySelectorAll('*')].filter(e=>{const r=e.getBoundingClientRect();return r.width>0&&(r.right>W+0.5||r.left<-0.5)&&!e.closest('details:not([open])')&&!(e.parentElement&&e.parentElement.closest('.jump-nav'));}).map(e=>(e.className||e.tagName)+":"+(e.textContent||"").trim().slice(0,12));
   return {scroll:m.scrollWidth-m.clientWidth,bad:bad.slice(0,5),count:bad.length,height:m.scrollHeight};`);
 
 try{
@@ -221,7 +229,8 @@ try{
   for(const key of keys){const [g,k]=key.split('.');assert.equal(S[g][k],1,key+' reload');}
   for(const v of Object.values(S.stEnd))assert.equal(v,0);
   await tab(2);
-  assert.equal(await frame('return [...d.querySelectorAll(".sec-h")].map(e=>e.textContent).join("|");'),'ST終了画面計0回|ボーナス獲得枚数計5回|ED中の1枚絵計9回');
+  // 10/26 の「イイネ下3桁」見出しは除いて見る
+  assert.equal(await frame('return [...d.querySelectorAll(".sec-h")].map(e=>e.textContent).filter(t=>!t.startsWith("イイネ下3桁")).join("|");'),'ST終了画面計0回|ボーナス獲得枚数計5回|ED中の1枚絵計9回');
   const tpl=await (async()=>{await tab(3);await pause(80);return frame('return d.getElementById("tpl").value;');})();
   assert.ok(tpl.includes('■ﾎﾞｰﾅｽ獲得枚数\n222 OVER'+P+' 1回\n')&&tpl.includes('6濃厚\u3000'+P+' 1回\n\nby slot-tools.jp'));
   const bottom=await frame(`const c=w.CheckerConfigs[${JSON.stringify(CFG)}];return c.card.bottom({S:JSON.parse(w.localStorage.getItem(${JSON.stringify(KEY)}))}).columns[0].items[0].text;`);

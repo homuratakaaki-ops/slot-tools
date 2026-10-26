@@ -29,6 +29,21 @@
     ['o803','803 OVER','設定5以上濃厚',5],
     ['o666','666 OVER','設定6濃厚',6]
   ];
+  // 渋谷決戦ボーナス中のイイネポイント下3桁（10/26 追加）。獲得枚数の「○○○ OVER」とは別の表示。
+  // 出た時だけ数える（§9-90）。246 は奇数設定否定（5つ目の配列）で、確定演出では設定2相当に数える。
+  const IINE=[
+    ['i222','222','設定2以上濃厚',2],
+    ['i333','333','設定3以上濃厚',3],
+    ['i246','246','設定2・4・6濃厚',0,[1,3,5]],
+    ['i123','123','設定4以上濃厚',4],
+    ['i444','444','設定4以上濃厚',4],
+    ['i456','456','設定4以上濃厚',4],
+    ['i555','555','設定5以上濃厚',5],
+    ['i803','803','設定5以上濃厚',5],
+    ['i666','666','設定6濃厚',6]
+  ];
+  // 否定された設定を除いた最小の設定を保証設定とみなす（246 → 2）。ST_END の5つ目は符号の文字列なので配列だけを見る。
+  const certRank=c=>c[3]||(Array.isArray(c[4])?[1,2,3,4,5,6].find(s=>!c[4].includes(s)):0);
   // エンディング中のレア役で画面右上に出る1枚絵（ST終了画面とは別）。名称・画像番号は出典どおり。
   // デフォルトの絵が無く出た時だけ数えるので割合は出さない（§9-90）。
   const ED_PIC=[
@@ -42,7 +57,9 @@
     ['s5','設定5以上濃厚','画像⑧',5],
     ['s6','設定6濃厚','画像⑨',6]
   ];
-  const TEMPLATE="新台 スマスロ パリピ孔明 \n____\n\n■ｽﾃﾁｪﾝ⑤の倍数CZ直撃▶︎ 0/0\n\n■士気高揚ゾーン\n109g        ▶︎ 0/0\n209g以降▶︎ 0/0\n\n■レア役からのCZ\n\n通常\n弱ﾁｪ    ▶︎ 0/0\nｽｲｶ      ▶︎ 0/0\nﾁｬﾝｽ目▶︎ 0/0\n\n高確\n弱ﾁｪ    ▶︎ 0/0\nｽｲｶ      ▶︎ 0/0\nﾁｬﾝｽ目▶︎ 0/0\n\n超高\n弱ﾁｪ    ▶︎ 0/0\nｽｲｶ      ▶︎ 0/0\nﾁｬﾝｽ目▶︎ 0/0\n\n■CZ選択率\n三歌の礼　▶︎ \n英子の試練▶︎ \n石兵八陣　▶︎  \n\n■AT終了画面\nﾃﾞﾌｫ①   ▶︎ \nﾃﾞﾌｫ②   ▶︎ \nﾃﾞﾌｫ③   ▶︎ \n偶数弱　▶︎ \n偶数強　▶︎ \n高設定弱▶︎ \n高設定強▶︎ \n2以上　▶︎ \n3以上　▶︎ \n4以上　▶︎ \n5以上　▶︎ \n6濃厚　▶︎\n\n■ﾎﾞｰﾅｽ獲得枚数\n222 OVER▶︎ \n456 OVER▶︎ \n555 OVER▶︎ \n803 OVER▶︎ \n666 OVER▶︎ \n\n■ED中の1枚絵\n偶数弱　▶︎ \n偶数強　▶︎ \n高設定弱▶︎ \n高設定強▶︎ \n2以上　▶︎ \n3以上　▶︎ \n4以上　▶︎ \n5以上　▶︎ \n6濃厚　▶︎";
+  // なな様テンプレ v03（10/26）。v02 に「■士気高揚 小役別」3行と「■ｲｲﾈ下3桁」を足しただけ。
+  // ｲｲﾈ下3桁は出た数字の行だけを出し、1つも無ければ「なし」のまま（tplText で差し替える）。
+  const TEMPLATE="新台 スマスロ パリピ孔明 \n____\n\n■ｽﾃﾁｪﾝ⑤の倍数CZ直撃▶︎ 0/0\n\n■士気高揚ゾーン\n109g        ▶︎ 0/0\n209g以降▶︎ 0/0\n\n■士気高揚 小役別\nﾘﾌﾟ/ﾍﾞﾙ▶︎ 0/0\n弱ﾁｪ/ｽｲｶ▶︎ 0/0\nﾁｬﾝｽ目▶︎ 0/0\n\n■レア役からのCZ\n\n通常\n弱ﾁｪ    ▶︎ 0/0\nｽｲｶ      ▶︎ 0/0\nﾁｬﾝｽ目▶︎ 0/0\n\n高確\n弱ﾁｪ    ▶︎ 0/0\nｽｲｶ      ▶︎ 0/0\nﾁｬﾝｽ目▶︎ 0/0\n\n超高\n弱ﾁｪ    ▶︎ 0/0\nｽｲｶ      ▶︎ 0/0\nﾁｬﾝｽ目▶︎ 0/0\n\n■CZ選択率\n三歌の礼　▶︎ \n英子の試練▶︎ \n石兵八陣　▶︎  \n\n■AT終了画面\nﾃﾞﾌｫ①   ▶︎ \nﾃﾞﾌｫ②   ▶︎ \nﾃﾞﾌｫ③   ▶︎ \n偶数弱　▶︎ \n偶数強　▶︎ \n高設定弱▶︎ \n高設定強▶︎ \n2以上　▶︎ \n3以上　▶︎ \n4以上　▶︎ \n5以上　▶︎ \n6濃厚　▶︎\n\n■ﾎﾞｰﾅｽ獲得枚数\n222 OVER▶︎ \n456 OVER▶︎ \n555 OVER▶︎ \n803 OVER▶︎ \n666 OVER▶︎ \n\n■ｲｲﾈ下3桁\nなし\n\n■ED中の1枚絵\n偶数弱　▶︎ \n偶数強　▶︎ \n高設定弱▶︎ \n高設定強▶︎ \n2以上　▶︎ \n3以上　▶︎ \n4以上　▶︎ \n5以上　▶︎ \n6濃厚　▶︎";
   function ndRow(ctx,opt){
     const canMinus=opt.d>opt.n;
     const missAttrs=ctx.mode<0&&!canMinus?'disabled aria-disabled="true"':`data-bump="${opt.dPath}"`;
@@ -61,16 +78,27 @@
   const ST_HINT='ST終了時の画面を記録します。画面の見分け方はガイドからちょんぼりすたの画像で確認できます。画像番号はちょんぼりすたの掲載順です。';
   const BONUS_OVER_HINT='ボーナス中の獲得枚数表示に出た「○○○ OVER」を記録します。';
   const ED_HINT='ED中に表示される1枚絵を記録します。ST終了画面とは別です。';
+  const IINE_HINT='渋谷決戦ボーナス中に表示されるイイネポイントの下3桁を記録します。獲得枚数の『○○○ OVER』とは別の表示なので、両方出たら両方記録します。出典の『設定示唆が出ると勝利も濃厚!?』は暫定表記のため扱いません。';
   // 3つ目は設定1⇔設定6の目安（ちょんぼりすたのCZ確率詳細）。実測の1/xは出さない。
   const CZ_TYPE=[['sanka','三歌の礼','設1:1/369.9⇔設6:1/314.8'],['eiko','英子の試練','設1:1/701.9⇔設6:1/528.4'],['sekihei','石兵八陣','設1:1/1809.0⇔設6:1/1324.4']];
   const RARE_STATES=[['normal','通常'],['high','高確'],['super','超高確']];
   const RARE_ROLES=[['Weak','弱チェリー'],['Melon','スイカ'],['Chance','チャンス目']];
+  // 士気高揚ゾーン中の小役揃い時のボーナス当選（10/26 追加）。3つ目は表示用の目安、probs は出典の設定1〜6。
+  // 推定タブが無いので probs は計算に使わない（記録と表示のみ）。
+  const SHIKI_ROLE=[
+    ['rb','リプレイ・ベル','設1:25.0%⇔設6:43.4%',{1:.250,2:.270,3:.324,4:.352,5:.402,6:.434}],
+    ['wm','弱チェリー・スイカ','設1:40.6%⇔設6:59.4%',{1:.406,2:.438,3:.492,4:.531,5:.570,6:.594}],
+    ['ch','チャンス目','設1〜3:75.0%⇔設4〜6:79.7%',{1:.750,2:.750,3:.750,4:.797,5:.797,6:.797}]
+  ];
   const ND=[
     ['stechen','n','d','ｽﾃﾁｪﾝ⑤の倍数CZ直撃'],
     ['shiki','n109','d109','109G'],['shiki','n209','d209','209G以降'],
+    ...SHIKI_ROLE.map(([key,name])=>['shikiRole',key+'N',key+'D','士気 '+name]),
     ...RARE_STATES.flatMap(([key,label])=>RARE_ROLES.map(([role,name])=>['rare',key+role+'N',key+role+'D',label+' '+name]))
   ];
   const SHIKI_HINT='ゲーム数の下2桁が09を超えた後、最初のステージチェンジだけを数えます。例：115Gでステチェン→109Gの欄、220Gでステチェン→209G以降の欄。そのあとのステチェン（例：160G）は数えません。孔明前世のときはボーナス前兆なので数えません。';
+  const SHIKI_ROLE_HINT='士気高揚ゾーン中に小役が揃ったとき、ボーナスに当選したら当選、しなければハズレで記録します。役ごとに分けて押してください。既存の『突入／なし』（109G／209G）とは別の記録で、母数は読み替えません。';
+  const STECHEN_HINT='CZ天井までの平均周期回数は設定1 17.2回⇔設定6 13.3回（設定2 16.6／3 15.9／4 15.1／5 14.2）。平均のみ公表で分布は未公表のため、推定には使いません。';
   // 先頭に30字以内の要約を置き、畳んだときも行内に1文が残るようにする（§9-97）。
   const RARE_HINT='状態はステージで見分けます。英子の部屋＝高確、スカイスクエア＝超高確、それ以外（BBラウンジ・公園・竹下通り）＝通常。孔明前世のときはボーナス前兆なので数えません。';
   function czTotal(S){return CZ_TYPE.reduce((a,c)=>a+n(S.czType,c[0]),n(S.counts,'cz'));}
@@ -80,11 +108,12 @@
   function stTotal(S){return ST_END.reduce((a,c)=>a+n(S.stEnd,c[0]),0);}
   const bonusTotal=S=>BONUS_OVER.reduce((a,c)=>a+n(S.bonusOver,c[0]),0);
   const edTotal=S=>ED_PIC.reduce((a,c)=>a+n(S.edPic,c[0]),0);
-  // 確定演出は ST終了画面 → ボーナス獲得枚数 → ED中の1枚絵 の順に並べ、同じ設定ならこの順で選ぶ。
-  const CERT_GROUPS=[[ST_END,'stEnd',c=>c[1]],[BONUS_OVER,'bonusOver',c=>c[1]+' '+c[2]],[ED_PIC,'edPic',c=>'ED1枚絵 '+c[1]]];
+  const iineTotal=S=>IINE.reduce((a,c)=>a+n(S.iine,c[0]),0);
+  // 確定演出は ST終了画面 → ボーナス獲得枚数 → イイネ下3桁 → ED中の1枚絵 の順に並べ、同じ設定ならこの順で選ぶ。
+  const CERT_GROUPS=[[ST_END,'stEnd',c=>c[1]],[BONUS_OVER,'bonusOver',c=>c[1]+' '+c[2]],[IINE,'iine',c=>'イイネ'+c[1]+' '+c[2]],[ED_PIC,'edPic',c=>'ED1枚絵 '+c[1]]];
   function certItems(S){
     let order=0;
-    return CERT_GROUPS.flatMap(([defs,key,label])=>defs.filter(c=>c[3]>0).map(c=>({label:label(c),rank:c[3],value:n(S[key],c[0]),order:order++})));
+    return CERT_GROUPS.flatMap(([defs,key,label])=>defs.filter(c=>certRank(c)>0).map(c=>({label:label(c),rank:certRank(c),value:n(S[key],c[0]),order:order++})));
   }
   function certCount(S){return certItems(S).reduce((a,c)=>a+c.value,0);}
   function stCertCount(S){return stGroup('cert').reduce((a,c)=>a+n(S.stEnd,c[0]),0);}
@@ -121,17 +150,17 @@
     <div class="hint">${INITIAL_HINT}</div>
   </section>`;}
 
-  const DEF={games:0,counts:Object.fromEntries(COUNTS.map(c=>[c[0],0])),stEnd:Object.fromEntries(ST_END.map(c=>[c[0],0])),bonusOver:Object.fromEntries(BONUS_OVER.map(c=>[c[0],0])),edPic:Object.fromEntries(ED_PIC.map(c=>[c[0],0])),stechen:{n:0,d:0},shiki:{n109:0,d109:0,n209:0,d209:0},rare:Object.fromEntries(ND.filter(c=>c[0]==='rare').flatMap(c=>[[c[1],0],[c[2],0]])),czType:Object.fromEntries(CZ_TYPE.map(c=>[c[0],0])),img:null,iconChoice:null};
+  const DEF={games:0,counts:Object.fromEntries(COUNTS.map(c=>[c[0],0])),stEnd:Object.fromEntries(ST_END.map(c=>[c[0],0])),bonusOver:Object.fromEntries(BONUS_OVER.map(c=>[c[0],0])),edPic:Object.fromEntries(ED_PIC.map(c=>[c[0],0])),iine:Object.fromEntries(IINE.map(c=>[c[0],0])),stechen:{n:0,d:0},shiki:{n109:0,d109:0,n209:0,d209:0},shikiRole:Object.fromEntries(SHIKI_ROLE.flatMap(c=>[[c[0]+'N',0],[c[0]+'D',0]])),rare:Object.fromEntries(ND.filter(c=>c[0]==='rare').flatMap(c=>[[c[1],0],[c[2],0]])),czType:Object.fromEntries(CZ_TYPE.map(c=>[c[0],0])),img:null,iconChoice:null};
   function normalizeState(out){
     out.games=Math.max(0,Number(out.games)||0);
     out.counts=Object.assign({},DEF.counts,out.counts||{});
     Object.keys(out.counts).forEach(k=>{out.counts[k]=Math.max(0,Number(out.counts[k])||0);});
-    // bonusOver・edPic は 10/14 追加。stEnd しか無い旧データは0で補完する。
-    for(const key of ['stEnd','bonusOver','edPic']){
+    // bonusOver・edPic は 10/14 追加、iine・shikiRole は 10/26 追加。無い旧データは0で補完する。
+    for(const key of ['stEnd','bonusOver','edPic','iine']){
       out[key]=Object.assign({},DEF[key],out[key]||{});
       Object.keys(out[key]).forEach(k=>{out[key][k]=Math.max(0,Number(out[key][k])||0);});
     }
-    for(const key of ['stechen','shiki','rare','czType']){
+    for(const key of ['stechen','shiki','shikiRole','rare','czType']){
       out[key]=Object.assign({},DEF[key],out[key]||{});
       Object.keys(out[key]).forEach(k=>{const v=Number(out[key][k]);out[key][k]=Number.isFinite(v)?Math.max(0,Math.floor(v)):0;});
     }
@@ -140,22 +169,30 @@
   }
   function pageInput(ctx){return gameSection(ctx.S)+initialSection(ctx);}
   function pageNormal(ctx){
-    const draw=(items,winLabel,missLabel)=>items.map(([key,nKey,dKey,name])=>ndRow(ctx,{cls:'normal-row',name,nPath:key+'.'+nKey,dPath:key+'.'+dKey,n:n(ctx.S[key],nKey),d:n(ctx.S[key],dKey),winLabel,missLabel})).join('');
+    const draw=(items,winLabel,missLabel,extra=()=>({}))=>items.map(([key,nKey,dKey,name],i)=>ndRow(ctx,Object.assign({cls:'normal-row',name,nPath:key+'.'+nKey,dPath:key+'.'+dKey,n:n(ctx.S[key],nKey),d:n(ctx.S[key],dKey),winLabel,missLabel},extra(i)))).join('');
+    const group=key=>ND.filter(c=>c[0]===key);
     return `<style>${ND_STYLE}
       .normal-row .pct{min-width:48px;text-align:right}
+      .role-row{flex-wrap:wrap;row-gap:6px}
+      .role-row .ct{flex:1 0 100%}
+      .role-row .ct b,.role-row .ct small{display:inline}
+      .role-row .ct small{margin-left:8px;white-space:nowrap}
+      .role-row .num{margin-left:auto}
     </style>
     <section class="sec"><div class="sec-h">ｽﾃﾁｪﾝ⑤の倍数CZ直撃</div>
-      <div class="cgrid">${draw(ND.slice(0,1),'直撃','なし')}</div>
+      <div class="cgrid">${draw(group('stechen'),'直撃','なし')}</div>
       <div class="hint">ステージチェンジ回数が5の倍数の周期に到達するたびに記録します</div>
-      <div class="hint">設定差は公表されていません</div>
+      <div class="hint" data-fold="no">${STECHEN_HINT}</div>
     </section>
     <section class="sec"><div class="sec-h">士気高揚ゾーン</div>
       <div class="hint" data-fold="no">${SHIKI_HINT}</div>
-      <div class="cgrid">${draw(ND.slice(1,3),'突入','なし')}</div>
+      <div class="cgrid">${draw(group('shiki'),'突入','なし')}</div>
+      <div class="cgrid" style="margin-top:6px">${draw(group('shikiRole'),'当選','ハズレ',i=>({cls:'normal-row role-row',displayName:SHIKI_ROLE[i][1],sub:SHIKI_ROLE[i][2]}))}</div>
+      <div class="hint" data-fold="no">${SHIKI_ROLE_HINT}</div>
     </section>
     <section class="sec"><div class="sec-h">レア役からのCZ</div>
       <div class="hint">${RARE_HINT}</div>
-      <div class="cgrid">${draw(ND.slice(3),'当選','ハズレ')}</div>
+      <div class="cgrid">${draw(group('rare'),'当選','ハズレ')}</div>
     </section>`;
   }
   function pageShisa(ctx){const S=ctx.S;return `<section class="sec">
@@ -169,6 +206,11 @@
     <div class="hint">${BONUS_OVER_HINT}</div>
   </section>
   <section class="sec">
+    <div class="sec-h">イイネ下3桁<span class="sub">計${iineTotal(S)}回</span></div>
+    <div class="cgrid">${IINE.map(c=>ctx.crow('iine.'+c[0],c[1],c[2],true)).join('')}</div>
+    <div class="hint" data-fold="no">${IINE_HINT}</div>
+  </section>
+  <section class="sec">
     <div class="sec-h">ED中の1枚絵<span class="sub">計${edTotal(S)}回</span></div>
     <div class="cgrid">${ED_PIC.map(c=>ctx.crow('edPic.'+c[0],c[1],c[2],c[3]>0)).join('')}</div>
     <div class="hint">${ED_HINT}</div>
@@ -176,14 +218,15 @@
   function tplText(ctx){const S=ctx.S,g=S.games;
     const values=[...ND.map(([key,nKey,dKey])=>n(S[key],nKey)+'/'+n(S[key],dKey)),...CZ_TYPE.map(c=>n(S.czType,c[0])+'回'),...ST_END.map(c=>n(S.stEnd,c[0])+'回'),...BONUS_OVER.map(c=>n(S.bonusOver,c[0])+'回'),...ED_PIC.map(c=>n(S.edPic,c[0])+'回')];
     let i=0;
+    const iine=IINE.filter(c=>n(S.iine,c[0])>0).map(c=>c[1]+'▶︎ '+n(S.iine,c[0])+'回');
     const text=TEMPLATE.replace(/0\/0|▶︎ *(?=\r?\n|$)/g,m=>{
       const v=values[i++];
       return m.startsWith('0')?v:'▶︎ '+v;
-    });
+    }).replace('■ｲｲﾈ下3桁\nなし',()=>'■ｲｲﾈ下3桁\n'+(iine.length?iine.join('\n'):'なし'));
     return `設定判別メモ｜${TITLE}\n通常 ${g||0}G / CZ${countRate(g,czTotal(S))} / 初当り${countRate(g,n(S.counts,'bonus'))}\n_______\n\n${text}\n\nby slot-tools.jp\n${ctx.nanaCreditText('text')}\n解析出典:ちょんぼりすた様`;
   }
   window.CheckerConfigs[ID]={
-    uiV2:true,nanaCollab:true,storageKey:ID+'-checker-v1',defaults:DEF,mergeKeys:['counts','stEnd','stechen','shiki','rare','czType','bonusOver','edPic'],sourceUrl:SOURCE,
+    uiV2:true,nanaCollab:true,storageKey:ID+'-checker-v1',defaults:DEF,mergeKeys:['counts','stEnd','stechen','shiki','rare','czType','bonusOver','edPic','iine','shikiRole'],sourceUrl:SOURCE,
     normalizeState,
     share:{title:TITLE+' 設定判別メモ',hashtags:TAGS},
     pages:(ctx,pageCard)=>[()=>pageInput(ctx),()=>pageNormal(ctx),()=>pageShisa(ctx),pageCard],template:tplText,compactTemplate:tplText,
@@ -192,6 +235,7 @@
       detail:ctx=>[initialDetail(ctx.S),
         {title:'ST終了画面',items:ST_END.map(c=>({label:c[1],value:n(ctx.S.stEnd,c[0]),hot:c[3]>0})),percent:true,denominator:stTotal(ctx.S)},
         {title:'ボーナス獲得枚数',items:BONUS_OVER.map(c=>({label:c[1]+' '+c[2],value:n(ctx.S.bonusOver,c[0]),hot:true}))},
+        {title:'イイネ下3桁',items:IINE.map(c=>({label:c[1]+' '+c[2],value:n(ctx.S.iine,c[0]),hot:true}))},
         {title:'ED中の1枚絵',items:ED_PIC.map(c=>({label:c[1],value:n(ctx.S.edPic,c[0]),hot:c[3]>0}))},
         {title:'通常時',items:ND.map(([key,nKey,dKey,label])=>({label,value:n(ctx.S[key],nKey),text:label+' '+n(ctx.S[key],nKey)+'/'+n(ctx.S[key],dKey),show:n(ctx.S[key],dKey)>0,hot:false}))}
       ],
