@@ -55,7 +55,7 @@ const tracked=execFileSync('git',['-c','safe.directory='+root.replace(/[\\/]$/,'
 // mahoako は 10/19 の新規機種（docs/specs/mahoako-checker-v01.md）のため除外。
 // mogumogu-checker.html・checker-data/mogumogu.js・mogumogu-guide.html は 10/21 のED中の巻物・CZ種別の内訳の追加で変更済み。
 // tonski-checker.html・checker-data/tonski.js・tonski-guide.html は 10/21 の333G到達時の女神の舞の記録追加で変更済み。
-const changed=['checker-data/paripi-test.js','paripi-test-checker.html','mogumogu-checker.html','checker-data/mogumogu.js','mogumogu-guide.html','tonski-checker.html','checker-data/tonski.js','tonski-guide.html','magireco-checker.html','checker-data/magireco.js','mhsunbreak-checker.html','checker-data/mhsunbreak.js','tenten-checker.html','checker-data/tenten.js','takoslot-checker.html','checker-data/takoslot.js','paripi-checker.html','checker-data/paripi.js',
+const changed=['mogumogu-checker.html','checker-data/mogumogu.js','mogumogu-guide.html','tonski-checker.html','checker-data/tonski.js','tonski-guide.html','magireco-checker.html','checker-data/magireco.js','mhsunbreak-checker.html','checker-data/mhsunbreak.js','tenten-checker.html','checker-data/tenten.js','takoslot-checker.html','checker-data/takoslot.js','paripi-checker.html','checker-data/paripi.js',
   'checker-data/toaru2.js','toaru2-checker.html',
   'checker-data/kanokari.js','kanokari-checker.html',
   'checker-data/ricorico.js','ricorico-checker.html',
