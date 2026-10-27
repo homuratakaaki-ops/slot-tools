@@ -53,6 +53,7 @@ const tracked=execFileSync('git',['-c','safe.directory='+root.replace(/[\\/]$/,'
 // ricorico は 10/14 の解析更新（弱リコリス目の変換高確記録の追加ほか）のため除外。
 // garei_zero_re は 10/14 の解析更新（ステージチェンジ演出・強チャンス目CZ）のため除外。
 // mahoako は 10/19 の新規機種（docs/specs/mahoako-checker-v01.md）のため除外。
+// seiya12 は 10/28 の新規機種（docs/specs/seiya12-checker-v01.md）のため除外。
 // mogumogu-checker.html・checker-data/mogumogu.js・mogumogu-guide.html は 10/21 のED中の巻物・CZ種別の内訳の追加で変更済み。
 // tonski-checker.html・checker-data/tonski.js・tonski-guide.html は 10/21 の333G到達時の女神の舞の記録追加で変更済み。
 const changed=['mogumogu-checker.html','checker-data/mogumogu.js','mogumogu-guide.html','tonski-checker.html','checker-data/tonski.js','tonski-guide.html','magireco-checker.html','checker-data/magireco.js','mhsunbreak-checker.html','checker-data/mhsunbreak.js','tenten-checker.html','checker-data/tenten.js','takoslot-checker.html','checker-data/takoslot.js','paripi-checker.html','checker-data/paripi.js',
@@ -61,6 +62,7 @@ const changed=['mogumogu-checker.html','checker-data/mogumogu.js','mogumogu-guid
   'checker-data/ricorico.js','ricorico-checker.html',
   'checker-data/garei_zero_re.js','garei-zero-re-checker.html',
   'checker-data/mahoako.js','mahoako-checker.html',
+  'checker-data/seiya12.js','seiya12-checker.html',
   'enen2-checker.html','kabaneri2-checker.html','karakuri2-checker.html','otome5-checker.html',
   'sao2-checker.html','taktop-checker.html','yajikita-checker.html','yoshimune-checker.html'];
 for(const file of tracked.filter(f=>!changed.includes(f)))assert.deepEqual(Buffer.from(read(file)),Buffer.from(baseline(file)),file);

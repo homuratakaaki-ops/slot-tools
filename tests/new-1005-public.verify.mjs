@@ -120,7 +120,7 @@ const approvedData={
   'checker-data/mogumogu.js':'5b176a4ddd8170d8def74bf13fe085f4ef16e722',
   'checker-data/tonski.js':'2f9bc4a92b3d98c5b77397b10f006b573bafa922'
 };
-for(const file of ['checker-engine.js','checker-bayes.js',...fs.readdirSync(new URL('checker-data/',root)).filter(f=>f.endsWith('.js')&&!['mhsunbreak.js','magireco.js','tenten.js','takoslot.js','paripi.js','toaru2.js','kanokari.js','ricorico.js','garei_zero_re.js','mahoako.js'].includes(f)).map(f=>'checker-data/'+f)]){
+for(const file of ['checker-engine.js','checker-bayes.js',...fs.readdirSync(new URL('checker-data/',root)).filter(f=>f.endsWith('.js')&&!['mhsunbreak.js','magireco.js','tenten.js','takoslot.js','paripi.js','toaru2.js','kanokari.js','ricorico.js','garei_zero_re.js','mahoako.js','seiya12.js'].includes(f)).map(f=>'checker-data/'+f)]){
   const expected=approvedData[file]?execFileSync('git',['show',approvedData[file]+':'+file],{encoding:'utf8'}):hitBaseline(file);
   bytes(read(file),expected);
 }
