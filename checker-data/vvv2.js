@@ -116,7 +116,8 @@
     return {p,active,warnings,contradiction};
   }
   function nextPtDist(S){const r=posterior(S),dist=rawPt(r.p,current(S),S.curPt,r.active);return {dist,warnings:r.warnings.concat(dist.length?[]:['到達pt候補がありません（記録を確認してください）']),contradiction:r.contradiction||!dist.length};}
-  const enabledPts=S=>['cycle','pull'].includes(phase(S))?nextPtDist(S).dist.map(x=>x.pt):[];
+  // 周期の記録で全モードが消えた（記録の矛盾）ときだけ絞り込みを外し、記録を続けられるようにする（§13-3 シオン判断 10/29）。現在pt・ピノが原因の候補なしは絞り込みを維持する
+  const enabledPts=S=>!['cycle','pull'].includes(phase(S))?[]:posterior(S).contradiction?[100,200,300,400,500,600]:nextPtDist(S).dist.map(x=>x.pt);
   function cycleCap(S){const r=posterior(S),s=current(S),k=cycleNo(s),reset=S.spans.length===1&&S.start.kind==='reset';if(!sum(r.p))return null;
     const misses=cycles(s).filter(x=>x.magius&&x.r==='miss').length;
     return Math.max(0,Math.min(Math.max(...CAPS.filter((_,i)=>r.p[i]>0))-k+1-misses,reset?3-k+1:Infinity,...r.active.filter(x=>HINT[x.c]?.type==='cycle').map(x=>x.k+HINT[x.c].effect.capWithin-k)));

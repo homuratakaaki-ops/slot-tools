@@ -144,6 +144,9 @@ check('14 追加便E 到達pt集合・見出し・トースト',()=>{
   cases[4].curPt=200;
   const expected=[[100,200],[100,200,300,400],[100,200],[300,400,500,600],[]];
   cases.forEach((S,i)=>{const before=JSON.stringify(S);eq(c.enabledPts(S),c.nextPtDist(S).dist.map(x=>x.pt));eq(c.enabledPts(S),expected[i]);assert.equal(JSON.stringify(S),before);});
+  // 記録の矛盾（bonusEnd で6周期ハズレ＝全モード消去）だけは絞り込みを外して6つとも押せる。警告は出したまま（§13-3 シオン判断 10/29）
+  {const X=fresh();for(let i=0;i<6;i++)cyc(X,200);assert.equal(c.posterior(X).contradiction,true);eq(c.nextPtDist(X).dist,[]);eq(c.enabledPts(X),[100,200,300,400,500,600]);
+   assert.ok(c.posterior(X).warnings.length);const html=c.pages({S:X,mode:1},()=>[])[2]();assert.ok(html.includes('到達pt候補がありません。記録や現在ptを確認してください'));assert.ok(!/data-pt="\d+"[^>]*disabled/.test(html));}
   const render=S=>c.pages({S,mode:1},()=>[])[2]();
   assert.ok(render(fresh()).includes('<strong>1周期目</strong> の到達ptを記録'));
   assert.ok(render(fresh()).includes('現在pt（1周期目・任意）'));
