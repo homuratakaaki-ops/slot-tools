@@ -158,7 +158,7 @@ try{
         assert.ok(await run('return d.querySelector(".vv-until").textContent.includes("当選まで（参考）");'));
         assert.equal(await run('return d.querySelector(".now-box details").open;'),false);
         const m=await run(`return {last:d.querySelector('[data-pt="600"]').getBoundingClientRect().bottom,out:d.querySelector('[data-action="out"]').getBoundingClientRect().bottom,nav:d.getElementById('nav').getBoundingClientRect().top,now:d.querySelector('.now-box').getBoundingClientRect().height};`);
-        if(width===390){await shot('vvv2-cycle-390-'+label,width);assert.ok(m.last<=m.nav&&m.out<=m.nav,JSON.stringify(m));}measures.push({width,label,cycle:m});
+        if(width===390){await shot('vvv2-cycle-390-'+label,width);assert.ok(m.last<m.nav&&m.out<m.nav,JSON.stringify(m));}measures.push({width,label,cycle:m});
       }}
     }
   }
