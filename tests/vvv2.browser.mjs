@@ -108,6 +108,11 @@ try{
   await click('#undoBtn');const [lastG,lastKey]=groupKeys.at(-1);assert.equal((await state()).groups[lastG][lastKey],0);await act('group',`[data-group="${lastG}"][data-key="${lastKey}"]`);
   await reloaded();pass(`示唆${groupKeys.length}ボタン・保存・再読込・取消`);
   const keep=await state();
+  await tab(1);assert.equal(await run('return d.getElementById("vv-ref").open;'),false);
+  assert.equal(await run('return !!d.getElementById("vv-bayes").closest("details");'),false);
+  await click('a[href="#vv-ref"]');assert.equal(await run('return d.getElementById("vv-ref").open;'),true);
+  await shot('vvv2-suggest-reference-390',390);
+  pass('参照表は既定で閉じる・参照ジャンプで開く・設定推測は畳まない');
   for(const pt of [100,200,300,400,500,600]){await selectStart('bonusEnd');await round(pt);assert.equal((await state()).spans[0].rows[0].pt,pt);await reloaded();}
   await selectStart('bonusEnd');await round(200);await round(600);await round(400);
   assert.ok((await run('return d.querySelector(".vv-mode").textContent;')).includes('A 100%'));
@@ -150,8 +155,10 @@ try{
       await seed(S,width);
       for(let p=0;p<4;p++){await tab(p);await layout(width,label,p);if(p===2){
         await run('d.getElementById("main").scrollTop=0;');
-        const m=await run(`return {last:d.querySelector('[data-pt="600"]').getBoundingClientRect().bottom,nav:d.getElementById('nav').getBoundingClientRect().top,now:d.querySelector('.now-box').getBoundingClientRect().height};`);
-        if(width===390){assert.ok(m.last<=m.nav,JSON.stringify(m));await shot('vvv2-cycle-390-'+label,width);}measures.push({width,label,cycle:m});
+        assert.ok(await run('return d.querySelector(".vv-until").textContent.includes("当選まで（参考）");'));
+        assert.equal(await run('return d.querySelector(".now-box details").open;'),false);
+        const m=await run(`return {last:d.querySelector('[data-pt="600"]').getBoundingClientRect().bottom,out:d.querySelector('[data-action="out"]').getBoundingClientRect().bottom,nav:d.getElementById('nav').getBoundingClientRect().top,now:d.querySelector('.now-box').getBoundingClientRect().height};`);
+        if(width===390){await shot('vvv2-cycle-390-'+label,width);assert.ok(m.last<=m.nav&&m.out<=m.nav,JSON.stringify(m));}measures.push({width,label,cycle:m});
       }}
     }
   }

@@ -75,12 +75,17 @@
     const i=typeof m==='number'?m:MODES.indexOf(m),pt=(table(k,prev600)[row.pt]||[])[i]||0,q=hazard(i,k,resetSpan,hints);
     return pt/100*(row.r==='win'?q:1-q);
   }
-  function spanPosterior(prior,span,resetSpan,hints){
+  function spanPosterior(prior,span,resetSpan,hints,curPt=null){
     let p=prior.slice(),prev=false,k=0;
     for(const r of span.rows){if(r.t!=='cyc')continue;k++;p=normalize(p.map((v,i)=>v*rowLik(i,r,k,prev,resetSpan,hints)));prev=r.pt===600;}
     for(const r of hints){const h=HINT[r.c],e=h.effect;if(h.type!=='mode')continue;
       const only=e.only||(span.rows.some(x=>x.t==='pull'&&x.r==='miss')?e.onlyIfPullMiss:null);
       p=p.map((v,i)=>(e.exclude||[]).includes(MODES[i])||(only&&!only.includes(MODES[i]))?0:v);
+    }
+    if(curPt!=null){
+      const t=table(k+1,prev),max=Math.min(Infinity,...hints.filter(r=>HINT[r.c]?.type==='pt'&&r.k===k+1).map(r=>HINT[r.c].effect.ptMax));
+      const weighted=p.map((v,i)=>v*sum(Object.entries(t).filter(([pt])=>Number(pt)>curPt&&Number(pt)<=max).map(([,a])=>(a[i]||0)/100)));
+      if(sum(weighted))p=weighted; // 全候補なしは現在ptを外した事後を維持し、posteriorで警告する。
     }
     return normalize(p);
   }
@@ -94,17 +99,18 @@
   function posterior(S){
     let prior=priorOf(S),p=prior,active=[],warnings=[],contradiction=false;
     S.spans.forEach((span,si)=>{
-      const reset=si===0&&S.start.kind==='reset';active=[];
-      p=spanPosterior(prior,span,reset,active);
+      const reset=si===0&&S.start.kind==='reset',curPt=si===S.spans.length-1&&['cycle','pull'].includes(phase(S))?S.curPt:null;active=[];
+      p=spanPosterior(prior,span,reset,active,curPt);
       if(!sum(p)){contradiction=true;warnings.push('周期の記録が食い違います（区間'+(si+1)+'）');}
       for(const r of span.rows.filter(r=>r.t==='hint'&&HINT[r.c])){
         const h=HINT[r.c];if(h.type==='ref'){active.push(r);continue;}
-        const proposed=active.concat(r),next=spanPosterior(prior,span,reset,proposed);
+        const proposed=active.concat(r),next=spanPosterior(prior,span,reset,proposed,curPt);
         const recorded=cycles(span).find((x,i)=>i+1===r.k);
         const ptConflict=h.type==='pt'&&(recorded?recorded.pt>h.effect.ptMax:(r.k===cycleNo(span)&&si===S.spans.length-1&&!rawPt(next,span,S.curPt,proposed).length));
         if(!sum(next)||ptConflict)warnings.push('示唆と記録が食い違います（示唆：'+h.label+'）');
         else{active=proposed;p=next;}
       }
+      if(curPt!=null&&!rawPt(p,span,curPt,active).length)warnings.push('到達pt候補がありません（記録を確認してください）');
       if(span.end)prior=['czmiss','rbmiss'].includes(span.end.t)?transition(p):PRIOR_RESET.map(x=>x/100);
     });
     return {p,active,warnings,contradiction};
@@ -115,6 +121,27 @@
     return Math.max(0,Math.min(Math.max(...CAPS.filter((_,i)=>r.p[i]>0))-k+1-misses,reset?3-k+1:Infinity,...r.active.filter(x=>HINT[x.c]?.type==='cycle').map(x=>x.k+HINT[x.c].effect.capWithin-k)));
   }
   function winPctNow(S){const r=posterior(S);return sum(r.p)?100*sum(r.p.map((v,i)=>v*hazard(i,cycleNo(current(S)),S.spans.length===1&&S.start.kind==='reset',r.active))):null;}
+  function untilWin(S){
+    const r=posterior(S),s=current(S),c=cycles(s),curPt=S.curPt??0,reset=S.spans.length===1&&S.start.kind==='reset';
+    const max=Math.min(Infinity,...r.active.filter(x=>HINT[x.c]?.type==='pt'&&x.k===c.length+1).map(x=>HINT[x.c].effect.ptMax));
+    const dist=new Map();let avgCycles=0;
+    function walk(m,k,prev600,first,prob,pt,n){
+      const candidates=Object.entries(table(k,prev600)).filter(([p,a])=>a[m]>0&&(!first||(Number(p)>curPt&&Number(p)<=max)));
+      const total=sum(candidates.map(([,a])=>a[m]));if(!total)return;
+      const q=hazard(m,k,reset,r.active);
+      for(const [p,a] of candidates){
+        const weight=prob*a[m]/total,cost=pt+Number(p)-(first?curPt:0),win=weight*q;
+        if(win){dist.set(cost,(dist.get(cost)||0)+win);avgCycles+=win*(n+1);}
+        if(q<1)walk(m,k+1,Number(p)===600,false,weight*(1-q),cost,n+1);
+      }
+    }
+    if(!r.contradiction&&['cycle','pull'].includes(phase(S)))r.p.forEach((p,m)=>{if(p)walk(m,c.length+1,c.at(-1)?.pt===600,true,p,0,0);});
+    const distribution=[...dist].sort((a,b)=>a[0]-b[0]).map(([pt,p])=>({pt,p})),total=sum(distribution.map(x=>x.p));
+    if(!total)return {distribution,total,avgPt:null,avgG:null,avgCycles:null,p50:null,p80:null};
+    const avgPt=sum(distribution.map(x=>x.pt*x.p));
+    const quantile=target=>{let cumulative=0;return distribution.find(x=>(cumulative+=x.p)>=target-1e-12)?.pt??null;};
+    return {distribution,total,avgPt,avgG:Math.floor(avgPt/3),avgCycles,p50:quantile(.5),p80:quantile(.8)};
+  }
   function pct(p){return p>0&&p<.005?'1%未満':Math.round(p*100)+'%';}
   function modeText(S){const r=posterior(S);return r.contradiction?'—（記録の矛盾）':r.p.map((v,i)=>v?MODES[i]+' '+pct(v):'').filter(Boolean).join('／')||'—';}
   function knownTotal(S,g){return sum(GROUPS[g].filter(c=>c[0]!=='unknown').map(c=>S.groups[g][c[0]]));}
@@ -146,11 +173,11 @@
   function groupRow(ctx,g,c,percent,total){const v=ctx.S.groups[g][c[0]],meaning=c[2]?'設定'+c[2]+(c[2]===6?'濃厚':'以上濃厚'):c[0]==='unknown'?'割合の母数に入れない':'';return `<div class="crow" data-group-row="${g}.${c[0]}"><div class="lbl"><div class="nm">${c[1]}</div><div class="mn ${c[2]?'hot':''}">${meaning}</div></div><div class="num">${v}</div>${percent&&c[0]!=='unknown'?'<div class="pct">'+(total?Math.round(100*v/total)+'%':'—')+'</div>':''}${action('group',ctx.mode<0?'−':'＋',`data-group="${g}" data-key="${c[0]}" aria-label="${c[1]}を1回${ctx.mode<0?'減算':'追加'}"`)}</div>`;}
   function pageBayes(ctx){const S=ctx.S,r=bayesResult(S);return section('設定推測',`<div class="bayes-main">${esc(bayesText(S))}</div>${r.posterior?SETTINGS.map(s=>`<div class="bayes-bar"><span>設定${s}</span><div><b style="width:${100*r.posterior[s]}%"></b></div><em>${pct(r.posterior[s])}</em></div>`).join(''):r.empty?'<p>記録が増えると推測できます。</p>':'<p class="vv-error">記録に矛盾があります。</p>'}${S.custom!=='off'?'<div class="hint">'+(S.custom==='on'?'終了画面カスタムがONのため終了画面は使っていません（終了画面の濃厚系も使っていません）':'終了画面カスタムが不明のため終了画面は使っていません（終了画面の濃厚系も使っていません）')+'</div>':''}<div class="hint">入力された記録からの参考値です。サンプルが少ないほど信頼度は下がります。</div>`,'vv-bayes');}
   function refTable(title,head,rows){return section(title,`<table class="vv-table"><thead><tr>${head.map(x=>'<th>'+x+'</th>').join('')}</tr></thead><tbody>${rows.map(row=>'<tr>'+row.map(x=>'<td>'+x+'</td>').join('')+'</tr>').join('')}</tbody></table>`);}
-  function pageReference(){return '<div id="vv-ref">'+refTable('設定別数値',['項目',...SETTINGS.map(x=>'設定'+x)],[['初当り（参考）',...FIRST.map(x=>'1/'+x)],['出玉率%',...PAYOUT],['BAR直撃%',...BAR],['特殊テーブル%',...SPECIAL]])+refTable('終了画面振分（%）',['画面',...SETTINGS],GROUPS.endScreen.slice(0,8).map((c,j)=>[c[1],...END_PROBS.map(a=>a[j]||'—')]))+refTable('バッフェ（%）',['状態',...SETTINGS],GROUPS.baffe.map((c,j)=>[c[1],...BAFFE.map(a=>a[j])]))+refTable('モードと天井',['モード','最大pt（2周期目以降）','天井周期'],MODES.map((m,i)=>[m,[600,600,400,'200（初回）'][i],CAPS[i]]))+refTable('開始時モード振分（%）',MODES,[PRIOR_RESET])+refTable('失敗後モード移行率（%）',['滞在',...MODES],TRANS.map((a,i)=>[MODES[i],...a]))+[[PT1,'1周期目'],[PT2,'2周期目以降'],[PT3,'前回600pt']].map(([t,l])=>refTable(l+' 到達pt振分（%）',['pt',...MODES],Object.entries(t).map(([p,a])=>[p,...a.map(x=>x||'—')]))).join('')+refTable('天井周期振分（%）',['周期',...MODES],[1,2,3,4,5,6].map((k)=>[k,...CYCLE.map(a=>a[k-1]||'—')]))+refTable('周期ナビの示唆',['演出','意味'],Object.values(HINT).map(h=>[h.label,h.meaning]))+'<p class="hint">当ページの解析値は第三者の独自調査値です。通常Aの周期振分は合計98%（出典値のまま）です。</p></div>';}
-  function pageSuggest(ctx){return '<div class="jump-grid">'+[['vv-end','終了画面'],['vv-at','AT中'],['vv-other','その他'],['vv-bayes','設定推測'],['vv-ref','参照']].map(([id,l])=>`<a href="#${id}">${l}</a>`).join('')+'</div><div id="vv-end">'+groupSection(ctx,'endScreen')+groupSection(ctx,'atEnd')+'</div><div id="vv-at">'+['roundRed','over','zorome'].map(g=>groupSection(ctx,g)).join('')+'</div><div id="vv-other">'+['magiusCount','mumu','baffe'].map(g=>groupSection(ctx,g)).join('')+'</div>'+pageBayes(ctx)+pageReference();}
-  function pageCycle(ctx){const S=ctx.S,r=posterior(S),d=nextPtDist(S),s=current(S),k=cycleNo(s),ph=phase(S),cap=cycleCap(S),win=winPctNow(S);
+  function pageReference(){return '<details id="vv-ref"><summary>参照表（設定別数値・振分表・示唆一覧）</summary>'+refTable('設定別数値',['項目',...SETTINGS.map(x=>'設定'+x)],[['初当り（参考）',...FIRST.map(x=>'1/'+x)],['出玉率%',...PAYOUT],['BAR直撃%',...BAR],['特殊テーブル%',...SPECIAL]])+refTable('終了画面振分（%）',['画面',...SETTINGS],GROUPS.endScreen.slice(0,8).map((c,j)=>[c[1],...END_PROBS.map(a=>a[j]||'—')]))+refTable('バッフェ（%）',['状態',...SETTINGS],GROUPS.baffe.map((c,j)=>[c[1],...BAFFE.map(a=>a[j])]))+refTable('モードと天井',['モード','最大pt（2周期目以降）','天井周期'],MODES.map((m,i)=>[m,[600,600,400,'200（初回）'][i],CAPS[i]]))+refTable('開始時モード振分（%）',MODES,[PRIOR_RESET])+refTable('失敗後モード移行率（%）',['滞在',...MODES],TRANS.map((a,i)=>[MODES[i],...a]))+[[PT1,'1周期目'],[PT2,'2周期目以降'],[PT3,'前回600pt']].map(([t,l])=>refTable(l+' 到達pt振分（%）',['pt',...MODES],Object.entries(t).map(([p,a])=>[p,...a.map(x=>x||'—')]))).join('')+refTable('天井周期振分（%）',['周期',...MODES],[1,2,3,4,5,6].map((k)=>[k,...CYCLE.map(a=>a[k-1]||'—')]))+refTable('周期ナビの示唆',['演出','意味'],Object.values(HINT).map(h=>[h.label,h.meaning]))+'<p class="hint">当ページの解析値は第三者の独自調査値です。通常Aの周期振分は合計98%（出典値のまま）です。</p></details>';}
+  function pageSuggest(ctx){return '<div class="jump-grid">'+[['vv-end','終了画面'],['vv-at','AT中'],['vv-other','その他'],['vv-bayes','設定推測'],['vv-ref','参照']].map(([id,l])=>`<a href="#${id}" onclick="if(this.hash===&#39;#vv-ref&#39;)document.getElementById(&#39;vv-ref&#39;).open=true">${l}</a>`).join('')+'</div><div id="vv-end">'+groupSection(ctx,'endScreen')+groupSection(ctx,'atEnd')+'</div><div id="vv-at">'+['roundRed','over','zorome'].map(g=>groupSection(ctx,g)).join('')+'</div><div id="vv-other">'+['magiusCount','mumu','baffe'].map(g=>groupSection(ctx,g)).join('')+'</div>'+pageBayes(ctx)+pageReference();}
+  function pageCycle(ctx){const S=ctx.S,r=posterior(S),d=nextPtDist(S),s=current(S),k=cycleNo(s),ph=phase(S),cap=cycleCap(S),win=winPctNow(S),until=untilWin(S);
     const gone=MODES.filter((_,i)=>!r.p[i]);
-    const now=`<div class="now-box"><div class="now-h">現在の状況</div><div class="vv-mode">${modeText(S)}</div>${gone.length?'<div class="vv-small">消去：'+gone.join('・')+'（周期記録・有効な示唆による）</div>':''}<div>${k}周期目（上限 あと${cap==null?'—':cap}周期）</div>${S.start.kind==='reset'&&S.spans.length===1?'<div class="vv-small">設定変更後は最大3周期</div>':''}<div class="vv-dist">次の到達pt：${d.dist.map(x=>x.pt+'pt '+pct(x.p)).join('／')||'—'}</div><div class="vv-small">上限 ${d.dist.length?d.dist[d.dist.length-1].pt+'pt':'—'}${r.active.filter(x=>HINT[x.c]?.type==='pt'&&x.k===k).map(x=>' ／ピノ：'+HINT[x.c].effect.ptMax+'pt以内').join('')}</div><div>この周期でCZになる参考 ${win==null?'—':Math.round(win)+'%'}</div>${r.active.length?'<details><summary>有効な示唆・参考</summary>'+r.active.map(x=>'<p>'+esc((HINT[x.c].type==='ref'?'参考：':'')+HINT[x.c].label+'（'+HINT[x.c].meaning+'）')+'</p>').join('')+'</details>':''}<div class="vv-small">特殊テーブル（高設定ほど400pt以下が選ばれやすい）は計算に入れていません。400pt以下が続く場合はその可能性もあります</div>${[...new Set(d.warnings)].map(w=>'<p class="vv-error">'+esc(w)+'</p>').join('')}</div>`;
+    const now=`<div class="now-box"><div class="now-h">現在の状況</div><div class="vv-mode">${modeText(S)}</div>${gone.length?'<div class="vv-small">消去：'+gone.join('・')+'（周期記録・有効な示唆による）</div>':''}<div>${k}周期目（上限 あと${cap==null?'—':cap}周期）</div>${S.start.kind==='reset'&&S.spans.length===1?'<div class="vv-small">設定変更後は最大3周期</div>':''}<div class="vv-dist">次の到達pt：${d.dist.map(x=>x.pt+'pt '+pct(x.p)).join('／')||'—'}</div><div class="vv-small">上限 ${d.dist.length?d.dist[d.dist.length-1].pt+'pt':'—'}${r.active.filter(x=>HINT[x.c]?.type==='pt'&&x.k===k).map(x=>' ／ピノ：'+HINT[x.c].effect.ptMax+'pt以内').join('')}</div><div class="vv-until">当選まで（参考）：${until.avgPt==null?'—':'平均 あと約'+Math.round(until.avgPt)+'pt（約'+until.avgG+'G）'}${until.avgPt==null?'':'<div class="vv-small">50%で'+until.p50+'pt以内／80%で'+until.p80+'pt以内／平均 あと'+until.avgCycles.toFixed(1)+'周期</div>'}</div><details><summary>くわしく</summary><div>この周期でCZになる参考 ${win==null?'—':Math.round(win)+'%'}</div>${r.active.length?'<div>有効な示唆・参考</div>'+r.active.map(x=>'<p>'+esc((HINT[x.c].type==='ref'?'参考：':'')+HINT[x.c].label+'（'+HINT[x.c].meaning+'）')+'</p>').join('')+'':''}<div class="vv-small">特殊テーブル（高設定ほど400pt以下が選ばれやすい）は計算に入れていません。400pt以下が続く場合はその可能性もあります</div></details>${[...new Set(d.warnings)].map(w=>'<p class="vv-error">'+esc(w)+'</p>').join('')}</div>`;
     const controls=`<div class="inrow"><label for="curPt">現在pt（任意）</label><input id="curPt" readonly inputmode="none" value="${S.curPt==null?'':S.curPt}" placeholder="未入力" onclick="CheckerConfigs.vvv2.openPad()"></div><div class="vv-grid vv-reach">${[100,200,300,400,500,600].map(pt=>`<button class="act plain" data-pt="${pt}" onclick="CheckerConfigs.vvv2.pickPt(this)" ${['cycle','pull'].includes(ph)?'':'disabled'}>${pt}pt</button>`).join('')}</div><div id="vv-confirm" hidden><div class="vv-toggle"><input type="checkbox" id="vv-magius"><label for="vv-magius">マギウスマーク付き周期</label></div><div class="vv-grid">${action('cycle','当選','data-result="win"')}${action('cycle','ハズレ','data-result="miss"')}</div></div>${action('out','周期外当選（ルーンドライブ／BAR直撃）',['cycle','pull'].includes(ph)?'':'disabled')}`;
     const lastHit=[...s.rows].reverse().find(x=>x.t==='out'||x.t==='cyc'),outcomes={cz:[['czmiss','CZ失敗'],['rb','CZ成功→決戦'],['bb','CZ成功→革命'],...(lastHit?.t==='out'?[['at','AT直撃（AT開始）']]:[])],rb:[['rbmiss','決戦失敗'],['at','決戦成功→AT']],bb:[['bbend','革命BB終了（AT非当選）'],['at','革命BB→AT']],at:[['atend','AT終了']],pull:[['pullwin','引き戻し あり'],['pullmiss','引き戻し なし（66G経過）']]};
     const hintGroups=[['サブモニター','sub_'],['電脳ゾーン終了ボイス','voice_'],['ピノセリフ','pino_'],['会話 紫','talk_'],['マギウス','magius']];
@@ -194,7 +221,7 @@
     uiV2:true,nanaCollab:false,schemaVersion:1,storageKey:'vvv2-checker-v1',defaults:DEF,mergeKeys:['start','counts','groups'],normalizeState,
     sourceUrl:'https://chonborista.com/slot/sankyo-slot/243853/',sourceCreditHtml:'<div class="credit">参考：ちょんぼりすた様（2026-10-28照合）／SANKYO公式スペック／一部は実機確認。第三者の独自調査値を含みます。</div>',
     SETTINGS,MODES,PRIOR_RESET,TRANS,PT1,PT2,PT3,CYCLE,CAPS,HINT,GROUPS,END_PROBS,BAFFE,BAR,SPECIAL,FIRST,PAYOUT,
-    priorOf,rowLik,posterior,nextPtDist,cycleCap,winPctNow,hazard,phase,bayesSpec,knownTotal,modeText,rowText,actions,pickPt,openPad,
+    priorOf,rowLik,posterior,nextPtDist,cycleCap,winPctNow,untilWin,hazard,phase,bayesSpec,knownTotal,modeText,rowText,actions,pickPt,openPad,
     share:{title:'Lパチスロ 革命機ヴァルヴレイヴ2 設定判別メモ',hashtags:'#ヴァルヴレイヴ2 #設定判別'},
     pages:(ctx,pageCard)=>[()=>pageCounts(ctx),()=>pageSuggest(ctx),()=>pageCycle(ctx)+'<button id="vv-save-pt" data-action="setPt" hidden>現在pt登録</button>',pageCard],
     template,compactTemplate:template,
