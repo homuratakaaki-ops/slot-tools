@@ -93,7 +93,7 @@ try{
   const result=r=>act('result',`[data-result="${r}"]`);
   async function round(pt,r='miss',magius=false){await click(`[data-pt="${pt}"]`);if(magius)await click('#vv-magius');await act('cycle',`[data-result="${r}"]`);}
   async function reloaded(){const saved=await state();await load(390);assert.deepEqual(await state(),saved);await tab(2);}
-  async function selectStart(kind){await tab(0);await act('start',`[data-kind="${kind}"]`);await tab(2);}
+  async function selectStart(kind){const S=await state(),w=await run('return innerWidth;');S.spans=[{rows:[],end:null}];S.curPt=null;await seed(S,w);await tab(0);await act('start',`[data-kind="${kind}"]`);await tab(2);}
   await load(390);
   assert.deepEqual(await run('return [...d.querySelectorAll("#nav button")].map(x=>x.textContent);'),['入力','示唆','周期','カード']);
   for(const kind of ['reset','bonusEnd','fail','unknown']){await act('start',`[data-kind="${kind}"]`);assert.equal((await state()).start.kind,kind);}
@@ -123,6 +123,9 @@ try{
   pass('現在ptテンキー・入力・クリア・取消・再読込・閉じる');
   await selectStart('reset');await round(200);await round(400);assert.ok((await run('return d.querySelector(".now-box").textContent;')).includes('参考 100%'));await round(200);assert.ok((await run('return d.querySelector(".vv-error").textContent;')).includes('食い違'));
   pass('reset開始3周期上限と3周期ハズレ矛盾表示');
+  {const rows=JSON.stringify((await state()).spans);await tab(0);await act('start','[data-kind="bonusEnd"]');
+   assert.equal(await run('return d.getElementById("toast").textContent;'),'開始条件を変えました（記録は保持）');assert.equal(JSON.stringify((await state()).spans),rows);assert.equal((await state()).start.kind,'bonusEnd');
+   await tab(2);assert.ok(!(await run('return d.querySelector(".now-box").textContent;')).includes('参考 100%'));pass('途中の開始条件変更で周期ログ保持・トースト');}
   for(const route of [['czmiss'],['rb','rbmiss'],['rb','at','atend'],['bb','bbend'],['bb','at','atend']]){
     await selectStart('bonusEnd');await round(200,'win');
     for(const end of route){await result(end);await reloaded();}
@@ -130,6 +133,9 @@ try{
   }
   await result('pullwin');assert.equal((await state()).spans.length,3);await reloaded();await result('pullmiss');assert.equal((await state()).spans.at(-1).rows[0].r,'miss');await click('#undoBtn');assert.equal((await state()).spans.at(-1).rows.length,0);await result('pullmiss');
   await act('out');assert.equal((await state()).spans.at(-1).rows.at(-1).t,'out');await result('bb');await result('bbend');await reloaded();
+  await result('pullmiss');await act('out');assert.ok(await run('return !!d.querySelector("[data-result=at]");'));await result('at');assert.equal(await run('return d.querySelector(".vv-status").textContent;'),'AT終了待ち');await result('atend');await reloaded();
+  {const st=await state();assert.equal(st.spans.at(-2).end.t,'atend');assert.equal(st.spans.at(-2).rows.at(-1).t,'out');assert.equal(st.spans.at(-2).rows.at(-1).at,true);}
+  await selectStart('bonusEnd');await result('pullmiss');await round(200,'win');assert.ok(await run('return !d.querySelector("[data-result=at]");'),'周期当選のCZ結果待ちにはAT直撃を出さない');
   assert.equal(JSON.stringify((await state()).counts),counts);assert.equal(JSON.stringify((await state()).groups),groups);
   pass('結果全分岐・周期外当選・引戻しあり/なし・途中状態の保存復元');
   await selectStart('unknown');await click('.vv-hints summary');const hints=await run(`return [...d.querySelectorAll('[data-action="hint"]')].map(b=>b.dataset.hint);`);

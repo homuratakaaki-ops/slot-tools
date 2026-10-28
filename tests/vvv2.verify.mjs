@@ -69,6 +69,14 @@ check('7 全span遷移・途中結果の再読込・counts/groups独立',()=>{
   }
   const S=fresh();assert.equal(c.phase(S),'pull');exec(S,'pullwin');assert.equal(S.spans.length,2);assert.equal(S.spans[0].end.t,'atend');eq(c.posterior(S).p,[.69,.25,.05,.01]);
   exec(S,'pullmiss');assert.equal(c.phase(S),'cycle');cyc(S,200,'win');exec(S,'bb');assert.equal(c.phase(c.normalizeState(clone(S))),'bb');exec(S,'at');assert.equal(c.phase(c.normalizeState(clone(S))),'at');
+  // 周期外当選→AT直撃（AT開始）→AT終了待ち→atend。周期当選のCZ結果待ちでは AT直撃は受け付けない（シオン判断 10/28 ③）
+  const O=fresh();exec(O,'pullmiss');cyc(O,200);c.actions.out({S:O,mode:1});assert.equal(c.phase(O),'cz');assert.notEqual(exec(O,'at'),false);
+  assert.equal(c.phase(c.normalizeState(clone(O))),'at');eq(O.spans[0].rows.at(-1),{t:'out',k:2,at:true});exec(O,'atend');assert.equal(O.spans[0].end.t,'atend');assert.equal(O.spans.length,2);c.posterior(O).p.forEach((v,i)=>near(v,[.69,.25,.05,.01][i]));
+  const W=fresh();exec(W,'pullmiss');cyc(W,200,'win');assert.equal(exec(W,'at'),false);assert.equal(c.phase(W),'cz');
+  // 開始条件を途中で変えても周期ログは残り、事前分布だけ変わる（シオン判断 10/28 ⑤）
+  const K=fresh('reset');cyc(K,200);cyc(K,400);const spans=JSON.stringify(K.spans);assert.equal(c.winPctNow(K),100);
+  assert.equal(c.actions.start({S:K,mode:1},{kind:'bonusEnd'}),'開始条件を変えました（記録は保持）');assert.equal(JSON.stringify(K.spans),spans);assert.ok(c.winPctNow(K)<100);
+  c.actions.start({S:K,mode:1},{kind:'unknown'});assert.equal(JSON.stringify(K.spans),spans);c.posterior(K).p.forEach((v,i)=>{const u=[.25,.25,.25,.25].map((x,m)=>x*[.95*.86*.28*(1-29/86),.95*.95*.12*(1-13/95),.90*.89*.18*(1-18/89),0][m]),t=u.reduce((a,b)=>a+b);near(v,u[i]/t,1e-12);});
 });
 check('8 5設定の推測・カスタムOFFのみ・全rank除外・n<=d',()=>{
   const S=fresh();S.groups.endScreen.gold=1;
