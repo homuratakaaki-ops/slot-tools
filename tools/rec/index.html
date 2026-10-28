@@ -43,6 +43,7 @@ textarea{min-height:80px;resize:vertical}
 .mrow{display:flex;gap:6px;margin-top:6px}
 .mpill{flex:1;min-height:44px;display:flex;align-items:center;justify-content:center;padding:7px 4px;background:var(--panel);border:1px solid var(--line);border-radius:10px;text-align:center;font-size:11px;color:var(--dim)}
 .mpill b{font-family:var(--mono);font-size:14px;color:var(--ink);margin-left:3px}
+#bStock{min-width:0;white-space:nowrap}
 .r3{display:flex;gap:6px;margin-top:6px}
 .r3 button{flex:1;min-height:44px;white-space:nowrap;padding:11px 0;font-weight:600}
 .r3 .danger{background:rgba(224,87,74,.14);border-color:#5C2B26;color:#F0968C}
@@ -1030,12 +1031,27 @@ function renderCounters(){
   el("c3Lbl").textContent=c3Label(d);
   el("cLcdWrap").classList.toggle("hide",!d.lcdG);
 }
+function fitStockPill(){
+  const pill=el("bStock"),value=el("mRep"),label=el("mRepLabel");
+  if(!pill||!value||!label||!pill.clientWidth)return;
+  value.style.fontSize="";label.style.fontSize="";
+  const style=getComputedStyle(pill),valueStyle=getComputedStyle(value);
+  const available=pill.clientWidth-parseFloat(style.paddingLeft)-parseFloat(style.paddingRight);
+  const base=parseFloat(valueStyle.fontSize),labelBase=parseFloat(getComputedStyle(label).fontSize);
+  const margin=parseFloat(valueStyle.marginLeft)+parseFloat(valueStyle.marginRight);
+  for(let size=base;size>10&&value.getBoundingClientRect().width+label.getBoundingClientRect().width+margin>available;){
+    size=Math.max(10,size-0.5);
+    value.style.fontSize=size+"px";label.style.fontSize=labelBase*size/base+"px";
+  }
+}
+window.addEventListener("resize",fitStockPill);
 function renderMoney(){
   const c=S.cur,m=c.money;
   el("mCash").textContent=yen(invested(m))+"円";
   const bal=balance(m);el("mBal").textContent=yen(bal)+"円";el("mBal").style.color=bal<0?"var(--hot)":"";
   const left=stockLeft(m);el("mRepLabel").textContent=left==null?"再":"貯";
   el("mRep").textContent=yen(left==null?replayed(m):left)+"枚";el("mRep").style.color=left<0?"var(--hot)":"";
+  fitStockPill();
   el("bReplay").textContent="再 −"+yen(replayUnitOf(c));
   if(m.credit==null)el("mDiff").textContent="−";
   else{const bought=Math.round(invested(m)/1000*c.lend);el("mDiff").textContent=sgn(m.credit-m.startMedal-bought-replayed(m))+"枚"}

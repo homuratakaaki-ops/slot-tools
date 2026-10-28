@@ -61,8 +61,8 @@ const button=(s,t,p=false)=>ev(`const b=[...document.querySelectorAll(${JSON.str
 const rows=()=>ev(`return [...document.querySelectorAll('#log .lg')].map(r=>({g:r.querySelector('.gs').textContent,text:r.querySelector('.tx').textContent}));`);
 const stored=()=>ev(`return JSON.parse(localStorage.getItem('${KEY}')).cur.events;`);
 const number=async n=>{await click('#kpClear');for(const d of String(n))await button('#kpKeys',d);await click('#kpOk');};
-const setup=async(page='/tools/rec/index.html',lend=46,stock=null,initial=0)=>{
-  await open(page);await clearAll();await open(page);
+const setup=async(page='/tools/rec/index.html',lend=46,stock=null,initial=0,width=390)=>{
+  await open(page,width);await clearAll();await open(page,width);
   await ev(`for(const [id,v] of Object.entries({stMachine:'テスト汎用台',stLend:${lend},stMedal:100,stReplay0:${initial},stStock:${JSON.stringify(stock)}})){const i=document.getElementById(id);if(i){i.value=v??'';i.dispatchEvent(new Event('input',{bubbles:true}));}}document.getElementById('stStart').click();if(!__rec.S.cur)throw Error('Start failed');`);
 };
 const state=()=>ev(`return {money:__rec.S.cur.money,events:__rec.S.cur.events,pill:document.querySelector('#mRep').textContent,label:document.querySelector('#mRep').parentElement.textContent,button:document.querySelector('#bReplay').textContent,diff:document.querySelector('#mDiff').textContent};`);
@@ -82,6 +82,33 @@ try{
   await send('Page.addScriptToEvaluateOnNewDocument',{source:`window.confirm=()=>true;window.alert=()=>{};window.prompt=()=>null;let seed=1;Math.random=()=>((seed=seed*16807%2147483647)/2147483647);Date.now=()=>1793100000000;window.addEventListener('unhandledrejection',e=>(window.__errs=window.__errs||[]).push(String(e.reason)));window.addEventListener('error',e=>(window.__errs=window.__errs||[]).push(e.message));`});
 
 // CASES
+  const measureStock=()=>ev(`const pill=document.querySelector('#bStock'),value=document.querySelector('#mRep'),label=document.querySelector('#mRepLabel');return {width:innerWidth,text:pill.textContent,scrollWidth:pill.scrollWidth,clientWidth:pill.clientWidth,valueHeight:value.getBoundingClientRect().height,valueFont:getComputedStyle(value).fontSize,labelFont:getComputedStyle(label).fontSize,pills:[...document.querySelectorAll('.mpill')].map(p=>p.getBoundingClientRect().height)};`);
+  const checkStock=async(stock,width)=>{
+    const dims=await measureStock();
+    assert.equal(dims.width,width);assert.equal(dims.text,'貯'+stock.toLocaleString('en-US')+'枚');
+    assert.ok(dims.valueHeight<25,JSON.stringify(dims));assert.ok(dims.scrollWidth<=dims.clientWidth,JSON.stringify(dims));
+    assert.deepEqual(dims.pills,[44,44,44,44]);
+    if(stock===5520){assert.equal(dims.valueFont,'14px');assert.equal(dims.labelFont,'11px');}
+    console.log('FIT '+JSON.stringify(dims));return dims;
+  };
+  for(const stock of [99999,12345,5520])for(const width of [360,390,412]){
+    await setup(undefined,46,stock,0,width);await checkStock(stock,width);
+    if(stock===99999&&width===360)await shot('stock-fit-360-99999');
+  }
+  await setup(undefined,46,99999,0,360);
+  for(const width of [412,360]){
+    await send('Emulation.setDeviceMetricsOverride',{width,height:530,deviceScaleFactor:1,mobile:true});
+    await pause(100);const dims=await checkStock(99999,width);
+    if(width===412){assert.equal(dims.valueFont,'14px');assert.equal(dims.labelFont,'11px');}
+    else assert.ok(parseFloat(dims.valueFont)<14);
+  }
+  await click('#bStock');await button('#shBody','残高を消す');await close();
+  const reset=await measureStock();assert.equal(reset.text,'再0枚');assert.equal(reset.valueFont,'14px');assert.equal(reset.labelFont,'11px');
+  console.log('FIT RESET '+JSON.stringify(reset));
+  await clearAll();await open();
+  assert.equal(await ev('return __rec.S.cur;'),null);
+  await send('Emulation.setDeviceMetricsOverride',{width:360,height:530,deviceScaleFactor:1,mobile:true});await pause(100);
+  assert.deepEqual(await ev('return window.__errs||[];'),[]);
   await setup(undefined,46,5612);
   assert.equal(await ev("return document.querySelector('#stStock').value;"),'');
   await click('#bReplay');await click('#bReplay');
