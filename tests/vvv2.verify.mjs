@@ -32,7 +32,7 @@ check('2 bonusEnd検算・reset3周期・小数第4位',()=>{
   const S=fresh();cyc(S,200);eq(c.posterior(S).p.map(v=>Number((v*100).toFixed(4))),[67.9680,27.2032,4.8288,0]);
   cyc(S,600);eq(c.posterior(S).p.map(v=>Number((v*100).toFixed(4))),[64.2682,35.7318,0,0]);
   cyc(S,400);eq(c.posterior(S).p,[1,0,0,0]);eq(c.nextPtDist(S).dist.map(x=>[x.pt,Number((x.p*100).toFixed(4))]),[[100,25],[200,23],[300,5],[400,28],[500,4],[600,15]]);
-  assert.equal(c.cycleCap(S),3);near(c.winPctNow(S),28.30188679245283);
+  assert.equal(c.cycleCap(S),3);assert.equal(c.cycleCap(fresh()),6);{const T=fresh();cyc(T,200);assert.equal(c.cycleCap(T),5);}near(c.winPctNow(S),28.30188679245283);
   const R=fresh('reset');cyc(R,200);cyc(R,400);assert.equal(c.winPctNow(R),100);assert.equal(c.cycleCap(R),1);cyc(R,200);assert.equal(c.posterior(R).contradiction,true);assert.ok(c.posterior(R).warnings.length);assert.equal(c.winPctNow(R),null);
 });
 check('3 消去規則・全消去・表示のみのマギウス短縮',()=>{
@@ -86,7 +86,10 @@ check('9 旧データ・冪等・全階層の未知フィールド・入力の�
 });
 check('10 HTML noindex・導線なし・LF・構文・後読みなし',()=>{
   const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'vvv2-syntax-'));
-  for(const name of ['vvv2-checker.html','vvv2-guide.html']){const s=read(name);assert.ok(s.includes('<meta name="robots" content="noindex,nofollow">'));assert.doesNotMatch(s,/rel="canonical"|href="(?:checkers|index|.*-guide|.*-checker)\.html/);assert.ok(!s.includes('\r'));let n=0;for(const m of s.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)){if(/\bsrc=/.test(m[1]))continue;const dest=path.join(tmp,name+(n++)+'.mjs');fs.writeFileSync(dest,m[2]);execFileSync(process.execPath,['--check',dest]);}}
+  for(const name of ['vvv2-checker.html','vvv2-guide.html']){const s=read(name);assert.ok(s.includes('<meta name="robots" content="noindex,nofollow">'));assert.ok(!s.includes('\r'));let n=0;for(const m of s.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)){if(/\bsrc=/.test(m[1]))continue;const dest=path.join(tmp,name+(n++)+'.mjs');fs.writeFileSync(dest,m[2]);execFileSync(process.execPath,['--check',dest]);}}
+  // 導線なし＝公開側のページから張らない（newmachines-1102 と同じ判定）。ページ側の機種選択・使い方リンクは前例（vivy）どおり置く
+  for(const p of ['checkers.html','index.html','sitemap.xml'])assert.ok(!read(p).includes('vvv2-checker')&&!read(p).includes('vvv2-guide'),p+' に導線なし');
+  assert.ok(read('vvv2-checker.html').includes('<small>SETTING CHECKER ・ slot-tools.jp</small>'));assert.ok(read('vvv2-checker.html').includes('href="vvv2-guide.html"'));assert.ok(read('vvv2-guide.html').includes('href="vvv2-checker.html"'));
   const js=read('checker-data/vvv2.js');assert.ok(!js.includes('\r'));assert.ok(!js.includes('(?<='));assert.ok(!js.includes('(?<!'));execFileSync(process.execPath,['--check',path.join(root,'checker-data/vvv2.js')]);
 });
 console.log(`Verify checks: ${checks}/10; failures: ${failures}`);if(failures)process.exitCode=1;

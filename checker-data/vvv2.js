@@ -112,11 +112,11 @@
   function nextPtDist(S){const r=posterior(S),dist=rawPt(r.p,current(S),S.curPt,r.active);return {dist,warnings:r.warnings.concat(dist.length?[]:['到達pt候補がありません（記録を確認してください）']),contradiction:r.contradiction||!dist.length};}
   function cycleCap(S){const r=posterior(S),s=current(S),k=cycleNo(s),reset=S.spans.length===1&&S.start.kind==='reset';if(!sum(r.p))return null;
     const misses=cycles(s).filter(x=>x.magius&&x.r==='miss').length;
-    return Math.max(0,Math.min(...CAPS.filter((_,i)=>r.p[i]>0).map(v=>v-k+1-misses),reset?3-k+1:Infinity,...r.active.filter(x=>HINT[x.c]?.type==='cycle').map(x=>x.k+HINT[x.c].effect.capWithin-k)));
+    return Math.max(0,Math.min(Math.max(...CAPS.filter((_,i)=>r.p[i]>0))-k+1-misses,reset?3-k+1:Infinity,...r.active.filter(x=>HINT[x.c]?.type==='cycle').map(x=>x.k+HINT[x.c].effect.capWithin-k)));
   }
   function winPctNow(S){const r=posterior(S);return sum(r.p)?100*sum(r.p.map((v,i)=>v*hazard(i,cycleNo(current(S)),S.spans.length===1&&S.start.kind==='reset',r.active))):null;}
   function pct(p){return p>0&&p<.005?'1%未満':Math.round(p*100)+'%';}
-  function modeText(S){const r=posterior(S);return r.contradiction?'周期推測 —（記録の矛盾）':r.p.map((v,i)=>v?MODES[i]+' '+pct(v):'').filter(Boolean).join('／')||'—';}
+  function modeText(S){const r=posterior(S);return r.contradiction?'—（記録の矛盾）':r.p.map((v,i)=>v?MODES[i]+' '+pct(v):'').filter(Boolean).join('／')||'—';}
   function knownTotal(S,g){return sum(GROUPS[g].filter(c=>c[0]!=='unknown').map(c=>S.groups[g][c[0]]));}
   const groupTotal=(S,g)=>sum(GROUPS[g].map(c=>S.groups[g][c[0]]));
   function allStrong(S){return Object.entries(GROUPS).flatMap(([g,a])=>a.filter(c=>c[2]>0).map(c=>({label:c[1],rank:c[2],value:S.groups[g][c[0]],g})));}
@@ -134,7 +134,7 @@
     if((prev&&['bbend','atend'].includes(prev.end?.t)||S.spans.length===1&&S.start.kind==='bonusEnd')&&!s.rows.some(x=>['pull','cyc','out'].includes(x.t)))return 'pull';
     return 'cycle';
   }
-  function rowText(r){if(r.t==='cyc')return r.k+'周期目 '+r.pt+'pt '+(r.r==='win'?'当選':'ハズレ')+(r.magius?' 🔶':'')+(r.bonus?' →'+(r.bonus==='rb'?'決戦RB':'革命BB'):'')+(r.at?' →AT':'');if(r.t==='out')return r.k+'周期目 周期外当選'+(r.bonus?' →'+r.bonus.toUpperCase():'')+(r.at?' →AT':'');if(r.t==='pull')return '引き戻し '+(r.r==='win'?'あり':'なし');if(r.t==='hint')return r.k+'周期目 '+(HINT[r.c]?.label||r.c);return '未対応の記録';}
+  function rowText(r){if(r.t==='cyc')return r.k+'周期目 '+r.pt+'pt '+(r.r==='win'?'当選':'ハズレ')+(r.magius?' 🔶':'')+(r.bonus?' →'+(r.bonus==='rb'?'決戦RB':'革命BB'):'')+(r.at?' →AT':'');if(r.t==='out')return r.k+'周期目 周期外当選'+(r.bonus?' →'+(r.bonus==='rb'?'決戦RB':'革命BB'):'')+(r.at?' →AT':'');if(r.t==='pull')return '引き戻し '+(r.r==='win'?'あり':'なし');if(r.t==='hint')return r.k+'周期目 '+(HINT[r.c]?.label||r.c);return '未対応の記録';}
   const action=(name,label,attrs='')=>`<button type="button" class="act plain" data-action="${name}" ${attrs}>${label}</button>`;
   const section=(title,body,id='')=>`<section class="sec" ${id?'id="'+id+'"':''}><div class="sec-h">${title}</div>${body}</section>`;
   function pageCounts(ctx){const S=ctx.S;return section('開始条件',`<div class="vv-grid">${Object.entries(START).map(([k,v])=>action('start',v,`data-kind="${k}" aria-pressed="${S.start.kind===k}"`)).join('')}</div>${S.start.kind==='fail'?'<div class="vv-grid">'+[1,2,3,4,5].map(n=>action('failCount',n===5?'5回以上':n+'回',`data-n="${n}" aria-pressed="${S.start.failCount===n}"`)).join('')+'</div>':''}`)+
@@ -183,6 +183,8 @@
     // 保存・Undoは通常のdata-actionと同じエンジン経路を通す。
     pad.querySelector('#vv-pad-save').onclick=()=>document.getElementById('vv-save-pt').click();
   }
+  // カードの値枠は幅186px（DotGothic16 34px で半角10文字・170px）。合計と内訳を半角10文字以内で出し、超える時は内訳だけにする
+  function firstBlock(S){const c=S.counts,parts=c.bb+'/'+c.rb+'/'+c.direct,full=(c.rb+c.bb+c.direct)+'('+parts+')';return full.length<=10?full:parts;}
   const cycleLogCount=S=>sum(S.spans.map(s=>s.rows.length));
   function template({S}){return ['Lパチスロ 革命機ヴァルヴレイヴ2','開始条件：'+START[S.start.kind]+(S.start.kind==='fail'?' '+S.start.failCount+'回':''),'CZ '+S.counts.cz+'回／初当り 計'+(S.counts.rb+S.counts.bb+S.counts.direct)+'回（革命'+S.counts.bb+'・決戦'+S.counts.rb+'・直撃'+S.counts.direct+'）',bestStrong(S),...Object.entries(GROUPS).map(([g,a])=>TITLES[g]+'：'+(a.filter(c=>S.groups[g][c[0]]).map(c=>c[1]+'×'+S.groups[g][c[0]]).join('／')||'—')),...S.spans.map((s,i)=>'区間'+(i+1)+'：'+(s.rows.map(rowText).join('→')||'記録なし')+(s.end?' →'+END[s.end.t]:'')),'周期推測 '+modeText(S),bayesText(S),'by slot-tools.jp／解析出典：ちょんぼりすた様'].join('\n');}
   function detail({S}){return [...Object.entries(GROUPS).map(([g,a])=>({title:TITLES[g],percent:true,denominator:knownTotal(S,g),items:a.map(c=>({label:c[1],value:S.groups[g][c[0]],hot:c[2]>0,...(c[0]==='unknown'?{text:'不明 ×'+S.groups[g][c[0]],show:S.groups[g][c[0]]>0}:{})}))})),...S.spans.map((s,i)=>({title:'周期ログ 区間'+(i+1),items:s.rows.map(r=>({label:rowText(r),text:rowText(r),value:1,show:true,hot:false}))}))];}
@@ -197,7 +199,7 @@
     pages:(ctx,pageCard)=>[()=>pageCounts(ctx),()=>pageSuggest(ctx),()=>pageCycle(ctx)+'<button id="vv-save-pt" data-action="setPt" hidden>現在pt登録</button>',pageCard],
     template,compactTemplate:template,
     card:{title:'Lパチスロ 革命機ヴァルヴレイヴ2',metaText:(ctx,date)=>date+' ／'+START[ctx.S.start.kind],titleFitMax:650,footerTags:'#ヴァルヴレイヴ2 #設定判別',downloadName:'vvv2_check.png',detailDownloadName:'vvv2_check_detail.png',detail,
-      blocks:({S})=>[['CZ突入',S.counts.cz+'回'],['初当り 計',S.counts.rb+S.counts.bb+S.counts.direct+'回（革命'+S.counts.bb+'・決戦'+S.counts.rb+'・直撃'+S.counts.direct+'）'],['示唆の記録 計',sum(Object.keys(GROUPS).map(g=>groupTotal(S,g)))+'回'],['確定演出 計',strongCount(S)+'回']],
+      blocks:({S})=>[['CZ突入',S.counts.cz+'回'],['初当り 革/決/直',firstBlock(S)],['示唆の記録 計',sum(Object.keys(GROUPS).map(g=>groupTotal(S,g)))+'回'],['確定演出 計',strongCount(S)+'回']],
       chart:({S})=>({title:'示唆分布',x:130,step:200,width:80,items:[2,4,5,6].map(rank=>({label:'設定'+rank+(rank===6?'濃厚':'以上'),value:sum(allStrong(S).filter(x=>x.rank===rank).map(x=>x.value))}))}),
       bottom:({S})=>({title:'サマリー',startY:752,rowGap:36,fontSize:22,columns:[{x:70,items:[bestStrong(S),groupSummary(S,'endScreen'),'BAR直撃 '+S.counts.barDirect+'/'+S.counts.bar,'周期ログ '+cycleLogCount(S)+'件','周期推測 '+modeText(S)].map(summaryRow)},{x:560,items:['AT中示唆 計'+sum(['over','zorome','roundRed'].map(g=>groupTotal(S,g)))+'回',groupSummary(S,'magiusCount'),groupSummary(S,'baffe'),bayesText(S),'否定系 —'].map(summaryRow)}]})
     }
