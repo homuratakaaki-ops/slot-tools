@@ -313,6 +313,10 @@ RB中のキャラ紹介が全15パターン判明し、エンディング中の�
 - [x] `mahoako-checker.html`＋`checker-data/mahoako.js`（保存キー `mahoako-checker-v1`）＋`mahoako-guide.html`。仕様書は `docs/specs/mahoako-checker-v01.md`。5タブ（入力／示唆／設定推測／参照／カード）。設定推測は CZ確率（二項）・CZ種別3種（多項）・確定演出と枚数表示・RB特殊キャラ・ヴァーツの除外17件。AT初当り（ボーナス契機／ボーナス以外／契機不明）は CZ の結果と連動するため表示のみ。奇数・偶数・高設定の期待度UPは記録のみ。各示唆セクションに「不明」行を置き、割合の母数から外す。ED隠しPUSH（全色調査中）・百合MAX・小役CZ・規定G数・AT終了画面・会話・ステージチェンジ・アクションは採用しない（理由は仕様書）
 - [x] ネネ検収・夢爽実機の間は noindex のまま main に置く（導線なし）。検収OK（ネネ①〜⑦・夢爽実機）後、checkers.html 先頭・sitemap（checker・guide）・NEW欄1行（10/19）・noindex 外し（checker・guide）を同じPRに足してマージ（2026-10-19 公開）
 
+## Lパチスロ 革命機ヴァルヴレイヴ2 周期ナビ＋設定判別カウンター 新規（2026-10-28・ちょんぼりすた様 2/19 更新分）
+
+- [~] `vvv2-checker.html`＋`checker-data/vvv2.js`（保存キー `vvv2-checker-v1`）＋`vvv2-guide.html`。4タブ（入力／示唆／周期／カード）。周期タブは周期の到達pt・当否からモード確率・次の到達pt候補・参考%を出す「周期ナビ」。設定は1・2・4・5・6の5段階で設定推測（内蔵型）。仕様書は `docs/specs/vvv2-checker-v01.md`（骨格書 `docs/specs/vvv2-skeleton-v01.md`）。noindex・導線なしで main に置き、公開導線は夢爽承認後の別PR
+
 
 ---
 

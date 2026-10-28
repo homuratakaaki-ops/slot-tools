@@ -133,9 +133,9 @@ test('template buffers equal 006e842 for zero and all table rows',()=>{
     assert.deepEqual(Buffer.from(config.template(ctx(S))),Buffer.from(old.template(ctx(previous))));
   }
 });
-test('all 35 checker headers omit UI version labels and use the ・ separator',()=>{
+test('all 36 checker headers omit UI version labels and use the ・ separator',()=>{
   const files=fs.readdirSync(root).filter(p=>p.endsWith('-checker.html'));
-  assert.equal(files.length,35);
+  assert.equal(files.length,36);
   for(const file of files){
     const headers=[...read(file).matchAll(/<header\b[^>]*>([\s\S]*?)<\/header>/g)];
     assert.ok(headers.length,file);
