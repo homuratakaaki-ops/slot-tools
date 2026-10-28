@@ -104,8 +104,21 @@ try{
   await tab(1);await plus('card.ankou');await click('#undoBtn');assert.equal((await state()).card.ankou,1);
   await click('#modeBtn');await plus('card.ankou');await plus('card.ankou');assert.equal((await state()).card.ankou,0);await click('#modeBtn');await plus('card.ankou');
   const saved=await state();await load();assert.deepEqual(await state(),saved);assert.deepEqual(await run('return window.__errors;'),[]);pass('all '+count+' count buttons / total row / save / undo / minus floor / reload');
+  // 当選ごとのG：実画面で入力→追加→取消→↩取消（分母＝当選ごとのG合計、§9-105）。
+  await tab(0);
+  const addGame=v=>run(`const i=d.getElementById('gameLogIn');i.focus();i.value=${JSON.stringify(v)};d.querySelector('[data-action="addGameLog"]').click();`);
+  const sumText=()=>run(`return d.querySelector('[data-glog-sum]').textContent+'/'+d.querySelector('[data-glog-count]').textContent;`);
+  assert.equal(await run(`return d.querySelector('[data-action="popGameLog"]').disabled;`),true);
+  await addGame('');await addGame('0');assert.deepEqual((await state()).gameLog,[]);
+  await addGame('250');assert.equal(await run(`return d.getElementById('gameLogIn').value;`),'');
+  await addGame('750');assert.deepEqual((await state()).gameLog,[250,750]);assert.equal(await sumText(),'1000G/2');
+  assert.equal(await run(`return d.querySelector('[data-c="counts.at"] .pct').textContent;`),'1/1000.0');
+  await click('[data-action="popGameLog"]');assert.deepEqual((await state()).gameLog,[250]);assert.equal(await sumText(),'250G/1');
+  await click('#undoBtn');assert.deepEqual((await state()).gameLog,[250,750]);
+  await load();assert.equal(await sumText(),'1000G/2');assert.deepEqual(await run('return window.__errors;'),[]);
+  pass('当選ごとのG 追加・最後の1件の取消・↩取消・保存');
   const full=await run('return structuredClone(CheckerConfigs.seiya12.defaults);');
-  full.currentGames=6000;full.counts={czWho:18,czKage:9,czUnknown:3,at:17};
+  full.gameLog=[2500,3500];full.counts={czWho:18,czKage:9,czUnknown:3,at:17};
   for(const key of ['trophy','atEnd','erFirst','erSecond','card'])for(const id of Object.keys(full[key]))full[key][id]=1;
   await seed(full);await tab(0);
   assert.equal(await run(`return d.querySelector('[data-c="counts.czWho"] .pct').textContent;`),'18/27 67%');

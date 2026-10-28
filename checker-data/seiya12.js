@@ -48,7 +48,7 @@
     card:{harisenbon:'ハリセンボン',same:'サメ',ebi:'エビ',ankou:'アンコウ'}
   };
   const HINTS={
-    games:'データカウンターのG数を入力します。メニューのAT間G数・液晶G数は設定変更で0に戻ります。',
+    games:'当選するたびに、その当選までのG数（ホールのデータカウンターの当選G、または台メニューのAT間G）を入力して追加します。合計が設定推定の分母になります。今まわしている未当選区間のG数は分母に含めません。',
     cz:'通常CZ（フーアーユー・影ノ襲来）を突入のたびに1回押します。種別が分からなければ「通常CZ（種別不明）」。合計には種別不明も入り、種別の割合には入りません。上位CZ「最終決戦サガバトル」は数えません。',
     at:'AT初当りは初当りだけを押します。セット継続・上位移行・千日戦争の引戻しは数えません。CZ成功からの自動加算はしません。',
     trophy:'黄金聖闘士バトル・千日戦争の継続バトル・サガバトル敗北時に出ることがあります。出現率はホール設定で変わるため、出ないことを低設定の根拠にしません。',
@@ -56,12 +56,15 @@
     er:'エクストララウンド中の黄金聖闘士バトルに勝利したときに発生します。1人目・2人目をそれぞれ記録します。割合は出しません。',
     card:'通常時のカード演出で出る星座です。設定示唆のある4種だけ記録します。'
   };
-  const DEF={startGames:0,currentGames:0,games:0,counts:{czWho:0,czKage:0,czUnknown:0,at:0},
+  const DEF={gameLog:[],games:0,counts:{czWho:0,czKage:0,czUnknown:0,at:0},
     ...Object.fromEntries(Object.entries(GROUPS).map(([key,arr])=>[key,Object.fromEntries(arr.map(c=>[c[0],0]))])),img:null,iconChoice:null};
   function n(obj,key){return Number((obj||{})[key])||0;}
-  function freeGames(S){return n(S,'currentGames')-n(S,'startGames');}
-  function freeText(S){const g=freeGames(S);return g>=0?g+'G':'−';}
-  function oneIn(count,den){return den>0&&count>0?'1/'+(den/count).toFixed(1):'−';}
+  // 分母＝当選ごとのG数の合計（§9-105）。今まわしている未当選区間は含めない。
+  function gameLog(S){return Array.isArray(S.gameLog)?S.gameLog:[];}
+  function freeGames(S){return gameLog(S).reduce((a,v)=>a+(Number(v)||0),0);}
+  function freeText(S){return freeGames(S)+'G';}
+  function logText(S){return freeText(S)+'（'+gameLog(S).length+'件）';}
+  function oneIn(count,den){return den>0&&count>0?'1/'+(den/count).toFixed(1):'—';}
   // 通常CZ合計は種別不明を含む。種別の割合の母数は種別が分かった2種だけ（値の出典はこの2関数）。
   function czTotal(S){return n(S.counts,'czWho')+n(S.counts,'czKage')+n(S.counts,'czUnknown');}
   function czKnown(S){return n(S.counts,'czWho')+n(S.counts,'czKage');}
@@ -86,6 +89,8 @@
       .jump-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px}.jump-grid a{display:flex;align-items:center;justify-content:center;min-height:36px;border-radius:9px;border:1px solid var(--line);background:var(--panel2);color:var(--cyan);font-size:11px;font-weight:800;text-decoration:none;text-align:center;padding:6px}
       .ref-table{width:100%;border-collapse:collapse;font-size:11px;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}.ref-table td{border-bottom:1px solid var(--line);padding:8px 10px;vertical-align:top}.ref-table tr:last-child td{border-bottom:0}.ref-table td:first-child{width:42%;color:var(--txt);font-weight:700}.ref-table td:last-child{color:var(--muted);line-height:1.45}
       .crow.total-row{border-style:dashed}.crow.total-row .num{color:var(--gold);text-shadow:none}
+      .glog-btn{flex:none;min-height:44px;padding:0 14px;border-radius:9px;border:1px solid var(--line);background:var(--panel2);color:var(--cyan);font-family:var(--body);font-size:12px;font-weight:800}.glog-btn:disabled{opacity:.4}
+      .glog-row{display:flex;align-items:center;gap:8px;margin-top:6px}.glog-last{flex:1;font-size:11px;color:var(--muted)}
     </style>`;
   }
   function groupRows(ctx,key){
@@ -94,12 +99,12 @@
   }
   function groupSection(ctx,key){return `<section class="sec"><div class="sec-h">${TITLES[key]}</div><div class="cgrid">${groupRows(ctx,key)}</div><div class="hint">${HINTS[key]}</div></section>`;}
   function pageCounts(ctx){
-    const S=ctx.S,g=freeGames(S),neg=g<0,known=czKnown(S);
+    const S=ctx.S,g=freeGames(S),log=gameLog(S),known=czKnown(S);
     return pageStyle()+`<section class="sec">
-      <div class="sec-h">回転数<span class="sub">通常回転 <b style="color:${neg?'#ff5c5c':'#6fd8ff'}">${freeText(S)}</b></span></div>
-      <div class="inrow"><label>打ち始めの回転数</label><input type="number" inputmode="numeric" data-number-key="startGames" value="${S.startGames||''}" placeholder="0"></div>
-      <div class="inrow" style="margin-top:6px"><label>現在の回転数</label><input type="number" inputmode="numeric" data-number-key="currentGames" value="${S.currentGames||''}" placeholder="0"></div>
-      <div class="hint ${neg?'hot':''}">${HINTS.games}${neg?' 現在G数が打ち始めG数を下回っています。':''}</div>
+      <div class="sec-h">当選ごとのG<span class="sub">累計通常G <b style="color:#6fd8ff" data-glog-sum>${g}G</b> ／ <span data-glog-count>${log.length}</span>件</span></div>
+      <div class="inrow"><label>当選時のG数</label><input type="number" inputmode="numeric" id="gameLogIn" value="" placeholder="0"><button type="button" class="glog-btn" data-action="addGameLog" data-label="当選G追加">追加</button></div>
+      <div class="glog-row"><span class="glog-last">${log.length?'最後に追加：'+log[log.length-1]+'G':'まだ登録がありません'}</span><button type="button" class="glog-btn" data-action="popGameLog" data-label="当選G取消" ${log.length?'':'disabled'}>最後の1件を取り消す</button></div>
+      <div class="hint">${HINTS.games}</div>
     </section><section class="sec"><div class="sec-h">カウント系</div><div class="cgrid">
       ${CZ_TYPES.map(c=>ctx.crow('counts.'+c[0],c[1],'種別の割合（種別不明を除く）',0,v=>ctx.pct(v,known))).join('')}
       ${ctx.crow('counts.czUnknown','通常CZ（種別不明）','合計に入れ、種別の割合には入れない',0)}
@@ -121,6 +126,7 @@
     ]],
     ['トロフィー',[['出現場面',HINTS.trophy],['示唆','銅＝設定2以上濃厚、銀＝設定3以上濃厚、金＝設定4以上濃厚、クマノミ柄＝設定5以上濃厚、虹＝設定6濃厚']]],
     ['調査中の項目',[
+      ['液晶・メニューのG数','液晶G数は設定変更時と電源OFF→ON時に0Gへ戻ります（電源OFF→ONでは内部状態を引き継ぎます）。メニューのAT間G数も設定変更で0に戻ります。設定推定の分母には使わず、当選ごとのG数の合計を使います。'],
       ['規定周期の振り分け','調査中（推定に使わない）'],['守護星座の加護','調査中（推定に使わない）'],
       ['解析値について','当ページの解析値は第三者の独自調査値です。']
     ]]
@@ -131,7 +137,7 @@
   }
   function tplText(ctx){
     const S=ctx.S,g=freeGames(S),known=czKnown(S);
-    let t=`設定判別メモ｜L聖闘士星矢 黄金十二宮\n通常回転 ${freeText(S)} / 確定演出${strongCount(S)}回\n_______\n`;
+    let t=`設定判別メモ｜L聖闘士星矢 黄金十二宮\n累計通常G ${logText(S)} / 確定演出${strongCount(S)}回\n_______\n`;
     const lines=[];
     if(czTotal(S)>0)lines.push(`通常CZ合計▶${czTotal(S)}回（${oneIn(czTotal(S),g)}）`);
     CZ_TYPES.forEach(c=>{const v=n(S.counts,c[0]);if(v>0)lines.push(`${c[1]}▶${v}回${known>0?' ('+(100*v/known).toFixed(0)+'%)':''}`);});
@@ -162,7 +168,8 @@
   }
   function normalizeState(out){
     const integer=v=>Number.isFinite(Number(v))?Math.max(0,Math.floor(Number(v))):0;
-    ['startGames','currentGames','games'].forEach(k=>{out[k]=integer(out[k]);});
+    out.games=integer(out.games);
+    out.gameLog=Array.isArray(out.gameLog)?out.gameLog.map(integer).filter(v=>v>0):[];
     ['counts',...Object.keys(GROUPS)].forEach(key=>{
       out[key]=Object.assign({},DEF[key],out[key]||{});
       Object.keys(out[key]).forEach(k=>{out[key][k]=integer(out[key][k]);});
@@ -171,13 +178,28 @@
     if(out.iconChoice===undefined)out.iconChoice=DEF.iconChoice;
     return out;
   }
+  // 当選G数の追加・最後の1件の取消。入力欄は data-number-key を付けない（blur で再描画されて押下が消えないように）。
+  function addGameLog(ctx){
+    const el=document.getElementById('gameLogIn');
+    const v=Math.floor(Number(el&&el.value));
+    if(!(v>0))return false;
+    ctx.S.gameLog=gameLog(ctx.S).concat([v]);
+    return '当選G '+v+'G を追加';
+  }
+  function popGameLog(ctx){
+    const log=gameLog(ctx.S);
+    if(!log.length)return false;
+    ctx.S.gameLog=log.slice(0,-1);
+    return '当選G '+log[log.length-1]+'G を取り消し';
+  }
   window.CheckerConfigs.seiya12={
     uiV2:true,nanaCollab:false,storageKey:'seiya12-checker-v1',defaults:DEF,
     mergeKeys:['counts',...Object.keys(GROUPS)],sourceUrl:'https://chonborista.com/slot/sanyo-slot/260304/',normalizeState,
+    actions:{addGameLog,popGameLog},
     share:{title:'L聖闘士星矢 黄金十二宮 設定判別メモ',hashtags:'#聖闘士星矢 #設定判別'},
     pages:(ctx,pageCard)=>[()=>pageCounts(ctx),()=>pageSuggest(ctx),()=>pageReference(ctx),pageCard],
     template:tplText,compactTemplate:tplText,
-    card:{title:'L聖闘士星矢 黄金十二宮',metaText:(ctx,date)=>date+'  通常回転 '+freeText(ctx.S),titleFitMax:650,
+    card:{title:'L聖闘士星矢 黄金十二宮',metaText:(ctx,date)=>date+'  累計通常G '+logText(ctx.S),titleFitMax:650,
       footerTags:'#聖闘士星矢 #設定判別',downloadName:'seiya12_check.png',detailDownloadName:'seiya12_check_detail.png',detail,
       blocks:ctx=>{const S=ctx.S,g=freeGames(S);return [
         ['CZ合計',oneIn(czTotal(S),g)],['AT',oneIn(n(S.counts,'at'),g)],

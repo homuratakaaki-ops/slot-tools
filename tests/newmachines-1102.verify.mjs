@@ -14,10 +14,12 @@ let checks=0,failures=0;
 function check(name,fn){try{fn();checks++;console.log('PASS '+name);}catch(e){failures++;console.error('FAIL '+name+'\n'+e.stack);}}
 const PENDING='設定示唆（終了画面・トロフィーなど）は出典で調査中です。公表され次第この機種に追加します。';
 const THIRD='当ページの解析値は第三者の独自調査値です。';
+// 分母＝当選ごとのG合計（§9-70/§9-105、ネネ検収 2026-10-28 の指摘で打ち始めG〜現在Gの差から変更）。
+const GAMES_HINT='当選するたびに、その当選までのG数（ホールのデータカウンターの当選G、または台メニューのAT間G）を入力して追加します。合計が設定推定の分母になります。今まわしている未当選区間のG数は分母に含めません。';
 const EXPECTED={
   ragnador:{title:'スマスロ ラグナドール',url:'https://chonborista.com/slot/universal-slot/266983/',
     counts:[['cz','CZ',[172.8,167.2,161.8,145.0,143.0,142.4]],['at','AT初当り',[326.4,317.2,307.7,271.2,260.8,258.3]]],
-    hint:'連動アプリでAT間G数が確認できる場合はそれを通常Gに使えます（直ATはCZに数えない）。'},
+    hint:'直ATはCZに数えない。'},
   garo:{title:'L牙狼 闇を照らす者',url:'https://chonborista.com/slot/sansei-slot/270768/',
     counts:[['cz','トータルCZ',[156.6,154.6,151.4,148.7,144.2,141.1]],['bonus','BONUS初当り',[291.1,283.7,276.1,265.8,259.4,256.5]]],
     hint:'牙狼モード・魔界の通常CZを合算。『金色になれ！』は別段階で数えない。SUPER GARO BONUS・RUSH は初当りに含めない。'},
@@ -32,7 +34,9 @@ const EXPECTED={
     target:{at:'設1:1/276.5⇔設6:1/210.3（設定順に並びません。参照タブ参照）'},
     hint:'引戻しは数えない。アクセスチャンス（ポイント獲得）はCZではない。アクセスチャンスの継続回数は内部値と一致しないため記録しない。'}
 };
-function load(id){const box={window:{}};vm.createContext(box);vm.runInContext(read('checker-data/'+id+'.js'),box);return box.window.CheckerConfigs[id];}
+// 追加ボタンは入力欄 #gameLogIn の値を読む。テストでは document.getElementById だけを差し替える。
+const doc={value:'',getElementById:id=>id==='gameLogIn'?{value:doc.value}:null};
+function load(id){const box={window:{},document:doc};vm.createContext(box);vm.runInContext(read('checker-data/'+id+'.js'),box);return box.window.CheckerConfigs[id];}
 function ctx(S){return {S,pct:(v,d)=>d>0?`${v}/${d} ${(100*v/d).toFixed(0)}%`:`${v}/0 —`,crow:(key,label,sub,hot,pct)=>{
   const [group,id]=key.split('.');return `<div data-c="${key}"><b>${label}</b><small>${sub}</small><span class="pct">${pct?pct(S[group][id]):''}</span></div>`;
 }};}
@@ -61,11 +65,18 @@ for(const [id,E] of Object.entries(EXPECTED)){
     assert.deepEqual(Object.keys(c.defaults.counts),E.counts.map(x=>x[0]));
     assert.ok(input.startsWith(input.match(/^<style>[\s\S]*?<\/style>/)[0]+`<div class="hint">${PENDING}</div>`),'入力タブ先頭の調査中 hint');
     assert.ok(input.includes(`<div class="hint">${E.hint}</div>`));
+    assert.ok(input.includes(`<div class="hint">${GAMES_HINT}</div>`),'当選ごとのG hint');
+    assert.ok(input.includes('<label>当選時のG数</label><input type="number" inputmode="numeric" id="gameLogIn" value=""'));
+    assert.ok(input.includes('data-action="addGameLog"')&&input.includes('data-action="popGameLog" data-label="当選G取消" disabled>最後の1件を取り消す'));
+    assert.doesNotMatch(input,/打ち始め|現在の回転数|data-number-key="(startGames|currentGames)"/);
+    assert.doesNotMatch(read('checker-data/'+id+'.js')+read(id+'-guide.html')+read(`docs/specs/${id}-checker-v01.md`),/連動アプリでAT間G数が確認できる場合はそれを通常Gに使えます/);
+    assert.ok(read(id+'-guide.html').includes('当選するたびに、その当選までのG数（ホールのデータカウンターの当選G、または台メニューのAT間G）'),'ガイドの通常G説明');
+    assert.ok(read(`docs/specs/${id}-checker-v01.md`).includes('分母＝当選ごとのG合計（§9-105）'),'仕様書の分母明記');
     assert.ok(ref.includes(THIRD));assert.doesNotMatch(ref+input,/設定差なし|メーカー公式/);
     if(id==='vivy')assert.ok(ref.includes('設定1＜設定3＜設定2＜設定5＜設定4＜設定6'));
   });
   check(id+': 1/x・テンプレ・カード・detail',()=>{
-    const S=fresh();S.startGames=100;S.currentGames=3100;
+    const S=fresh();S.gameLog=[1200,800,1000];
     E.counts.forEach(([key],i)=>{S.counts[key]=[12,7][i];});
     const input=c.pages(ctx(S),()=>'')[0]();
     E.counts.forEach(([key,label],i)=>{
@@ -79,18 +90,38 @@ for(const [id,E] of Object.entries(EXPECTED)){
     const blocks=c.card.blocks(ctx(S));assert.deepEqual(clone(blocks[blocks.length-1]),['通常G','3000G']);assert.ok(blocks.length<=4);
     for(const b of blocks)assert.ok([...b[0]].length<=8,b[0]);
     assert.equal(c.card.chart(ctx(S)).items.length,E.counts.length);
-    const t=c.template(ctx(S));assert.ok(t.startsWith(`設定判別メモ｜${E.title}\n通常回転 3000G`));assert.ok(t.endsWith('by slot-tools.jp\n解析出典:ちょんぼりすた様'));
+    const t=c.template(ctx(S));assert.ok(t.startsWith(`設定判別メモ｜${E.title}\n累計通常G 3000G（3件）`));assert.ok(t.endsWith('by slot-tools.jp\n解析出典:ちょんぼりすた様'));
     assert.equal(c.compactTemplate(ctx(S)),t);assert.ok(!c.template(ctx(fresh())).includes('■'));
-    const z=fresh();z.currentGames=500;assert.equal(c.card.blocks(ctx(z))[0][1],'−');
-    z.startGames=900;assert.match(c.pages(ctx(z),()=>'')[0](),/下回っています/);assert.equal(c.card.blocks(ctx(z)).at(-1)[1],'−');
+    assert.ok(input.includes('累計通常G <b style="color:#6fd8ff" data-glog-sum>3000G</b> ／ <span data-glog-count>3</span>件'));
+    assert.ok(input.includes('最後に追加：1000G'));assert.equal(c.card.metaText(ctx(S),'2026/10/28'),'2026/10/28  累計通常G 3000G（3件）');
+    assert.equal(c.card.bottom(ctx(S)).columns[1].items[0].text,'累計通常G 3000G（3件）');
+    // 分母0（未登録）は「—」。カウントがあっても出さない。
+    const z=fresh();z.counts[E.counts[0][0]]=5;assert.equal(c.card.blocks(ctx(z))[0][1],'—');assert.equal(c.card.blocks(ctx(z)).at(-1)[1],'0G');
+    assert.ok(c.pages(ctx(z),()=>'')[0]().split(`data-c="counts.${E.counts[0][0]}"`)[1].includes('<span class="pct">—</span>'));
+    // 旧方式のキーが残っていても分母に使わない。
+    z.startGames=100;z.currentGames=3100;assert.equal(c.card.blocks(ctx(z))[0][1],'—');
     const b=c.card.bottom(ctx(S));assert.equal(b.startY,760);assert.ok(b.columns.every(col=>760+44*(col.items.length-1)<=936));
+  });
+  check(id+': 当選Gの追加・最後の1件の取消',()=>{
+    const S=fresh(),cx=ctx(S);
+    doc.value='';assert.equal(c.actions.addGameLog(cx),false);
+    doc.value='0';assert.equal(c.actions.addGameLog(cx),false);
+    doc.value='-5';assert.equal(c.actions.addGameLog(cx),false);
+    doc.value='abc';assert.equal(c.actions.addGameLog(cx),false);assert.deepEqual(clone(S.gameLog),[]);
+    assert.equal(c.actions.popGameLog(cx),false);
+    doc.value='312';assert.equal(c.actions.addGameLog(cx),'当選G 312G を追加');
+    doc.value='88.9';assert.equal(c.actions.addGameLog(cx),'当選G 88G を追加');
+    assert.deepEqual(clone(S.gameLog),[312,88]);assert.equal(c.card.blocks(cx).at(-1)[1],'400G');
+    assert.equal(c.actions.popGameLog(cx),'当選G 88G を取り消し');assert.deepEqual(clone(S.gameLog),[312]);
+    assert.ok(c.pages(cx,()=>'')[0]().includes('data-action="popGameLog" data-label="当選G取消" >最後の1件を取り消す'));
   });
   check(id+': 旧データ補完・不正値・未知キー保持・冪等',()=>{
     const first=E.counts[0][0];
-    const old={currentGames:'800.7',startGames:-3,counts:{[first]:'4.9',future:3.2},futureRoot:'keep'};
+    const old={currentGames:'800.7',startGames:-3,gameLog:['800.7',-3,'x',0,250],counts:{[first]:'4.9',future:3.2},futureRoot:'keep'};
     const a=c.normalizeState(clone(old)),b=c.normalizeState(clone(a));
     assert.deepEqual(clone(a),clone(b));assert.equal(a.counts[first],4);assert.equal(a.counts.future,3);assert.equal(a.futureRoot,'keep');
-    assert.equal(a.currentGames,800);assert.equal(a.startGames,0);
+    assert.deepEqual(clone(a.gameLog),[800,250]);
+    assert.deepEqual(clone(c.normalizeState({counts:{}}).gameLog),[]);assert.deepEqual(clone(c.normalizeState({gameLog:'500'}).gameLog),[]);
     for(const [key] of E.counts)assert.ok(Number.isInteger(a.counts[key])&&a.counts[key]>=0);
     assert.deepEqual(clone(c.normalizeState({})),clone(c.defaults));
     assert.equal(c.normalizeState({counts:{[first]:NaN}}).counts[first],0);

@@ -9,7 +9,9 @@ import {fileURLToPath} from 'node:url';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const read=p=>fs.readFileSync(path.join(root,p),'utf8');
 const clone=x=>JSON.parse(JSON.stringify(x));
-const box={window:{}};vm.createContext(box);
+// 追加ボタンは入力欄 #gameLogIn の値を読む。テストでは document.getElementById だけを差し替える。
+const doc={value:'',getElementById:id=>id==='gameLogIn'?{value:doc.value}:null};
+const box={window:{},document:doc};vm.createContext(box);
 vm.runInContext(read('checker-data/seiya12.js'),box);
 const c=box.window.CheckerConfigs.seiya12;
 let checks=0,failures=0;
@@ -42,7 +44,7 @@ check('期待度UP・一輝・不明は確定演出に数えない／最上位�
   assert.equal(c.card.bottom(ctx(S)).columns[0].items[0].text,'確定演出 アンコウ座(6濃厚) ×1');
 });
 check('通常CZ合計（種別不明を含む）と種別割合（不明を除く）の分離',()=>{
-  const S=fresh();S.currentGames=2000;S.startGames=200;S.counts.czWho=3;S.counts.czKage=1;S.counts.czUnknown=4;S.counts.at=5;
+  const S=fresh();S.gameLog=[700,600,500];S.counts.czWho=3;S.counts.czKage=1;S.counts.czUnknown=4;S.counts.at=5;
   const html=pages(S)[0]();
   assert.equal(pctOf(html,'counts.czWho'),'3/4 75%');assert.equal(pctOf(html,'counts.czKage'),'1/4 25%');assert.equal(pctOf(html,'counts.czUnknown'),'');
   const total=html.split('data-total="cz"')[1].split('<div class="hint">')[0];
@@ -58,8 +60,29 @@ check('通常CZ合計（種別不明を含む）と種別割合（不明を除�
   S.counts.czWho=S.counts.czKage=0;
   assert.equal(pctOf(pages(S)[0](),'counts.czWho'),'0/0 —');assert.ok(c.template(ctx(S)).includes('通常CZ合計▶4回（1/450.0）'));
   assert.ok(!c.template(ctx(S)).includes('%'));
-  S.startGames=3000;assert.match(pages(S)[0](),/下回っています/);assert.equal(c.card.blocks(ctx(S))[0][1],'−');
-  for(const s of ['サガバトル','セット継続・上位移行・千日戦争の引戻しは数えません','CZ成功からの自動加算はしません','メニューのAT間G数・液晶G数は設定変更で0に戻ります'])assert.ok(pages(fresh())[0]().includes(s),s);
+  // 分母0（未登録）は「—」。旧方式の打ち始めG・現在Gが残っていても分母に使わない。
+  S.gameLog=[];S.startGames=100;S.currentGames=3000;assert.equal(c.card.blocks(ctx(S))[0][1],'—');assert.equal(pctOf(pages(S)[0](),'counts.at'),'—');
+  for(const s of ['サガバトル','セット継続・上位移行・千日戦争の引戻しは数えません','CZ成功からの自動加算はしません'])assert.ok(pages(fresh())[0]().includes(s),s);
+});
+check('当選ごとのG: 入力欄・追加・最後の1件の取消・hint・注記の移動',()=>{
+  const HINT='当選するたびに、その当選までのG数（ホールのデータカウンターの当選G、または台メニューのAT間G）を入力して追加します。合計が設定推定の分母になります。今まわしている未当選区間のG数は分母に含めません。';
+  const S=fresh(),cx=ctx(S),input=()=>pages(S)[0]();
+  assert.ok(input().includes(`<div class="hint">${HINT}</div>`));
+  assert.ok(input().includes('<label>当選時のG数</label><input type="number" inputmode="numeric" id="gameLogIn" value=""'));
+  assert.ok(input().includes('data-action="popGameLog" data-label="当選G取消" disabled>最後の1件を取り消す'));
+  assert.doesNotMatch(input(),/打ち始め|現在の回転数|data-number-key="(startGames|currentGames)"|液晶G数/);
+  doc.value='';assert.equal(c.actions.addGameLog(cx),false);doc.value='0';assert.equal(c.actions.addGameLog(cx),false);
+  assert.equal(c.actions.popGameLog(cx),false);
+  doc.value='420';assert.equal(c.actions.addGameLog(cx),'当選G 420G を追加');doc.value='180';c.actions.addGameLog(cx);
+  assert.deepEqual(clone(S.gameLog),[420,180]);
+  assert.ok(input().includes('累計通常G <b style="color:#6fd8ff" data-glog-sum>600G</b> ／ <span data-glog-count>2</span>件'));
+  assert.ok(input().includes('最後に追加：180G'));
+  assert.equal(c.card.metaText(cx,'2026/10/28'),'2026/10/28  累計通常G 600G（2件）');
+  assert.equal(c.actions.popGameLog(cx),'当選G 180G を取り消し');assert.deepEqual(clone(S.gameLog),[420]);
+  const ref=pages(S)[2]();
+  assert.ok(ref.includes('<td>液晶・メニューのG数</td><td>液晶G数は設定変更時と電源OFF→ON時に0Gへ戻ります（電源OFF→ONでは内部状態を引き継ぎます）。メニューのAT間G数も設定変更で0に戻ります。設定推定の分母には使わず、当選ごとのG数の合計を使います。</td>'));
+  assert.ok(read('seiya12-guide.html').includes('当選するたびに、その当選までのG数（ホールのデータカウンターの当選G、または台メニューのAT間G）'));
+  assert.ok(read('docs/specs/seiya12-checker-v01.md').includes('分母＝当選ごとのG合計（§9-105）'));
 });
 check('AT終了画面だけ割合（不明を除く）・ほかは割合なし',()=>{
   const S=fresh();S.atEnd.none=2;S.atEnd.saori=1;S.atEnd.ikki=1;S.atEnd.unknown=9;
@@ -102,7 +125,7 @@ check('参照タブ：6設定表・小役・トロフィー・調査中',()=>{
   assert.doesNotMatch(html,/メーカー公式|公式発表/);
 });
 check('テンプレ・detail が全セクション・全行を網羅',()=>{
-  const S=fresh();S.currentGames=8000;
+  const S=fresh();S.gameLog=[5000,3000];
   for(const key of c.mergeKeys)for(const id of Object.keys(S[key]))S[key][id]=1;
   const t=c.template(ctx(S)),detail=c.card.detail(ctx(S));
   assert.deepEqual(clone(detail.map(s=>s.title)),['カウント系','トロフィー','AT終了画面','ER 1人目','ER 2人目','星座']);
@@ -110,10 +133,10 @@ check('テンプレ・detail が全セクション・全行を網羅',()=>{
   assert.deepEqual(clone(detail.find(s=>s.title==='AT終了画面').items.map(i=>i.label)),['キャラなし','青銅3人','青銅4人','左向き青銅4','青銅5一輝','魔鈴シャイナ','沙織','一輝','不明']);
   assert.deepEqual(clone(detail[0].items.map(i=>i.text)),['通常CZ合計 ×3 1/2666.7','CZ フーアーユー ×1 (50%)','CZ 影ノ襲来 ×1 (50%)','通常CZ 種別不明 ×1','AT初当り ×1 1/8000.0']);
   for(const s of ['■カウント系','■トロフィー','■AT終了画面','■エクストララウンド キャラ紹介（1人目）','■エクストララウンド キャラ紹介（2人目）','■カード演出の星座'])assert.ok(t.includes(s),s);
-  for(const key of Object.keys(S).filter(k=>k!=='counts'&&S[k]&&typeof S[k]==='object'))for(const id of Object.keys(S[key])){
+  for(const key of Object.keys(S).filter(k=>k!=='counts'&&S[k]&&typeof S[k]==='object'&&!Array.isArray(S[k])))for(const id of Object.keys(S[key])){
     const label=pages(S)[1]().split(`data-c="${key}.${id}"`)[1].match(/<b>(.*?)<\/b>/)[1];assert.ok(t.includes(label+'▶1回'),key+'.'+id);
   }
-  assert.ok(t.startsWith('設定判別メモ｜L聖闘士星矢 黄金十二宮\n通常回転 8000G / 確定演出12回'));
+  assert.ok(t.startsWith('設定判別メモ｜L聖闘士星矢 黄金十二宮\n累計通常G 8000G（2件） / 確定演出12回'));
   assert.ok(t.endsWith('by slot-tools.jp\n解析出典:ちょんぼりすた様'));assert.equal(c.compactTemplate(ctx(S)),t);
   assert.ok(!c.template(ctx(fresh())).includes('■'));
   const b=c.card.bottom(ctx(S));assert.equal(b.startY,760);assert.equal(b.rowGap,44);assert.deepEqual(Array.from(b.columns,col=>col.x),[70,560]);
@@ -122,13 +145,13 @@ check('テンプレ・detail が全セクション・全行を網羅',()=>{
   assert.equal(c.card.footerTags,'#聖闘士星矢 #設定判別');assert.equal(c.card.title,'L聖闘士星矢 黄金十二宮');
 });
 check('normalize: 旧データ補完・不正値・未知キー保持・冪等',()=>{
-  const S={startGames:-4,currentGames:'8000.9',counts:{czWho:'3.8',at:-2,czKage:Infinity},trophy:{gold:NaN,future:4.8},futureRoot:'keep'};
+  const S={startGames:-4,currentGames:'8000.9',gameLog:['8000.9',-4,'x',120],counts:{czWho:'3.8',at:-2,czKage:Infinity},trophy:{gold:NaN,future:4.8},futureRoot:'keep'};
   const a=c.normalizeState(S),b=c.normalizeState(clone(a));assert.deepEqual(clone(a),clone(b));
   assert.equal(a.counts.czWho,3);assert.equal(a.counts.at,0);assert.equal(a.counts.czKage,0);assert.equal(a.counts.czUnknown,0);
-  assert.equal(a.trophy.gold,0);assert.equal(a.trophy.future,4);assert.equal(a.currentGames,8000);assert.equal(a.startGames,0);assert.equal(a.futureRoot,'keep');
+  assert.equal(a.trophy.gold,0);assert.equal(a.trophy.future,4);assert.deepEqual(clone(a.gameLog),[8000,120]);assert.equal(a.futureRoot,'keep');
   for(const key of c.mergeKeys)for(const id of Object.keys(c.defaults[key]))assert.ok(Number.isInteger(a[key][id])&&a[key][id]>=0,key+'.'+id);
   assert.deepEqual(clone(c.normalizeState({})),clone(c.defaults));
-  const old={currentGames:500,counts:{czWho:2}};const o=c.normalizeState(clone(old));
+  const old={currentGames:500,counts:{czWho:2}};const o=c.normalizeState(clone(old));assert.deepEqual(clone(o.gameLog),[]);
   assert.equal(o.counts.czWho,2);assert.deepEqual(clone(o.atEnd),clone(c.defaults.atEnd));assert.deepEqual(clone(c.normalizeState(clone(o))),clone(o));
 });
 check('HTML: noindex・導線なし・推測タブなし・LF・構文',()=>{

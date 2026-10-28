@@ -99,8 +99,20 @@ try{
     await plus(keys[0]);await click('#undoBtn');assert.equal((await state()).counts[keys[0].split('.')[1]],1);
     const saved=await state();await load();assert.deepEqual(await state(),saved);
     pass(id+' all '+keys.length+' count buttons / undo / save / reload');
+    // 当選ごとのG：実画面で入力→追加→取消→↩取消（分母＝当選ごとのG合計、§9-105）。
+    const addGame=v=>run(`const i=d.getElementById('gameLogIn');i.focus();i.value=${JSON.stringify(v)};d.querySelector('[data-action="addGameLog"]').click();`);
+    const sumText=()=>run(`return d.querySelector('[data-glog-sum]').textContent+'/'+d.querySelector('[data-glog-count]').textContent;`);
+    assert.equal(await run(`return d.querySelector('[data-action="popGameLog"]').disabled;`),true);
+    await addGame('');await addGame('0');assert.deepEqual((await state()).gameLog,[]);
+    await addGame('312');assert.equal(await run(`return d.getElementById('gameLogIn').value;`),'');
+    await addGame('688');assert.deepEqual((await state()).gameLog,[312,688]);assert.equal(await sumText(),'1000G/2');
+    assert.equal(await run(`return d.querySelector('[data-c="${keys[0]}"] .pct').textContent;`),'1/1000.0');
+    await click('[data-action="popGameLog"]');assert.deepEqual((await state()).gameLog,[312]);assert.equal(await sumText(),'312G/1');
+    await click('#undoBtn');assert.deepEqual((await state()).gameLog,[312,688]);
+    await load();assert.equal(await sumText(),'1000G/2');
+    pass(id+' 当選ごとのG 追加・最後の1件の取消・↩取消・保存');
     const full=await run('return structuredClone(CheckerConfigs.'+id+'.defaults);');
-    full.startGames=200;full.currentGames=4200;keys.forEach((k,i)=>{full.counts[k.split('.')[1]]=[21,11][i];});
+    full.gameLog=[1500,2500];keys.forEach((k,i)=>{full.counts[k.split('.')[1]]=[21,11][i];});
     for(const [label,S] of [['empty',{}],['filled',full]]){
       await seed(S);
       for(let p=0;p<3;p++){await tab(p);await layout(360,label,p);await shot(id+'-'+['input','reference','card'][p]+'-360-'+label,360);}
