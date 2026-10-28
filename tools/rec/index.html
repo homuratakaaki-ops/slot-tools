@@ -1119,11 +1119,24 @@ const LOG_KIND={
   "お金":ev=>["money","follow","medal"].includes(ev.type)
 };
 let logFilter="全部",logTagFilter=null;
+function logDisplayOrder(events){
+  let realG=0;
+  const rows=events.map(ev=>{if(ev.realG!=null)realG=ev.realG;return {ev,realG}});
+  const ordered=[],block=[];
+  // 記録の新しい順から安定ソートし、同じ実Gでは新しい記録を上に保つ。
+  const flush=()=>{block.sort((a,b)=>b.realG-a.realG);ordered.push(...block.map(row=>row.ev));block.length=0};
+  rows.reverse().forEach(row=>{
+    if(["hitStart","hitEnd","hitResume"].includes(row.ev.type)){flush();ordered.push(row.ev)}
+    else block.push(row);
+  });
+  flush();return ordered;
+}
 function renderLog(){
   const w=el("log"),all=S.cur.events;w.innerHTML="";
   const present=[...new Set(all.flatMap(ev=>Array.isArray(ev.tags)?ev.tags:[]))];
   if(!present.includes(logTagFilter))logTagFilter=null;
-  const evs=logOpen?all.filter(ev=>(logFilter==="全部"||LOG_KIND[logFilter](ev))&&(!logTagFilter||(ev.tags||[]).includes(logTagFilter))):all;
+  const ordered=logDisplayOrder(all);
+  const evs=logOpen?ordered.filter(ev=>(logFilter==="全部"||LOG_KIND[logFilter](ev))&&(!logTagFilter||(ev.tags||[]).includes(logTagFilter))):ordered;
   if(logOpen){
     const fb=mk("div","fbar");
     const cl=mk("button","close","閉じる");cl.addEventListener("click",()=>{logOpen=false;logFilter="全部";logTagFilter=null;renderLog();el("log").scrollIntoView({block:"start"})});fb.append(cl);
@@ -1133,7 +1146,7 @@ function renderLog(){
   }
   if(!all.length){w.append(mk("div","empty","まだ記録がありません"));return}
   if(logOpen&&!evs.length)w.append(mk("div","empty","この種類の記録はありません"));
-  evs.slice().reverse().slice(0,logOpen?evs.length:3).forEach(ev=>{
+  evs.slice(0,logOpen?evs.length:3).forEach(ev=>{
     const r=mk("div","lg");r.append(mk("div","tm",hm(ev.at)));
     const g=mk("div","gs");g.innerHTML=gsHtml(ev);r.append(g);
     r.append(mk("div","tx",evTxt(ev)));if(logOpen&&ev.tags&&ev.tags.length){r.classList.add("tagged");const tags=mk("div","tgs");ev.tags.forEach(name=>tags.append(mk("span","tg",name)));r.append(tags)}r.addEventListener("click",()=>editEvent(ev.id));w.append(r);
