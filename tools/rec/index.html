@@ -2183,7 +2183,7 @@ function editLogs(sess){
   sheet(sess.machine+" の記録の修正・削除",b=>{
     if(!sess.events.length){b.append(mk("div","hint","記録がありません"));return}
     const list=mk("div","log");
-    sess.events.forEach(ev=>{
+    logDisplayOrder(sess.events).slice().reverse().forEach(ev=>{
       const li=mk("div","lg");li.append(mk("div","tm",hm(ev.at)));
       const g=mk("div","gs");g.innerHTML=gsHtml(ev);li.append(g);
       li.append(mk("div","tx",evTxt(ev)));
@@ -2486,7 +2486,7 @@ function sessionText(s){
   const h=[d.lcdG?"開始 実"+s.startRealG+"G／液晶"+s.startLcdG+"G":"開始 "+s.startRealG+"G"];if(s.money.startMedal)h.push("持 "+s.money.startMedal+"枚");L.push(h.join(" ／ "));
   if(s.expected!=null)L.push("想定期待値 "+sgn(s.expected)+"円"+((s.follow&&s.follow.length)?"　＋フォロー "+s.follow.map(f=>sgn(f.amount)+(f.note?"（"+f.note+"）":"")).join(" ")+"　合計 "+sgn(expectedTotal(s))+"円":""));if(s.startNote)L.push(s.startNote);
   L.push("────────");
-  s.events.forEach(ev=>L.push(hm(ev.at)+"  "+gsText(ev,d)+"  "+evTxt(ev)));
+  logDisplayOrder(s.events).slice().reverse().forEach(ev=>L.push(hm(ev.at)+"  "+gsText(ev,d)+"  "+evTxt(ev)));
   if(s.endAt)L.push(hm(s.endAt)+"  "+gsText({realG:s.realG,lcdG:s.lcdG},d)+"  "+(s.endNote||"ヤメ"));
   if(s.revive)L.push("SHOW TIME復活 "+s.revive+"回");
   if(s.modeHints&&s.modeHints.length)L.push("モード示唆："+s.modeHints.map(h=>h.text+"（区間"+h.era+(h.span>1?"〜"+(h.era+h.span-1):"")+"）").join("、"));
