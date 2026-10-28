@@ -1,6 +1,7 @@
 # Lパチスロ 革命機ヴァルヴレイヴ2 周期ナビ＋設定判別カウンター 仕様書 v0.1
 
 発行：シオン 2026-10-28（JST）／裁可：夢爽（骨格書 vvv2-skeleton-v01.md のQ1・Q2 回答済み）
+改訂：2026-10-28 シオン判断（開始条件を reset／bonusEnd／fail／unknown の4値に分割。§3・§5・§6-1・§6-7・§7-1）
 実装：ミコト（Claude Code＝ツムギが代行・検証）／検収：ネネ／実機確認：夢爽
 置き場所：docs/specs/vvv2-checker-v01.md（骨格書は docs/specs/vvv2-skeleton-v01.md）
 ARCHITECTURE §5 の待ち行列には未掲載。新機種追加の標準工程1〜3として進め、進捗チェック専用チャットで §5 に反映する。
@@ -39,7 +40,7 @@ ARCHITECTURE §5 の待ち行列には未掲載。新機種追加の標準工程
 ```
 {
   schemaVersion:1,
-  start:{kind:'reset'|'fail'|'unknown', failCount:0..5},   // §6-1
+  start:{kind:'reset'|'bonusEnd'|'fail'|'unknown', failCount:0..5},   // §6-1
   custom:'off'|'on'|'unknown',                            // 終了画面カスタム
   counts:{cz:0, rb:0, bb:0, direct:0, bar:0, barDirect:0},
   groups:{endScreen:{...}, atEnd:{...}, roundRed:{...}, over:{...}, zorome:{...}, magiusCount:{...}, mumu:{...}, baffe:{...}},
@@ -164,14 +165,15 @@ Aの合計は98%（出典値のまま。正規化しない）。
 
 - 周期番号 k＝その span 内の cyc 行数＋1（out 行は数えない）
 - 「前回600pt」＝同じ span 内の直前の cyc 行の pt が600。span をまたいだら無効
-- 開始条件が `reset` のときだけ、その**最初の span** は天井周期を3とみなす（§6-3）。CZ失敗・終了契機で次の span に入ったら通常に戻る
+- 開始条件が `reset`（設定変更後）のときだけ、その**最初の span** は天井周期を3とみなす（§6-3）。`bonusEnd`（ボーナス・AT終了後）は通常の天井。CZ失敗・終了契機で次の span に入ったら通常に戻る
 - 周期の記録と設定示唆（終了画面など）は別のタブで独立に数える。周期タブの「CZ失敗」「決戦失敗」などの操作は spans だけを変え、counts/groups は変えない（二重計上を避ける。counts は入力タブで押す）
 
 ## 6. 計算（機種データ側の関数に集約。画面・カード・テンプレは同じ関数の結果を使う §9-84）
 
 ### 6-1 事前分布 `priorOf(S)`（最初の span）
-- `start.kind==='reset'`：PRIOR_RESET
-- `start.kind==='fail'`：PRIOR_RESET × TRANS^failCount（failCount=1..5。「それ以上」は5）。0回は reset と同じなので UI では「ボーナス・AT終了後／リセット後」の1択に統合
+- `start.kind==='reset'`（設定変更後）：PRIOR_RESET。最初の span は天井3周期（§5）
+- `start.kind==='bonusEnd'`（ボーナス・AT終了後）：PRIOR_RESET。天井は通常
+- `start.kind==='fail'`：PRIOR_RESET × TRANS^failCount（failCount=1..5。「それ以上」は5）。0回はボーナス・AT終了後（bonusEnd）と同じ
 - `start.kind==='unknown'`：均等 25%
 2つ目以降の span は §5 の end 種別で決まる（czmiss/rbmiss＝事後×TRANS、bbend/atend＝PRIOR_RESET）。
 
@@ -195,17 +197,19 @@ min(残るモードの天井−k+1、cycle 系示唆の残り、マギウス外�
 Σ_m 事後[m]×hazard(m,k)。ラベルは必ず「参考」。
 
 ### 6-7 検算例（tests に固定）
-開始 reset（69/25/5/1）→ 1周期目 200 miss → 2周期目 600 miss → 3周期目 400 miss：
+開始 bonusEnd（69/25/5/1・通常の天井）→ 1周期目 200 miss → 2周期目 600 miss → 3周期目 400 miss：
 - 1周期目：pt 200 → A.95 B.95 C.90 H.95、miss → A.86 B.95 C.89 H0 → 天国消滅
 - 2周期目：prev600なし → PT2[600]：A.15 B.16 C— → C消滅、miss → hazard A 29/86=.337→.663、B 13/95=.137→.863
 - 3周期目：prev600 → PT3[400]：A.47 B.17、miss → hazard B=1（天井3）→ B消滅、A 4/57=.070→.930
 - 結果：A 100%。次の候補（4周期目・prev600なし）：PT2のA列 100:25／200:23／300:5／400:28／500:4／600:15。残り周期上限3（6−4+1）。参考% = 15/53 ≈ 28%
 途中値（シオン検算 2026-10-28）：1周期目終了 A 67.97／B 27.20／C 4.83／天国 0。2周期目終了 A 64.27／B 35.73（A ∝ .6797×.15×.663、B ∝ .2720×.16×.863）。3周期目終了 A 100。4周期目の参考% 28.3。tests は小数第2位まで固定。
 
+reset 開始の検算（tests に固定）：開始 reset（69/25/5/1・最初の span は天井3周期）→ 1周期目 200 miss → 2周期目 400 miss の時点で、3周期目は全モード当選確定（参考% 100）、残り周期の上限は1（3−3+1）。3周期目でハズレを記録した場合は全モードの尤度が0になり、矛盾表示になる。
+
 ## 7. 画面
 
 ### 7-1 入力タブ
-- 開始条件（単一選択・保存）：「ボーナス・AT終了後／リセット後」「CZ失敗・決戦失敗のあと（回数 1〜5）」「不明（途中から）」。回数は 1〜4 と「5回以上」のチップ
+- 開始条件（単一選択・保存）：「設定変更後（リセット）」（reset）「ボーナス・AT終了後」（bonusEnd）「CZ失敗・決戦失敗のあと（回数 1〜5）」（fail）「不明」（unknown）の4択。回数は 1〜4 と「5回以上」のチップ
 - 終了画面カスタム：OFF／ON／不明（既定 不明）。hint「ホールが1000G単位で終了画面を変える設定です。OFF以外では終了画面を設定推測に使いません」
 - カウント系（crow）：CZ突入（counts.cz）／決戦ボーナス初当り（rb）／革命ボーナス初当り（bb）／AT直撃（direct）／BAR揃い（bar）／BAR揃いからAT直撃（barDirect・n≦d、減算は外れ側無効 §9-87）
 - hint：「初当りは出典の合算（革命ボーナス・決戦ボーナス・AT直撃）を3つに分けて数えます。CZ成功からの自動加算はしません。1/xは出しません（CZは全設定共通、初当りの設定差はごく小さいため）」
