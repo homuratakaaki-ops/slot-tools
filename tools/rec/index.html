@@ -41,10 +41,11 @@ textarea{min-height:80px;resize:vertical}
 .cnt b{display:block;font-family:var(--mono);font-size:26px;font-weight:700;line-height:1.15}
 .cnt.lcd b{color:var(--lcd)}
 .mrow{display:flex;gap:6px;margin-top:6px}
-.mpill{flex:1;padding:7px 4px;background:var(--panel);border:1px solid var(--line);border-radius:10px;text-align:center;font-size:11px;color:var(--dim)}
+.mpill{flex:1;min-height:44px;display:flex;align-items:center;justify-content:center;padding:7px 4px;background:var(--panel);border:1px solid var(--line);border-radius:10px;text-align:center;font-size:11px;color:var(--dim)}
 .mpill b{font-family:var(--mono);font-size:14px;color:var(--ink);margin-left:3px}
+#bStock{min-width:0;white-space:nowrap}
 .r3{display:flex;gap:6px;margin-top:6px}
-.r3 button{flex:1;padding:11px 0;font-weight:600}
+.r3 button{flex:1;min-height:44px;white-space:nowrap;padding:11px 0;font-weight:600}
 .r3 .danger{background:rgba(224,87,74,.14);border-color:#5C2B26;color:#F0968C}
 .r5{display:flex;gap:5px;margin-top:6px}
 .r5 button{flex:1;padding:12px 0;font-weight:700;font-family:var(--mono);font-size:15px}
@@ -207,6 +208,8 @@ textarea{min-height:80px;resize:vertical}
       <div><div class="lbl">持ちメダル（元から手元に）</div><input id="stMedal" class="num" inputmode="numeric" placeholder="0"></div>
       <div><div class="lbl">再プレイでおろした分</div><input id="stReplay0" class="num" inputmode="numeric" placeholder="0"></div>
     </div>
+    <div class="lbl" style="margin-top:12px">貯メダル残高（おろす前）<span class="hint"> 任意</span></div>
+    <input id="stStock" class="num" inputmode="numeric" placeholder="未入力">
     <div class="hint">打ち始めに貯メダルからおろした枚数は「再プレイ」に。途中でおろす分は打ち始めてから「再プレイ」ボタンで。</div>
     <div class="lbl">打ち始めのメモ</div>
     <textarea id="stNote" placeholder="リセット / 3スルー など" style="min-height:60px"></textarea>
@@ -223,7 +226,7 @@ textarea{min-height:80px;resize:vertical}
     <div class="mrow">
       <div class="mpill">投資<b id="mCash">0円</b></div>
       <div class="mpill">残高<b id="mBal">0円</b></div>
-      <div class="mpill">再<b id="mRep">0枚</b></div>
+      <button class="mpill" id="bStock"><span id="mRepLabel">再</span><b id="mRep">0枚</b></button>
       <div class="mpill">差枚<b id="mDiff">−</b></div>
     </div>
     <div class="r3"><button class="danger" id="bMinus">−1000</button><button id="bDeposit">入金</button><button id="bReplay">再プレイ</button></div>
@@ -524,6 +527,8 @@ function expectedTotal(s){return (s.expected||0)+(s.follow||[]).reduce((a,f)=>a+
 function invested(m){return Array.isArray(m.spends)?sum(m.spends):sum(m.cash||[])}
 function balance(m){return Array.isArray(m.deposits)?sum(m.deposits)-sum(m.spends||[]):0}
 function replayed(m){return sum(m.replays||[])}
+function replayUnitOf(sess){const v=sess.money.replayUnit;return typeof v==="number"&&Number.isFinite(v)&&v>0?v:sess.lend}
+function stockLeft(m){return typeof m.stockStart==="number"&&Number.isFinite(m.stockStart)?m.stockStart-replayed(m):null}
 function fixMoney(m){
   if(!m)return;
   if(!Array.isArray(m.deposits)||!Array.isArray(m.spends)){
@@ -592,7 +597,7 @@ function validSession(c){
       const arr=m[k];if(arr==null)continue;if(!Array.isArray(arr))return false;
       if(!arr.every(x=>x&&typeof x==="object"&&dateOk(x.at)&&typeof x.amount==="number"&&Number.isFinite(x.amount)))return false;
     }
-    if(!numOrNull(m.startMedal)||!numOrNull(m.endMedal)||!numOrNull(m.credit)||!numOrNull(m.startReplay)||!numOrNull(m.endReplay))return false;
+    if(!numOrNull(m.startMedal)||!numOrNull(m.endMedal)||!numOrNull(m.credit)||!numOrNull(m.startReplay)||!numOrNull(m.endReplay)||!numOrNull(m.stockStart)||!numOrNull(m.replayUnit))return false;
   }
   if(c.rare!=null){if(typeof c.rare!=="object")return false;if(!Object.values(c.rare).every(v=>v&&typeof v==="object"&&Object.values(v).every(numOrNull)))return false}
   if(c.follow!=null){if(!Array.isArray(c.follow))return false;if(!c.follow.every(x=>x&&typeof x==="object"&&typeof x.amount==="number"&&Number.isFinite(x.amount)))return false}
@@ -1026,11 +1031,28 @@ function renderCounters(){
   el("c3Lbl").textContent=c3Label(d);
   el("cLcdWrap").classList.toggle("hide",!d.lcdG);
 }
+function fitStockPill(){
+  const pill=el("bStock"),value=el("mRep"),label=el("mRepLabel");
+  if(!pill||!value||!label||!pill.clientWidth)return;
+  value.style.fontSize="";label.style.fontSize="";
+  const style=getComputedStyle(pill),valueStyle=getComputedStyle(value);
+  const available=pill.clientWidth-parseFloat(style.paddingLeft)-parseFloat(style.paddingRight);
+  const base=parseFloat(valueStyle.fontSize),labelBase=parseFloat(getComputedStyle(label).fontSize);
+  const margin=parseFloat(valueStyle.marginLeft)+parseFloat(valueStyle.marginRight);
+  for(let size=base;size>10&&value.getBoundingClientRect().width+label.getBoundingClientRect().width+margin>available;){
+    size=Math.max(10,size-0.5);
+    value.style.fontSize=size+"px";label.style.fontSize=labelBase*size/base+"px";
+  }
+}
+window.addEventListener("resize",fitStockPill);
 function renderMoney(){
   const c=S.cur,m=c.money;
   el("mCash").textContent=yen(invested(m))+"円";
   const bal=balance(m);el("mBal").textContent=yen(bal)+"円";el("mBal").style.color=bal<0?"var(--hot)":"";
-  el("mRep").textContent=yen(replayed(m))+"枚";
+  const left=stockLeft(m);el("mRepLabel").textContent=left==null?"再":"貯";
+  el("mRep").textContent=yen(left==null?replayed(m):left)+"枚";el("mRep").style.color=left<0?"var(--hot)":"";
+  fitStockPill();
+  el("bReplay").textContent="再 −"+yen(replayUnitOf(c));
   if(m.credit==null)el("mDiff").textContent="−";
   else{const bought=Math.round(invested(m)/1000*c.lend);el("mDiff").textContent=sgn(m.credit-m.startMedal-bought-replayed(m))+"枚"}
 }
@@ -1119,11 +1141,24 @@ const LOG_KIND={
   "お金":ev=>["money","follow","medal"].includes(ev.type)
 };
 let logFilter="全部",logTagFilter=null;
+function logDisplayOrder(events){
+  let realG=0;
+  const rows=events.map(ev=>{if(ev.realG!=null)realG=ev.realG;return {ev,realG}});
+  const ordered=[],block=[];
+  // 記録の新しい順から安定ソートし、同じ実Gでは新しい記録を上に保つ。
+  const flush=()=>{block.sort((a,b)=>b.realG-a.realG);ordered.push(...block.map(row=>row.ev));block.length=0};
+  rows.reverse().forEach(row=>{
+    if(["hitStart","hitEnd","hitResume"].includes(row.ev.type)){flush();ordered.push(row.ev)}
+    else block.push(row);
+  });
+  flush();return ordered;
+}
 function renderLog(){
   const w=el("log"),all=S.cur.events;w.innerHTML="";
   const present=[...new Set(all.flatMap(ev=>Array.isArray(ev.tags)?ev.tags:[]))];
   if(!present.includes(logTagFilter))logTagFilter=null;
-  const evs=logOpen?all.filter(ev=>(logFilter==="全部"||LOG_KIND[logFilter](ev))&&(!logTagFilter||(ev.tags||[]).includes(logTagFilter))):all;
+  const ordered=logDisplayOrder(all);
+  const evs=logOpen?ordered.filter(ev=>(logFilter==="全部"||LOG_KIND[logFilter](ev))&&(!logTagFilter||(ev.tags||[]).includes(logTagFilter))):ordered;
   if(logOpen){
     const fb=mk("div","fbar");
     const cl=mk("button","close","閉じる");cl.addEventListener("click",()=>{logOpen=false;logFilter="全部";logTagFilter=null;renderLog();el("log").scrollIntoView({block:"start"})});fb.append(cl);
@@ -1133,7 +1168,7 @@ function renderLog(){
   }
   if(!all.length){w.append(mk("div","empty","まだ記録がありません"));return}
   if(logOpen&&!evs.length)w.append(mk("div","empty","この種類の記録はありません"));
-  evs.slice().reverse().slice(0,logOpen?evs.length:3).forEach(ev=>{
+  evs.slice(0,logOpen?evs.length:3).forEach(ev=>{
     const r=mk("div","lg");r.append(mk("div","tm",hm(ev.at)));
     const g=mk("div","gs");g.innerHTML=gsHtml(ev);r.append(g);
     r.append(mk("div","tx",evTxt(ev)));if(logOpen&&ev.tags&&ev.tags.length){r.classList.add("tagged");const tags=mk("div","tgs");ev.tags.forEach(name=>tags.append(mk("span","tg",name)));r.append(tags)}r.addEventListener("click",()=>editEvent(ev.id));w.append(r);
@@ -1822,11 +1857,36 @@ el("bUndo").addEventListener("click",()=>{undoLastOp(false)});
 /* ---------- お金 ---------- */
 el("bMinus").addEventListener("click",()=>{const m=S.cur.money,tk=uid();let auto=false;if(balance(m)<1000){m.deposits.push({at:nowISO(),amount:1000,tk});auto=true}m.spends.push({at:nowISO(),amount:1000,tk});push("money","投資 1,000円"+(auto?"（現金1,000円を入金）":"")+"　累計 "+yen(invested(m))+"円",{tk});toast(auto?"入金1,000円 → 投資1,000円":"投資 1,000円（残高 "+yen(balance(m))+"円）")});
 el("bDeposit").addEventListener("click",()=>{sheet("入金",b=>{b.append(optRow([1000,5000,10000].map(n=>({l:"+"+yen(n),v:n})),it=>{const tk=uid();S.cur.money.deposits.push({at:nowISO(),amount:it.v,tk});push("money","入金 "+yen(it.v)+"円　残高 "+yen(balance(S.cur.money))+"円",{tk});closeSheet()},""));const free=mk("button","sub","金額を入れる");free.addEventListener("click",()=>{closeSheet();askNum("入金額",0,v=>{if(!v)return;const tk=uid();S.cur.money.deposits.push({at:nowISO(),amount:v,tk});push("money","入金 "+sgn(v)+"円　残高 "+yen(balance(S.cur.money))+"円",{tk})})});b.append(free);b.append(mk("div","hint","入金は残高が増えるだけです。「−1000」を押した分が投資になります。"))})});
-el("bReplay").addEventListener("click",()=>{
+function recordReplay(n){
+  if(!Number.isFinite(n)||n<=0){toast("枚数は正の数で入れてください");return}
+  const m=S.cur.money,tk=uid();m.replays.push({at:nowISO(),amount:n,tk});
+  const left=stockLeft(m);
+  push("money","再プレイ −"+yen(n)+"枚　累計 "+yen(replayed(m))+"枚"+(left==null?"":"（貯玉残 "+yen(left)+"枚）"),{tk});
+  toast("再プレイ −"+yen(n));
+}
+el("bReplay").addEventListener("click",()=>recordReplay(replayUnitOf(S.cur)));
+el("bStock").addEventListener("click",()=>{
   sheet("再プレイ（貯メダルから入れる）",b=>{
-    b.append(mk("div","hint","今日の累計 "+yen(replayed(S.cur.money))+"枚"));
-    b.append(optRow([50,100,200,460,500,1000].map(n=>({l:"+"+n,v:n})),it=>{const tk=uid();S.cur.money.replays.push({at:nowISO(),amount:it.v,tk});push("money","再プレイ +"+it.v+"枚　累計 "+replayed(S.cur.money)+"枚",{tk});closeSheet();toast("再プレイ +"+it.v)},"q4"));
-    const free=mk("button","sub","枚数を入れる");free.addEventListener("click",()=>{closeSheet();askNum("再プレイ枚数",0,v=>{if(!v)return;const tk=uid();S.cur.money.replays.push({at:nowISO(),amount:v,tk});push("money","再プレイ +"+v+"枚　累計 "+replayed(S.cur.money)+"枚",{tk})})});b.append(free);
+    const m=S.cur.money,summary=mk("div","hint"),leftLabel=mk("div","hint");b.append(summary,leftLabel);
+    const stock=mk("button","sub","貯メダル残高を入れる／直す"),clear=mk("button","sub","残高を消す");
+    const unit=mk("button","sub"),reset=mk("button","sub","レートに戻す（"+yen(S.cur.lend)+"）");
+    function refresh(){
+      const left=stockLeft(m);summary.textContent="今日の累計 "+yen(replayed(m))+"枚";
+      leftLabel.textContent=left==null?"":"貯玉残 "+yen(left)+"枚";leftLabel.style.color=left<0?"var(--hot)":"";
+      unit.textContent="1回の枚数を直す（"+yen(replayUnitOf(S.cur))+"）";
+    }
+    function changed(){save();renderMoney();refresh()}
+    stock.addEventListener("click",()=>askNum("貯メダル残高（おろす前）",m.stockStart??null,v=>{
+      if(!Number.isFinite(v)||v<0){toast("残高は0以上で入れてください");return}m.stockStart=v;changed();
+    }));
+    clear.addEventListener("click",()=>{m.stockStart=null;changed()});
+    unit.addEventListener("click",()=>askNum("再プレイ1回の枚数",replayUnitOf(S.cur),v=>{
+      if(!Number.isFinite(v)||v<=0){toast("枚数は正の数で入れてください");return}m.replayUnit=v;changed();
+    }));
+    reset.addEventListener("click",()=>{m.replayUnit=null;changed()});b.append(stock,clear,unit,reset);
+    b.append(mk("div","lbl","他の枚数で再プレイ"));
+    b.append(optRow([50,100,200,460,500,1000].map(n=>({l:"+"+n,v:n})),it=>{recordReplay(it.v);refresh()},"q4"));
+    const free=mk("button","sub","枚数を入れる");free.addEventListener("click",()=>askNum("再プレイ枚数",0,v=>{recordReplay(v);refresh()}));b.append(free);refresh();
   });
 });
 function askCredit(){askNum("今の持ち玉（枚）",S.cur.money.credit||0,v=>{const prev=S.cur.money.credit;S.cur.money.credit=v;push("money","残数 "+v+"枚",{prevCredit:prev==null?null:prev})})}
@@ -2633,7 +2693,7 @@ el("stStart").addEventListener("click",()=>{
   const m=el("stMachine").value.trim(),lend=int(el("stLend").value),e=el("stErr");
   if(!m){e.textContent="機種名を入れてください";e.classList.remove("hide");return}
   if(badNum(lend)||!lend||lend<=0){e.textContent="レートは整数で入れてください（例：46、52）";e.classList.remove("hide");return}
-  {const bad=["stRealG","stLcdG","stMedal","stReplay0","stTotal","stExp"].map(id=>{const v=int(el(id).value);return {id,v}}).find(x=>badNum(x.v)||(x.v!=null&&x.v<0&&x.id!=="stExp"));
+  {const bad=["stRealG","stLcdG","stMedal","stReplay0","stStock","stTotal","stExp"].map(id=>{const v=int(el(id).value);return {id,v}}).find(x=>badNum(x.v)||(x.v!=null&&x.v<0&&x.id!=="stExp"));
    if(bad){const lb=el(bad.id).previousElementSibling;e.textContent="数字は整数で、0以上にしてください（"+((lb&&lb.textContent)||bad.id).replace(/任意|チェッカーに.*$/,"").trim()+"）";e.classList.remove("hide");return}}
   {const bad=Object.keys(setupVals).find(k=>badNum(setupVals[k])||(typeof setupVals[k]==="number"&&setupVals[k]<0));if(bad){e.textContent="打ち始めの項目は整数で、0以上にしてください";e.classList.remove("hide");return}}
   if(!pickedMachine){
@@ -2657,9 +2717,9 @@ el("stStart").addEventListener("click",()=>{
     shop:el("stShop").value.trim()||null,dai:el("stDai").value.trim()||null,
     startNote:noteParts.join("　"),expected:int(el("stExp").value),totalStart:int(el("stTotal").value),totalEnd:null,
     rare,zenchou:zen0,hit:null,mode:"normal",parallel:{},stage:null,revive:0,melonLeft:null,melonApprox:false,rewardHint:null,modeHint:null,ticket:false,judgeWins:0,returnHit:null,pendingReward:null,melonPhase:"normal",modeEra:0,modeHints:[],tags:{},follow:[],events:[],_steps:[],
-    money:{cash:[],deposits:[],spends:[],replays:(int(el("stReplay0").value)>0?[{at:nowISO(),amount:int(el("stReplay0").value),atStart:true}]:[]),startMedal:int(el("stMedal").value)||0,startReplay:0,credit:null,endMedal:null,endReplay:0},
+    money:{cash:[],deposits:[],spends:[],stockStart:int(el("stStock").value),replays:(int(el("stReplay0").value)>0?[{at:nowISO(),amount:int(el("stReplay0").value),atStart:true}]:[]),startMedal:int(el("stMedal").value)||0,startReplay:0,credit:null,endMedal:null,endReplay:0},
     endAt:null,endNote:""};
-  ["stMachine","stRealG","stLcdG","stMedal","stReplay0","stNote","stExp","stTotal","stDai"].forEach(i=>el(i).value="");
+  ["stMachine","stRealG","stLcdG","stMedal","stReplay0","stStock","stNote","stExp","stTotal","stDai"].forEach(i=>el(i).value="");
   if(S.cur&&S.cur.shop){S.settings.lastShop=S.cur.shop}
   save();showMain();
 });
