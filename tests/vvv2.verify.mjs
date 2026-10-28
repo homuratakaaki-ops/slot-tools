@@ -100,4 +100,40 @@ check('10 HTML noindex・導線なし・LF・構文・後読みなし',()=>{
   assert.ok(read('vvv2-checker.html').includes('<small>SETTING CHECKER ・ slot-tools.jp</small>'));assert.ok(read('vvv2-checker.html').includes('href="vvv2-guide.html"'));assert.ok(read('vvv2-guide.html').includes('href="vvv2-checker.html"'));
   const js=read('checker-data/vvv2.js');assert.ok(!js.includes('\r'));assert.ok(!js.includes('(?<='));assert.ok(!js.includes('(?<!'));execFileSync(process.execPath,['--check',path.join(root,'checker-data/vvv2.js')]);
 });
-console.log(`Verify checks: ${checks}/10; failures: ${failures}`);if(failures)process.exitCode=1;
+check('11 追補D 検算値・全経路確率・分位・state不変',()=>{
+  for(const [kind,pts,curPt,expected,modes] of [
+    ['bonusEnd',[],null,[905.9,301,3.4,800,1400],[69,25,5,1]],
+    ['bonusEnd',[200,600],250,[535.2,178,2.4,450,950],[66.51,33.49,0,0]],
+    ['reset',[200,400],null,[305.1,101,1,300,500],[78.23,17.47,4.30,0]],
+    ['bonusEnd',[200,200],420,[565.2,188,2.4,480,980],[68.25,31.75,0,0]]
+  ]){
+    const S=fresh(kind);pts.forEach(pt=>cyc(S,pt));S.curPt=curPt;const before=JSON.stringify(S),r=c.untilWin(S);
+    eq([r.avgPt,r.avgG,r.avgCycles,r.p50,r.p80].map(v=>Number(v.toFixed(1))),expected);
+    eq(c.posterior(S).p.map(v=>Number((v*100).toFixed(2))),modes);near(r.total,1,1e-9);
+    near(r.distribution.reduce((a,x)=>a+x.p,0),1,1e-9);
+    for(const [q,pt] of [[.5,r.p50],[.8,r.p80]]){assert.ok(r.distribution.filter(x=>x.pt<pt).reduce((a,x)=>a+x.p,0)<q-1e-12);assert.ok(r.distribution.filter(x=>x.pt<=pt).reduce((a,x)=>a+x.p,0)>=q-1e-12);}
+    assert.equal(JSON.stringify(S),before);
+    console.log('D example',JSON.stringify({kind,pts,curPt,...r,distribution:undefined,modes:c.posterior(S).p.map(v=>v*100)}));
+  }
+});
+check('12 現在pt尤度・矛盾フォールバック・進行中の最後のspan限定',()=>{
+  const S=fresh();cyc(S,200);cyc(S,200);const base=c.posterior(S).p;
+  S.curPt=420;const weighted=base.map((p,i)=>p*[.19,.30,0,0][i]),total=weighted.reduce((a,b)=>a+b,0);
+  c.posterior(S).p.forEach((p,i)=>near(p,weighted[i]/total));assert.equal(c.posterior(S).p[2],0);
+  for(const pts of [[],[200,600]]){const T=fresh();pts.forEach(pt=>cyc(T,pt));const p=c.posterior(T).p;T.curPt=420;
+    eq(c.posterior(T).p,p);assert.ok(c.posterior(T).warnings.some(w=>w.includes('到達pt候補がありません')));eq(c.untilWin(T).distribution,[]);assert.equal(c.untilWin(T).avgPt,null);
+    if(pts.length)eq(p.map(v=>Number((v*100).toFixed(2))),[64.27,35.73,0,0]);
+  }
+  const T=fresh();cyc(T,200,'win');const p=c.posterior(T).p;T.curPt=420;eq(c.posterior(T).p,p);assert.equal(c.untilWin(T).avgPt,null);
+  c.actions.result({S:T},{result:'czmiss'});T.curPt=100;const U=clone(T);U.curPt=null;
+  const old=c.posterior(U).p,w=old.map((v,i)=>v*c.PT1[200][i]/100),z=w.reduce((a,b)=>a+b,0);c.posterior(T).p.forEach((v,i)=>near(v,w[i]/z));
+});
+check('13 ptMaxは当該周期のみ・cycle示唆・参考示唆・全消去',()=>{
+  const S=fresh();cyc(S,200);S.curPt=100;hint(S,'pino_chikai',2);const r=c.untilWin(S);near(r.total,1,1e-9);assert.equal(r.distribution[0].pt,100);assert.ok(r.distribution.some(x=>x.pt>100));
+  const base=fresh();cyc(base,200);const p=c.posterior(base).p,w=p.map((v,i)=>v*c.PT2[200][i]/100),z=w.reduce((a,b)=>a+b,0);c.posterior(S).p.forEach((v,i)=>near(v,w[i]/z));
+  hint(S,'sub_hito',1);const capped=c.untilWin(S);near(capped.avgPt,100);near(capped.avgCycles,1);assert.equal(capped.p50,100);assert.equal(capped.p80,100);
+  hint(S,'sub_v3',2);eq(c.untilWin(S),capped);
+  const T=fresh('reset');cyc(T,200);cyc(T,400);cyc(T,200);assert.equal(c.untilWin(T).avgPt,null);
+  assert.ok(read('vvv2-checker.html').includes('checker-data/vvv2.js?v=20261028-untilwin'));
+});
+console.log(`Verify checks: ${checks}/13; failures: ${failures}`);if(failures)process.exitCode=1;
