@@ -51,14 +51,14 @@ async function load(width=360,page=PAGE){
   assert.ok(ready,'page ready');assert.equal(await run('return innerWidth;'),width);
 }
 async function seed(S,width=360){await run(`localStorage.setItem(${JSON.stringify(KEY)},${JSON.stringify(JSON.stringify(S))});`);await load(width);}
-async function shot(name,width){const r=await send('Page.captureScreenshot',{format:'png',clip:{x:0,y:0,width,height:740,scale:1}});fs.writeFileSync(path.join(artifacts,name+'.png'),Buffer.from(r.data,'base64'));}
+async function shot(name,width){await pause(2100);const r=await send('Page.captureScreenshot',{format:'png',clip:{x:0,y:0,width,height:740,scale:1}});fs.writeFileSync(path.join(artifacts,name+'.png'),Buffer.from(r.data,'base64'));}
 function pass(name){checks++;console.log('PASS '+name);}
 async function layout(width,label,p){
   const m=await run(`const W=innerWidth,main=d.getElementById('main');
     const bad=[...d.querySelectorAll('header,nav,#main,#main *')].filter(e=>{
       const r=e.getBoundingClientRect();return r.width>0&&(r.right>W+.5||r.left<-.5)&&!e.closest('details:not([open])')&&!e.closest('.jump-nav');
     }).map(e=>(e.className||e.tagName)+':'+e.textContent.trim().slice(0,25));
-    const taps=[...d.querySelectorAll('.plus,nav button,#main button')].filter(e=>e.getBoundingClientRect().width>0&&!e.closest('details:not([open])')).map(e=>({label:e.textContent.trim(),height:e.getBoundingClientRect().height}));
+    const taps=[...d.querySelectorAll('.plus,nav button,#main button,.jump-grid a')].filter(e=>e.getBoundingClientRect().width>0&&!e.closest('details:not([open])')).map(e=>({label:e.textContent.trim(),height:e.getBoundingClientRect().height}));
     return {width:W,scroll:main.scrollWidth-main.clientWidth,bad,taps};`);
   assert.equal(m.width,width);assert.equal(m.scroll,0,JSON.stringify({width,label,p,scroll:m.scroll}));assert.deepEqual(m.bad,[],JSON.stringify({width,label,p,bad:m.bad}));
   assert.ok(m.taps.length>0);assert.ok(m.taps.every(t=>t.height>=44),JSON.stringify(m.taps.filter(t=>t.height<44)));
@@ -113,7 +113,38 @@ try{
   await click('a[href="#vv-ref"]');assert.equal(await run('return d.getElementById("vv-ref").open;'),true);
   await shot('vvv2-suggest-reference-390',390);
   pass('参照表は既定で閉じる・参照ジャンプで開く・設定推測は畳まない');
-  for(const pt of [100,200,300,400,500,600]){await selectStart('bonusEnd');await round(pt);assert.equal((await state()).spans[0].rows[0].pt,pt);await reloaded();}
+  await tab(1);
+  assert.equal(await run('return d.querySelector("#main .sec .sec-h").textContent;'),'バッフェ');
+  assert.deepEqual(await run('return [...d.querySelectorAll(".jump-grid a")].map(x=>x.textContent);'),['バッフェ','終了画面','AT中','その他','設定推測','参照']);
+  assert.ok(await run('return [...d.querySelectorAll(".jump-grid a")].every(x=>x.getBoundingClientRect().height>=44);'));
+  await click('a[href="#vv-baffe"]');await pause(100);
+  assert.ok(await run('const r=d.getElementById("vv-baffe").getBoundingClientRect(),m=d.getElementById("main").getBoundingClientRect();return Math.abs(r.top-m.top)<2;'));
+  await run('d.getElementById("main").scrollTop=0;');await shot('vvv2-suggest-first-390',390);
+  const enabled=()=>run('return [...d.querySelectorAll("[data-pt]:not(:disabled)")].map(x=>Number(x.dataset.pt));');
+  const heading=()=>run('return d.querySelector(".vv-record-heading").textContent;');
+  async function captureCycle(name){
+    await run('d.getElementById("main").scrollTop=0;');
+    const m=await run('return {last:d.querySelectorAll("[data-pt]")[5].getBoundingClientRect().bottom,out:d.querySelector("[data-action=out]").getBoundingClientRect().bottom,nav:d.getElementById("nav").getBoundingClientRect().top};');
+    measures.push({width:390,label:name,cycle:m});await shot(name,390);assert.ok(m.last<m.nav&&m.out<m.nav,JSON.stringify(m));
+  }
+  await selectStart('unknown');assert.deepEqual(await enabled(),[100,200]);assert.equal(await heading(),'1周期目 の到達ptを記録');
+  assert.ok(await run('const h=d.querySelector(".vv-record-heading"),base=h.closest(".sec-h");return parseFloat(getComputedStyle(h).fontSize)>parseFloat(getComputedStyle(base).fontSize)&&Number(getComputedStyle(h.querySelector("strong")).fontWeight)>Number(getComputedStyle(h).fontWeight);'));
+  await click('[data-pt="600"]');assert.equal(await run('return d.getElementById("vv-confirm").hidden;'),true);
+  await captureCycle('vvv2-cycle-first-390');
+  await round(200);assert.equal(await heading(),'2周期目 の到達ptを記録');assert.deepEqual(await enabled(),[100,200,300,400,500,600]);
+  assert.equal(await run('return d.getElementById("toast").textContent;'),'1周期目 200pt ハズレ → 2周期目へ');
+  await captureCycle('vvv2-cycle-second-390');
+  await round(600);assert.deepEqual(await enabled(),[100,200,300,400]);await captureCycle('vvv2-cycle-after600-390');
+  await round(400,'win');assert.deepEqual(await enabled(),[]);assert.equal(await heading(),'結果待ち：CZ結果待ち');
+  assert.equal(await run('return d.getElementById("toast").textContent;'),'3周期目 400pt 当選 → CZ結果待ち');
+  await result('rb');assert.deepEqual(await enabled(),[]);await result('at');assert.deepEqual(await enabled(),[]);
+  await selectStart('unknown');await round(200,'win');await result('bb');assert.deepEqual(await enabled(),[]);
+  await selectStart('unknown');await click('#curPt');await click('[data-digit="2"]');await click('[data-digit="0"]');await click('[data-digit="0"]');await click('#vv-pad-save');
+  assert.deepEqual(await enabled(),[]);assert.equal(await run('return d.querySelector("[data-action=out]").disabled;'),false);
+  assert.ok(await run('return [...d.querySelectorAll(".vv-error")].some(x=>x.textContent==="到達pt候補がありません。記録や現在ptを確認してください");'));
+  await act('out');assert.equal((await state()).spans[0].rows.at(-1).t,'out');
+  pass('追加便E バッフェ先頭・6ジャンプ・周期見出し・候補制限・全結果待ち・矛盾時の周期外当選');
+  for(const pt of [100,200,300,400,500,600]){await selectStart('bonusEnd');if(pt>200)await round(200);await round(pt);assert.equal((await state()).spans[0].rows.at(-1).pt,pt);await reloaded();}
   await selectStart('bonusEnd');await round(200);await round(600);await round(400);
   assert.ok((await run('return d.querySelector(".vv-mode").textContent;')).includes('A 100%'));
   assert.ok((await run('return d.querySelector(".now-box").textContent;')).includes('上限 あと3周期'));

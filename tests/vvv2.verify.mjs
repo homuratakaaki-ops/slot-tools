@@ -134,6 +134,27 @@ check('13 ptMaxは当該周期のみ・cycle示唆・参考示唆・全消去',(
   hint(S,'sub_hito',1);const capped=c.untilWin(S);near(capped.avgPt,100);near(capped.avgCycles,1);assert.equal(capped.p50,100);assert.equal(capped.p80,100);
   hint(S,'sub_v3',2);eq(c.untilWin(S),capped);
   const T=fresh('reset');cyc(T,200);cyc(T,400);cyc(T,200);assert.equal(c.untilWin(T).avgPt,null);
-  assert.ok(read('vvv2-checker.html').includes('checker-data/vvv2.js?v=20261028-untilwin'));
+  assert.ok(read('vvv2-checker.html').includes('checker-data/vvv2.js?v=20261029-inputflow'));
 });
-console.log(`Verify checks: ${checks}/13; failures: ${failures}`);if(failures)process.exitCode=1;
+check('14 追加便E 到達pt集合・見出し・トースト',()=>{
+  const cases=[fresh(),fresh(),fresh(),fresh(),fresh()];
+  cyc(cases[1],200);cyc(cases[1],600);
+  cyc(cases[2],200);hint(cases[2],'pino_chikai',2);
+  cyc(cases[3],200);cases[3].curPt=250;
+  cases[4].curPt=200;
+  const expected=[[100,200],[100,200,300,400],[100,200],[300,400,500,600],[]];
+  cases.forEach((S,i)=>{const before=JSON.stringify(S);eq(c.enabledPts(S),c.nextPtDist(S).dist.map(x=>x.pt));eq(c.enabledPts(S),expected[i]);assert.equal(JSON.stringify(S),before);});
+  const render=S=>c.pages({S,mode:1},()=>[])[2]();
+  assert.ok(render(fresh()).includes('<strong>1周期目</strong> の到達ptを記録'));
+  assert.ok(render(fresh()).includes('現在pt（1周期目・任意）'));
+  assert.ok(render(cases[4]).includes('到達pt候補がありません。記録や現在ptを確認してください'));
+  box.document={querySelector:()=>({dataset:{pt:'200'}}),getElementById:()=>({checked:false})};
+  const S=fresh();assert.equal(c.actions.cycle({S},{result:'miss'}),'1周期目 200pt ハズレ → 2周期目へ');
+  assert.equal(c.actions.cycle({S},{result:'win'}),'2周期目 200pt 当選 → CZ結果待ち');
+  assert.ok(render(S).includes('結果待ち：CZ結果待ち'));
+  assert.ok(render(S).includes('結果を入れると次の周期へ進みます（CZ失敗・決戦失敗は1周期目から）'));
+  for(const bonus of [undefined,'rb','bb']){S.spans[0].rows.at(-1).bonus=bonus;eq(c.enabledPts(S),[]);}
+  S.spans[0].rows.at(-1).at=true;eq(c.enabledPts(S),[]);
+  const T=fresh();box.document.querySelector=()=>({dataset:{pt:'600'}});assert.equal(c.actions.cycle({S:T},{result:'miss'}),false);assert.equal(T.spans[0].rows.length,0);
+});
+console.log(`Verify checks: ${checks}/14; failures: ${failures}`);if(failures)process.exitCode=1;
