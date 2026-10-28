@@ -161,7 +161,7 @@ check('HTML: noindex・導線なし・推測タブなし・LF・構文',()=>{
   const html=read('seiya12-checker.html');
   assert.deepEqual([...html.matchAll(/<button data-p="\d"[^>]*>(.*?)<\/button>/g)].map(m=>m[1]),['入力','示唆','参照','カード']);
   assert.ok(!html.includes('checker-bayes.js'));
-  for(const s of ['checker-engine.js?v=20260924','checker-data/seiya12.js?v=20261028','CheckerEngine.mount(CheckerConfigs.seiya12);','seiya12-guide.html'])assert.ok(html.includes(s),s);
+  for(const s of ['checker-engine.js?v=20260924','checker-data/seiya12.js?v=20261028-glog','CheckerEngine.mount(CheckerConfigs.seiya12);','seiya12-guide.html'])assert.ok(html.includes(s),s);
   assert.equal(html.match(/<style>[\s\S]*?<\/style>/)[0],read('paripi-checker.html').match(/<style>[\s\S]*?<\/style>/)[0],'4タブのスタイル');
   for(const p of ['checkers.html','index.html','sitemap.xml'])assert.ok(!read(p).includes('seiya12'),p+' に導線なし');
   const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'seiya12-syntax-'));

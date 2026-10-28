@@ -32,6 +32,8 @@ const EXPECTED={
   vivy:{title:"スロット Vivy -Fluorite Eye's Song-",url:'https://chonborista.com/slot/daito-slot/268864/',
     counts:[['at','AT初当り',[276.5,251.7,272.1,222.8,235.9,210.3]]],
     target:{at:'設1:1/276.5⇔設6:1/210.3（設定順に並びません。参照タブ参照）'},
+    // 見出しは英字部分が単語途中で折れないよう nowrap（ネネ再検収 2026-10-28）。
+    header:"スロット Vivy <span style=\"white-space:nowrap\">-Fluorite Eye's Song-</span>",
     hint:'引戻しは数えない。アクセスチャンス（ポイント獲得）はCZではない。アクセスチャンスの継続回数は内部値と一致しないため記録しない。'}
 };
 // 追加ボタンは入力欄 #gameLogIn の値を読む。テストでは document.getElementById だけを差し替える。
@@ -133,7 +135,7 @@ for(const [id,E] of Object.entries(EXPECTED)){
     const html=read(id+'-checker.html');
     assert.deepEqual([...html.matchAll(/<button data-p="\d"[^>]*>(.*?)<\/button>/g)].map(m=>m[1]),['入力','参照','カード']);
     assert.ok(html.includes('grid-template-columns:repeat(3,1fr)'));assert.ok(!html.includes('checker-bayes.js'));
-    for(const s of ['checker-engine.js?v=20260924',`checker-data/${id}.js?v=20261028`,`CheckerEngine.mount(CheckerConfigs.${id});`,`${id}-guide.html`,`<div class="hd-title">${E.title}<small>`])assert.ok(html.includes(s),s);
+    for(const s of ['checker-engine.js?v=20260924',`checker-data/${id}.js?v=20261028-glog`,`CheckerEngine.mount(CheckerConfigs.${id});`,`${id}-guide.html`,`<div class="hd-title">${E.header||E.title}<small>`])assert.ok(html.includes(s),s);
     for(const p of ['checkers.html','index.html','sitemap.xml'])assert.ok(!read(p).includes(id+'-checker')&&!read(p).includes(id+'-guide'),p+' に導線なし');
     const tmp=fs.mkdtempSync(path.join(os.tmpdir(),id+'-syntax-'));
     for(const [i,p] of [id+'-checker.html',id+'-guide.html'].entries()){
