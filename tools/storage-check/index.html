@@ -35,7 +35,7 @@ button:active{filter:brightness(1.35)}
 <body>
 <div class="shell">
   <h1>保存容量チェック</h1>
-  <p class="note">このページは slot-tools.jp がスマホの中に保存しているデータの量を表示するだけです。記録の書き換えや削除はしません。</p>
+  <p class="note">このページは slot-tools.jp がスマホの中に保存しているデータの量を表示します。記録の書き換えはしません。消せるのは下の「片付け」に出ている決まったデータだけで、ファイルに書き出してからでないと消せません。</p>
 
   <div class="card">
     <div>slot-tools.jp 全体の保存量（目安）</div>
@@ -47,6 +47,12 @@ button:active{filter:brightness(1.35)}
   <div class="card">
     <div style="margin-bottom:6px">保存データの内訳（大きい順）</div>
     <table><tbody id="rows"></tbody></table>
+  </div>
+
+  <div class="card">
+    <div style="margin-bottom:6px">片付け</div>
+    <p class="note">使わなくなったデータです。「書き出す」でファイルに保存してから「消す」を押してください。「消す」は2回押すと消えます。</p>
+    <div id="clean"></div>
   </div>
 
   <div class="card">
@@ -132,6 +138,54 @@ function probe(){
   },30);
 }
 
+// 片付け：夢爽が消してよいと決めたキーだけ（2026-10-29裁定）。ここに無いキーは消せない
+const CLEANABLE=[
+  {key:"slot-tools-rec-kanokari",label:"かのかり記録ツールのデータ（使っていない）"},
+  {key:"ytv3:backup:s15",label:"遊タイムv3の古い控え（s15）"},
+  {key:"ytv3:backup:s17",label:"遊タイムv3の古い控え（s17）"}
+];
+const exported=new Set();   // このページで書き出したキー（開き直したら書き出し直す）
+const ymdNow=()=>{const d=new Date();return d.getFullYear()+String(d.getMonth()+1).padStart(2,"0")+String(d.getDate()).padStart(2,"0")};
+
+function renderClean(){
+  const box=el("clean");box.textContent="";
+  let any=false;
+  CLEANABLE.forEach(c=>{
+    let v=null;try{v=localStorage.getItem(c.key)}catch(e){}
+    if(v==null)return;
+    any=true;
+    const wrap=document.createElement("div");wrap.style.cssText="border-top:1px solid var(--line);padding:10px 0 2px";
+    const t=document.createElement("div");t.textContent=c.label;
+    const s=document.createElement("div");s.className="note";s.style.margin="2px 0 8px";s.textContent=c.key+"／"+fmt(c.key.length+v.length)+"文字";
+    const ex=document.createElement("button");ex.textContent=exported.has(c.key)?"書き出し済み（もう一度書き出す）":"書き出す";
+    const del=document.createElement("button");del.textContent="消す";del.disabled=!exported.has(c.key);
+    if(del.disabled)del.style.opacity=".4";
+    ex.addEventListener("click",()=>{
+      let raw=null;try{raw=localStorage.getItem(c.key)}catch(e){}
+      if(raw==null){renderClean();return}
+      const blob=new Blob([raw],{type:"application/json"});
+      const a=document.createElement("a");a.href=URL.createObjectURL(blob);
+      a.download="storage-"+c.key.replace(/[^A-Za-z0-9_-]/g,"_")+"-"+ymdNow()+".json";
+      document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),10000);
+      exported.add(c.key);renderClean();
+    });
+    let armed=null;
+    del.addEventListener("click",()=>{
+      if(!exported.has(c.key))return;
+      if(!armed){
+        del.textContent="もう一度押すと消えます";del.style.color="var(--hot)";
+        armed=setTimeout(()=>{armed=null;del.textContent="消す";del.style.color=""},5000);
+        return;
+      }
+      clearTimeout(armed);armed=null;
+      try{localStorage.removeItem(c.key)}catch(e){}
+      render();renderClean();
+    });
+    wrap.append(t,s,ex,del);box.append(wrap);
+  });
+  if(!any){const n=document.createElement("div");n.className="note";n.style.margin="0";n.textContent="片付けるデータはありません";box.append(n)}
+}
+
 el("probe").addEventListener("click",probe);
 el("copy").addEventListener("click",()=>{
   const done=()=>{el("copyOut").textContent="コピーしました。チャットに貼り付けてください。"};
@@ -141,6 +195,7 @@ el("copy").addEventListener("click",()=>{
 });
 try{localStorage.removeItem(PROBE_KEY)}catch(e){}   // 前回の測定が途中で止まっていた場合の後片付け
 render();
+renderClean();
 </script>
 </body>
 </html>
