@@ -6,8 +6,9 @@ function open(dbName){
     let req,settled=false;
     const timer=setTimeout(()=>finish(new Error("IndexedDB open timed out")),3000);
     function finish(error,db){if(settled){if(db)db.close();return}settled=true;clearTimeout(timer);error?reject(error):resolve(db)}
-    try{req=indexedDB.open(dbName,1)}catch(e){finish(e);return}
-    req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains("sessions"))req.result.createObjectStore("sessions",{keyPath:"id"})};
+    try{req=indexedDB.open(dbName,2)}catch(e){finish(e);return}
+    // 版2：世代を持つ meta ストアを足す。版1の sessions の中身はそのまま使う
+    req.onupgradeneeded=()=>{const d=req.result;if(!d.objectStoreNames.contains("sessions"))d.createObjectStore("sessions",{keyPath:"id"});if(!d.objectStoreNames.contains("meta"))d.createObjectStore("meta",{keyPath:"key"})};
     req.onsuccess=()=>{req.result.onversionchange=()=>req.result.close();finish(null,req.result)};
     req.onerror=()=>finish(req.error||new Error("IndexedDB open failed"));
   });
@@ -23,8 +24,41 @@ async function transact(dbName,mode,work){
   });
 }
 const getAll=dbName=>transact(dbName,"readonly",s=>s.getAll());
-const putMany=(dbName,rows)=>transact(dbName,"readwrite",s=>{rows.forEach(row=>s.put(row))});
-const deleteMany=(dbName,ids)=>transact(dbName,"readwrite",s=>{ids.forEach(id=>s.delete(id))});
+// meta に記録された世代（無ければ 0）
+async function getGen(dbName){
+  const db=await open(dbName);
+  return new Promise((resolve,reject)=>{
+    let tx,q;
+    try{tx=db.transaction("meta","readonly");q=tx.objectStore("meta").get("gen")}catch(e){db.close();reject(e);return}
+    tx.oncomplete=()=>{db.close();resolve(q.result&&typeof q.result.gen==="number"?q.result.gen:0)};
+    tx.onabort=()=>{db.close();reject(tx.error||new Error("IndexedDB transaction aborted"))};
+  });
+}
+// 書き込みはこれだけ。sessions と meta を1つの readwrite トランザクションで扱い、
+// その中で meta の世代を確かめる（readwrite はタブをまたいでも1本ずつ処理されるので割り込まれない）。
+// 自分の世代より新しい世代が書かれていたら何も書かずに中止し、err.stale=true で返す。
+async function commit(dbName,batch,gen){
+  const db=await open(dbName);
+  return new Promise((resolve,reject)=>{
+    let tx,stale=false;
+    const done=e=>{db.close();reject(e)};
+    try{tx=db.transaction(["sessions","meta"],"readwrite")}catch(e){done(e);return}
+    tx.oncomplete=()=>{db.close();resolve()};
+    tx.onabort=()=>{if(stale){const e=new Error("IndexedDB has a newer generation");e.stale=true;done(e)}else done(tx.error||new Error("IndexedDB transaction aborted"))};
+    tx.onerror=()=>{};
+    const meta=tx.objectStore("meta"),q=meta.get("gen");
+    q.onsuccess=()=>{
+      const cur=q.result&&typeof q.result.gen==="number"?q.result.gen:0;
+      if(cur>gen){stale=true;tx.abort();return}
+      try{
+        const sessions=tx.objectStore("sessions");
+        (batch.put||[]).forEach(row=>sessions.put(row));
+        (batch.del||[]).forEach(id=>sessions.delete(id));
+        meta.put({key:"gen",gen:Math.max(cur,gen)});
+      }catch(e){try{tx.abort()}catch(x){}}
+    };
+  });
+}
 function mergeRecState(state,rows){
   if(!state)return null;
   const legacy=Array.isArray(state.sessions),out=state.outbox;
@@ -43,5 +77,5 @@ async function readRecState(key,dbName){
   if(localStorage.getItem(key)!==raw)throw new Error("Rec changed while reading; retry");
   return mergeRecState(state,rows);
 }
-window.RecStore={open,getAll,putMany,deleteMany,mergeRecState,readRecState};
+window.RecStore={open,getAll,getGen,commit,mergeRecState,readRecState};
 })();

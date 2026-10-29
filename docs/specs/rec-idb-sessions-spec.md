@@ -28,13 +28,20 @@
 - version 2（旧形式）は `sessions` を持ち、`sessionsIn` を持たない
 
 ### 3.2 IndexedDB
-- DB名 `slot-tools-rec`、版 1、オブジェクトストア `sessions`（keyPath `id`）
+- DB名 `slot-tools-rec`、版 2、オブジェクトストア `sessions`（keyPath `id`）と `meta`（keyPath `key`）（10/30 版2に変更）
+- `meta` の中身は `{key:"gen", gen:数値}` の1件だけ。IndexedDB に最後に確定した書き込みの世代
+- 版1の DB は `onupgradeneeded` で `meta` を足すだけでそのまま使う。`sessions` の中身は変えない
 - 中身は今の `S.sessions` の1件そのもの（加工しない・項目を足さない）
 - 索引は作らない（全件読み込みで足りる。188件で約137万文字）
 
 ### 3.3 共通ファイル `js/rec-store.js`（新規・classic script、`window.RecStore`）
 - `open(dbName)`：DBを開く。3秒で開けなければ失敗扱い
-- `getAll(dbName)` / `putMany(dbName, sessions)` / `deleteMany(dbName, ids)`：いずれも Promise。1回の呼び出しは1トランザクションで、`complete` で解決する
+- `getAll(dbName)`：Promise。1トランザクションで、`complete` で解決する
+- `commit(dbName, {put, del}, gen)`：書き込みはこれだけ（10/30 `putMany`・`deleteMany` から置き換え。世代の確認を通らない書き込み経路を残さない）。`sessions` と `meta` をまとめた1つの readwrite トランザクションの中で：
+  1. `meta` の `gen` を読む
+  2. 読んだ値が引数の `gen` より大きければ、何も書かずにトランザクションを中止し、「古い」と分かる失敗（`err.stale=true`）で返す
+  3. そうでなければ put・delete を行い、`meta.gen` を `max(読んだ値, 引数の gen)` にする。`complete` で解決する
+  - IndexedDB は同じ DB の readwrite トランザクションを、タブをまたいでも1本ずつ順番に処理するため、確認から書き込みまでの間に別のタブが割り込むことはない
 - `readRecState(key, dbName)`：localStorage と IndexedDB を合わせた「全件の状態」を返す（稼働日誌用。§6）
 - 合わせ方（rec 本体も同じ関数を使う。二重実装しない）：
   - version 2 の値なら、その `sessions` を正とし、IndexedDB 側にだけあるidを足す
@@ -53,6 +60,7 @@
 
 - localStorage が version 3（sessionsIn:"idb"）なのに IndexedDB が開けない・読めない場合は「読めない」扱いで保存しない。「予備」で動くのは version 2 のときだけ
 - 「読めない」ときの「元データを書き出す」は、`{localStorage:元の文字列, idbSessions:[読めた生データ]}` を1ファイルで出す
+- IndexedDB が絡む「読めない」でも、退避キー（`-broken`）には localStorage の元の文字列だけを書く。`{localStorage, idbSessions}` の全体は書き出しボタン用にメモリにだけ持つ（10/30。退避で保存枠を使い切らないため）。IndexedDB のデータは消さない
 - version 3 で IndexedDB が開けない・読めないときだけ、案内の文言を「保存先のデータを読み込めないため、保存を止めています。「元データを書き出す」でファイルに保存して保管してください。」にする。それ以外の「読めない」の文言は今のまま（10/29 追記）
 
 ### 4.2 起動
@@ -61,6 +69,7 @@
 3. version 2 なら §4.3 の移行。version 3 なら `readRecState` で全件を作る
 4. IndexedDB から読んだ各実戦を `validSessionShape` で検査する。1件でも通らなければ「読めない」扱い（自動で捨てない）
 5. outbox が空でなければ、ここで IndexedDB へ書き込み、確定後に outbox を空にする
+   - 10/30 追記：IndexedDB の `meta.gen` が localStorage の `gen` より大きければ（localStorage を空の状態で始め直した後・localStorage の世代だけ小さいとき）、`saveGen` を `meta.gen` に合わせてから始める。起動時の outbox 反映・移行の書き込みもその値で行う（そうしないと、以後の `commit` がすべて「古い」で止まる）
 6. ここから先は今の起動処理（`fixSession`・`stripSnaps`・画面表示）と同じ
 - 起動中（IndexedDB を待つ間）は、画面の操作を受け付けない。通常は0.1秒程度
 
@@ -78,6 +87,8 @@
   2. 未確定の分（前回までの outbox で、まだ確定していないもの）と合わせて outbox を作り、localStorage に version 3 で書く（**ここまでは同期で、今と同じタイミング**）
   3. outbox が空でなければ IndexedDB へ書く。`complete` したら `idbCache` を更新し、確定した分を除いた outbox で localStorage を書き直す
      - この書き直しでは世代（`gen`）を上げない。localStorage の世代が自分の世代より進んでいたら（別タブが保存した）、書き直さない
+  - 手順3の書き込みは `commit` で行い、引数の `gen` はその outbox を localStorage に書いたときの世代（`saveGen`）にする。起動時の outbox 反映では、読み込んだ localStorage の世代を使う。移行（§4.3）の書き込みも `commit` を使う（10/30）
+  - `commit` が「古い」で失敗したら、そのタブは `staleTab()` で止める。outbox はそのままにする（新しいタブ側が正）
 - localStorage に書く値は、メモリ上の `S` から `sessions` を除いて作る（`S.sessions` を JSON に含めない）
 - 打っている最中は `S.sessions` が変わらないので、outbox は空のまま、localStorage には小さな値だけが書かれる
 - 世代（`gen`）による別タブ対策・容量不足の警告（`storeWarn`）・「読めない」ときに書かない、は今のまま
