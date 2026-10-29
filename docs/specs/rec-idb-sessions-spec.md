@@ -56,7 +56,7 @@
 
 ### 4.2 起動
 1. localStorage を読む（今の `load()` と同じ検査）。壊れていれば「読めない」
-2. IndexedDB を開く。開けなければ「予備」で起動（今と同じ）
+2. IndexedDB を開く。開けない場合、localStorage が version 2 なら「予備」で起動、version 3 なら「読めない」扱い（§4.1）
 3. version 2 なら §4.3 の移行。version 3 なら `readRecState` で全件を作る
 4. IndexedDB から読んだ各実戦を `validSessionShape` で検査する。1件でも通らなければ「読めない」扱い（自動で捨てない）
 5. outbox が空でなければ、ここで IndexedDB へ書き込み、確定後に outbox を空にする
