@@ -624,7 +624,7 @@ function validEntry(e){
   if(e.linkedSessionId!=null&&typeof e.linkedSessionId!=="string")return false;
   return true;
 }
-let idbMode=false,idbCache=new Map(),outbox={put:[],del:[]},flushBusy=false,skipBootSave=false,storageStarting=true;
+let idbMode=false,idbCache=new Map(),outbox={put:[],del:[]},flushBusy=false,skipBootSave=false,storageStarting=true,retryAfterFlush=false,idbReadFailed=false;
 // 全保存先の読み込み中は操作を受け付けない。
 document.body.inert=true;
 function brokenData(raw,rows){
@@ -645,7 +645,7 @@ function pendingSessions(){
 }
 async function flushOutbox(){
   if(flushBusy||!idbMode||loadBroken||staleShown)return;
-  flushBusy=true;
+  flushBusy=true;let committed=false,retry=false;
   try{
     while(outbox.put.length||outbox.del.length){
       const batch=JSON.parse(JSON.stringify(outbox));
@@ -653,15 +653,18 @@ async function flushOutbox(){
       if(!d||d.gen!==saveGen){staleTab();return}
       if(batch.put.length)await RecStore.putMany(DB_NAME,batch.put);
       if(batch.del.length)await RecStore.deleteMany(DB_NAME,batch.del);
-      batch.put.forEach(s=>idbCache.set(s.id,JSON.stringify(s)));batch.del.forEach(id=>idbCache.delete(id));
+      batch.put.forEach(s=>idbCache.set(s.id,JSON.stringify(s)));batch.del.forEach(id=>idbCache.delete(id));committed=true;
+      if(retryAfterFlush){outbox={put:outbox.put.filter(s=>idbCache.get(s.id)!==JSON.stringify(s)),del:outbox.del.filter(id=>idbCache.has(id))};continue}   // 手順2が容量不足で失敗した保存：確定後にまとめて書き直す
       const latest=localStorage.getItem(KEY),saved=latest&&JSON.parse(latest);
       if(!saved||saved.gen!==saveGen||staleShown)return;
       const remaining={put:outbox.put.filter(s=>idbCache.get(s.id)!==JSON.stringify(s)),del:outbox.del.filter(id=>idbCache.has(id))};
       // complete 後は世代を進めず、保存済みの最新 cur 等を保つ。
       localStorage.setItem(KEY,JSON.stringify({...saved,outbox:remaining}));outbox=remaining;
     }
+    if(retryAfterFlush&&committed){retryAfterFlush=false;retry=true}
   }catch(e){/* 同期保存済みの outbox を残し、次の save で再試行する。 */}
   finally{flushBusy=false}
+  if(retry)save();   // 確定後の小さい書き込み。成功すれば警告が消える
 }
 async function load(){
   let r=null;
@@ -675,7 +678,7 @@ async function load(){
   saveGen=typeof d.gen==="number"?d.gen:0;
   let rows;
   try{rows=await RecStore.getAll(DB_NAME)}catch(e){
-    if(!legacy){brokenData(r,[]);return}
+    if(!legacy){idbReadFailed=true;brokenData(r,[]);return}
     S=d;skipBootSave=true;return;
   }
   if(!rows.every(validSessionShape)){brokenData(r,rows);return}
@@ -683,7 +686,9 @@ async function load(){
   if(localStorage.getItem(KEY)!==r){S=merged;staleTab();skipBootSave=true;return}
   if(legacy){
     try{
-      await RecStore.putMany(DB_NAME,d.sessions);
+      // 補正（起動時と同じ fixSession・stripSnaps）をかけてから移す。idbCache は補正後の文字列になる
+      merged.sessions.forEach(fixSession);merged.sessions.forEach(s=>{if(s&&s.endAt)stripSnaps(s)});
+      await RecStore.putMany(DB_NAME,merged.sessions);
       const verified=await RecStore.getAll(DB_NAME),byId=new Map(verified.map(s=>[s.id,JSON.stringify(s)]));
       if(!verified.every(validSessionShape)||!merged.sessions.every(s=>byId.get(s.id)===JSON.stringify(s)))throw Error("Migration verification failed");
       if(localStorage.getItem(KEY)!==r){S=merged;staleTab();skipBootSave=true;return}
@@ -714,9 +719,9 @@ function save(opts){
       S.sessions.forEach(stripSnaps);
       localStorage.setItem(KEY,JSON.stringify(diskState()));
     }
-    saveGen=next;if(idbMode)void flushOutbox();if(!saveOK){saveOK=true;el("storeWarn").classList.add("hide")}
+    saveGen=next;retryAfterFlush=false;if(idbMode)void flushOutbox();if(!saveOK){saveOK=true;el("storeWarn").classList.add("hide")}
   }
-  catch(e){S.gen=saveGen;saveOK=false;el("storeWarn").classList.remove("hide")}   // 失敗したら世代を進めない
+  catch(e){S.gen=saveGen;saveOK=false;el("storeWarn").classList.remove("hide");if(idbMode){retryAfterFlush=true;void flushOutbox()}}   // 失敗したら世代を進めない。IndexedDB への書き込みは続ける
 }
 // 別のタブが先に進んでいる：このタブは保存しない
 let staleShown=false;
@@ -2795,7 +2800,7 @@ if(!S.settings.lend)S.settings.lend=DEF_LEND;
 initTagSettings();
 if(loadBroken){
   el("brokenWarn").classList.remove("hide");
-  el("brokenMsg").textContent="保存データが読めませんでした。"+(loadBrokenSaved?"元のデータはブラウザ内に退避してあります。":"元のデータの退避もできませんでした（容量不足の可能性）。必ず「元データを書き出す」を押してください。")+"このままでは何も保存されません。";
+  el("brokenMsg").textContent=idbReadFailed?"保存先のデータを読み込めないため、保存を止めています。「元データを書き出す」でファイルに保存して保管してください。":"保存データが読めませんでした。"+(loadBrokenSaved?"元のデータはブラウザ内に退避してあります。":"元のデータの退避もできませんでした（容量不足の可能性）。必ず「元データを書き出す」を押してください。")+"このままでは何も保存されません。";
   el("brokenExport").addEventListener("click",()=>{const blob=new Blob([loadBroken],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="slot-tools-rec-broken.json";document.body.append(a);a.click();a.remove()});
   el("brokenReset").addEventListener("click",()=>{if(!confirm("退避したデータはそのまま残ります。空の状態で始めますか？"))return;loadBroken=null;S={sessions:[],cur:null,settings:{lend:DEF_LEND},stores:[],entries:[]};initTagSettings();save();location.reload()});
   showSetup();

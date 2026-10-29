@@ -99,13 +99,37 @@ async function run(){
   // Public API: complete/abort, custom DB name and the bounded open wait.
   const api=await recovered.evaluate(async()=>{let aborted=false;try{await RecStore.putMany('synthetic-api',[{id:'a'},{bad:true}])}catch{aborted=true}const count=(await RecStore.getAll('synthetic-api')).length;const open=indexedDB.open;indexedDB.open=()=>({});const at=performance.now();let timeout=false;try{await RecStore.open('synthetic-timeout')}catch{timeout=true}indexedDB.open=open;return {aborted,count,timeout,ms:Math.round(performance.now()-at)}});
   assert(api.aborted&&api.count===0&&api.timeout&&api.ms>=2900&&api.ms<4000);console.log('EXTRA PASS migration mismatch: raw unchanged; API '+JSON.stringify(api));
-  // Known specification gap: many optional legacy fields can make the boot
-  // normalization journal larger than the space released by migration.
+  // 不完全な旧データ（補完項目が多い）でも、補正してから移すので、残り約1万文字で警告が出ない（シオン 10/29）。
   const sparse=fixture();for(const s of sparse.sessions){s.rare={};for(const k of ['modeHints','_steps','mode','parallel','revive','melonLeft','melonApprox','rewardHint','modeHint','ticket','judgeWins','returnHit','pendingReward','modeEra','melonPhase','zenchou'])delete s[k]}
   const sparseC=await context(),sparsePage=await seed(sparseC,sparse);
   await sparsePage.evaluate(()=>{let lo=0,hi=6000000;while(lo+1<hi){const m=Math.floor((lo+hi)/2);try{localStorage.setItem('filler','x'.repeat(m));lo=m}catch{hi=m}}localStorage.setItem('filler','x'.repeat(lo-10000))});
-  await ready(sparsePage);await sparsePage.locator('#storeWarn').waitFor({state:'visible'});const sparseRows=await rows(sparsePage);assert.equal(sparseRows.length,200);assert.deepEqual([...sparseRows].sort((a,b)=>a.id.localeCompare(b.id)),[...sparse.sessions].sort((a,b)=>a.id.localeCompare(b.id)));
-  console.log('LIMITATION PASS sparse legacy + 10000 chars free: boot normalization warns; original IDB=200 unchanged');
+  await ready(sparsePage);await settled(sparsePage);await sparsePage.waitForTimeout(300);
+  assert(await sparsePage.locator('#storeWarn').isHidden());
+  const sparseRows=await rows(sparsePage),sparseDisk=await disk(sparsePage);
+  assert.equal(sparseRows.length,200);assert.deepEqual(sparseRows.map(s=>s.id).sort(),sparse.sessions.map(s=>s.id).sort());
+  assert(sparseRows.every(s=>Array.isArray(s.modeHints)),'migrated rows are normalized');
+  assert.equal(sparseDisk.version,3);assert.equal(sparseDisk.outbox.put.length,0);
+  for(let i=0;i<3;i++){await start(sparsePage);await finish(sparsePage);await settled(sparsePage)}
+  assert(await sparsePage.locator('#storeWarn').isHidden());assert.equal((await rows(sparsePage)).length,203);
+  console.log('EXTRA PASS sparse legacy + 10000 chars free: normalized before migration; IDB=200 -> 203 after 3 plays; warnings=0; LS='+JSON.stringify(sparseDisk).length+' chars');
+  // 手順2（localStorage）が容量不足で失敗しても手順3（IndexedDB）は続け、確定後の小さい書き込みが通れば警告が消える。
+  const bigC=await context(),bigPage=await seed(bigC);await ready(bigPage);await settled(bigPage);
+  await bigPage.evaluate(()=>{let lo=0,hi=6000000;while(lo+1<hi){const m=Math.floor((lo+hi)/2);try{localStorage.setItem('filler','x'.repeat(m));lo=m}catch{hi=m}}localStorage.setItem('filler','x'.repeat(lo-10000))});
+  await start(bigPage);
+  await bigPage.evaluate(()=>{window.__warnSeen=false;const w=document.getElementById('storeWarn');new MutationObserver(()=>{if(!w.classList.contains('hide'))window.__warnSeen=true}).observe(w,{attributes:true})});
+  const bigNote='長'.repeat(30000);
+  await bigPage.locator('#bUtil').click();await bigPage.getByRole('button',{name:'やめる（終了して記録する）',exact:true}).click();await bigPage.locator('#sheet input').first().fill('100');await bigPage.locator('#sheet textarea').fill(bigNote);await bigPage.getByRole('button',{name:'終了する',exact:true}).click();
+  await settled(bigPage);await bigPage.locator('#storeWarn').waitFor({state:'hidden'});
+  const bigRows=await rows(bigPage),bigDisk=await disk(bigPage),bigSeen=await bigPage.evaluate(()=>window.__warnSeen);
+  assert(bigSeen,'step 2 failed once (warning shown)');assert.equal(bigRows.length,201);assert(bigRows.some(s=>s.endNote===bigNote));assert.equal(bigDisk.cur,null);assert.equal(bigDisk.outbox.put.length,0);
+  await bigPage.reload();await ready(bigPage);assert.equal((await rows(bigPage)).length,201);assert(await bigPage.locator('#storeWarn').isHidden());
+  console.log('EXTRA PASS LS full on finish (endNote 30000 chars, 10000 free): warning shown, IDB write continued -> 201, small rewrite cleared warning; reload=201');
+  // version 3 で IndexedDB が読めないときだけ専用の文言。
+  const msgC=await context(),msgPage=await seed(msgC);await ready(msgPage);await settled(msgPage);await msgC.addInitScript(()=>{indexedDB.open=()=>{throw Error('offline')}});await msgPage.reload();await msgPage.locator('#brokenWarn').waitFor({state:'visible'});
+  assert.equal(await msgPage.locator('#brokenMsg').innerText(),'保存先のデータを読み込めないため、保存を止めています。「元データを書き出す」でファイルに保存して保管してください。');
+  const lsC=await browser.newContext({viewport:{width:390,height:844}}),lsPage=await lsC.newPage();lsPage.on('pageerror',e=>errors.push(e.message));await lsPage.goto(origin+'/empty');await lsPage.evaluate(k=>localStorage.setItem(k,'{broken'),KEY);await ready(lsPage);await lsPage.locator('#brokenWarn').waitFor({state:'visible'});
+  assert((await lsPage.locator('#brokenMsg').innerText()).startsWith('保存データが読めませんでした。'));await lsC.close();
+  console.log('EXTRA PASS broken messages: v3+IDB unreadable -> new wording; broken LS -> existing wording');
   for(const ctx of browser.contexts())for(const page of ctx.pages())assert.deepEqual(await page.evaluate(()=>window.__errors),[]);
   assert.deepEqual(errors,[]);assert.equal(examples.size,7);result(1,'examples 1-7 PASS (200 synthetic sessions; 30-150 events/session)');
 }
