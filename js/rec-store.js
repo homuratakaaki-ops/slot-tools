@@ -24,6 +24,16 @@ async function transact(dbName,mode,work){
   });
 }
 const getAll=dbName=>transact(dbName,"readonly",s=>s.getAll());
+// meta に記録された世代（無ければ 0）
+async function getGen(dbName){
+  const db=await open(dbName);
+  return new Promise((resolve,reject)=>{
+    let tx,q;
+    try{tx=db.transaction("meta","readonly");q=tx.objectStore("meta").get("gen")}catch(e){db.close();reject(e);return}
+    tx.oncomplete=()=>{db.close();resolve(q.result&&typeof q.result.gen==="number"?q.result.gen:0)};
+    tx.onabort=()=>{db.close();reject(tx.error||new Error("IndexedDB transaction aborted"))};
+  });
+}
 // 書き込みはこれだけ。sessions と meta を1つの readwrite トランザクションで扱い、
 // その中で meta の世代を確かめる（readwrite はタブをまたいでも1本ずつ処理されるので割り込まれない）。
 // 自分の世代より新しい世代が書かれていたら何も書かずに中止し、err.stale=true で返す。
@@ -67,5 +77,5 @@ async function readRecState(key,dbName){
   if(localStorage.getItem(key)!==raw)throw new Error("Rec changed while reading; retry");
   return mergeRecState(state,rows);
 }
-window.RecStore={open,getAll,commit,mergeRecState,readRecState};
+window.RecStore={open,getAll,getGen,commit,mergeRecState,readRecState};
 })();

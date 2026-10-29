@@ -676,14 +676,16 @@ async function load(){
   const shape=legacy?d:modern?{...d,sessions:d.outbox.put}:null;
   if(!validState(shape)||!shape.sessions.every(validSessionShape)||(d.cur&&!validSessionShape(d.cur))){brokenData(r||"null");return}
   saveGen=typeof d.gen==="number"?d.gen:0;
-  let rows;
-  try{rows=await RecStore.getAll(DB_NAME)}catch(e){
+  let rows,metaGen=0;
+  try{rows=await RecStore.getAll(DB_NAME);metaGen=await RecStore.getGen(DB_NAME)}catch(e){
     if(!legacy){idbReadFailed=true;brokenData(r,[]);return}
     S=d;skipBootSave=true;return;
   }
   if(!rows.every(validSessionShape)){brokenData(r,rows);return}
   const merged=RecStore.mergeRecState(d,rows);
   if(localStorage.getItem(KEY)!==r){S=merged;staleTab();skipBootSave=true;return}
+  // IndexedDB の世代の方が進んでいたら（空の状態で始め直した・localStorage の世代だけ小さい）、それに合わせて始める
+  const genAdopted=metaGen>saveGen;if(genAdopted)saveGen=metaGen;
   if(legacy){
     try{
       // 補正（起動時と同じ fixSession・stripSnaps）をかけてから移す。idbCache は補正後の文字列になる
@@ -693,12 +695,13 @@ async function load(){
       if(!verified.every(validSessionShape)||!merged.sessions.every(s=>byId.get(s.id)===JSON.stringify(s)))throw Error("Migration verification failed");
       if(localStorage.getItem(KEY)!==r){S=merged;staleTab();skipBootSave=true;return}
       const {sessions,...rest}=d;
-      localStorage.setItem(KEY,JSON.stringify({...rest,version:3,sessionsIn:"idb",outbox:{put:[],del:[]}}));
+      localStorage.setItem(KEY,JSON.stringify({...rest,gen:saveGen,version:3,sessionsIn:"idb",outbox:{put:[],del:[]}}));
       rows=verified;
     }catch(e){S=merged;skipBootSave=true;if(e&&e.stale)staleTab();return}
   }
   S=merged;idbMode=true;idbCache=new Map(rows.map(s=>[s.id,JSON.stringify(s)]));
   outbox=legacy?{put:[],del:[]}:d.outbox;
+  if(genAdopted&&!legacy){try{localStorage.setItem(KEY,JSON.stringify({...d,gen:saveGen}))}catch(e){}}   // 起動時の outbox 反映も合わせた世代で行う
   await flushOutbox();
 }
 function save(opts){

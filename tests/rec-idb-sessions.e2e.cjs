@@ -140,6 +140,22 @@ async function run(){
   await migOld.locator('#staleWarn').waitFor({state:'visible'});
   assert.equal((await rows(migNew)).find(s=>s.id===migTarget.id).endNote,'NEW_CONFIRMED');assert.equal(await metaGen(migNew),migGen);assert.equal(await migNew.evaluate(k=>localStorage.getItem(k),KEY),lsAfterNew);
   console.log('EXTRA PASS migration race: migrating tab commit=stale, stopped; DB=NEW_CONFIRMED, meta.gen='+migGen+'; LS unchanged by old tab');
+  // localStorage を空の状態で始め直した後／localStorage の gen だけ小さい状態から起動しても、止まらずに保存でき、meta.gen が増える（シオン 10/30）。
+  const resetC=await context(),resetPage=await seed(resetC);await ready(resetPage);await settled(resetPage);await start(resetPage);await finish(resetPage);await settled(resetPage);
+  const resetBefore=await metaGen(resetPage),resetRows=(await rows(resetPage)).length;
+  await resetPage.evaluate(k=>{try{localStorage.setItem(k,'{broken')}catch{}},KEY);await resetPage.reload();await resetPage.locator('#brokenWarn').waitFor({state:'visible'});
+  await Promise.all([resetPage.waitForNavigation(),resetPage.locator('#brokenReset').click()]);await resetPage.waitForFunction(()=>!document.body.inert);await settled(resetPage);
+  const resetLsGen=(await disk(resetPage)).gen;assert(await resetPage.locator('#staleWarn').isHidden());
+  await start(resetPage);await finish(resetPage);await settled(resetPage);
+  const resetAfter=await metaGen(resetPage);assert(await resetPage.locator('#staleWarn').isHidden());assert(resetAfter>resetBefore);assert.equal((await rows(resetPage)).length,resetRows+1);
+  console.log('EXTRA PASS after reset to empty: meta.gen '+resetBefore+' -> '+resetAfter+' (LS gen at start '+resetLsGen+'); not stopped; IDB '+resetRows+' -> '+(resetRows+1));
+  const lowC=await context(),lowPage=await seed(lowC);await ready(lowPage);await settled(lowPage);await start(lowPage);await finish(lowPage);await settled(lowPage);
+  const lowBefore=await metaGen(lowPage),lowRows=(await rows(lowPage)).length;
+  await lowPage.evaluate(k=>{const d=JSON.parse(localStorage.getItem(k));d.gen=1;localStorage.setItem(k,JSON.stringify(d))},KEY);await lowPage.reload();await lowPage.waitForFunction(()=>!document.body.inert);await settled(lowPage);
+  assert(await lowPage.locator('#staleWarn').isHidden());assert((await disk(lowPage)).gen>=lowBefore);
+  await start(lowPage);await finish(lowPage);await settled(lowPage);
+  const lowAfter=await metaGen(lowPage);assert(await lowPage.locator('#staleWarn').isHidden());assert(lowAfter>lowBefore);assert.equal((await rows(lowPage)).length,lowRows+1);
+  console.log('EXTRA PASS LS gen smaller (1 vs meta '+lowBefore+'): not stopped; meta.gen '+lowBefore+' -> '+lowAfter+'; IDB '+lowRows+' -> '+(lowRows+1));
   // 不完全な旧データ（補完項目が多い）でも、補正してから移すので、残り約1万文字で警告が出ない（シオン 10/29）。
   const sparse=fixture();for(const s of sparse.sessions){s.rare={};for(const k of ['modeHints','_steps','mode','parallel','revive','melonLeft','melonApprox','rewardHint','modeHint','ticket','judgeWins','returnHit','pendingReward','modeEra','melonPhase','zenchou'])delete s[k]}
   const sparseC=await context(),sparsePage=await seed(sparseC,sparse);
