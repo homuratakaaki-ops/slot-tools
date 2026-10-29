@@ -65,6 +65,11 @@ button,[role=button],summary,.hd-btn,.jump-nav button,.jump-back{min-height:44px
 .jump-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}.jump-grid a{display:flex;align-items:center;justify-content:center;min-height:44px;color:var(--cyan)}
 .bayes-main{padding:10px;color:var(--gold);font-weight:800}.bayes-bar{display:grid;grid-template-columns:50px 1fr 58px;gap:8px;align-items:center;font-size:13px;min-height:32px}.bayes-bar b{display:block;background:var(--pink);height:10px}.bayes-bar em{font-style:normal;text-align:right}
 .vv-pad{position:fixed;inset:0;z-index:120;background:#0009;display:flex;align-items:flex-end;justify-content:center}.vv-pad-body{width:min(100%,420px);background:var(--panel);padding:12px 12px 30px;border-radius:16px 16px 0 0}.vv-pad output{display:block;text-align:right;min-height:32px;font-size:24px}.vv-pad .act{min-height:48px!important}
+.vv-reach{grid-template-columns:repeat(3,1fr)}
+.vv-magius .vv-grid{grid-template-columns:minmax(0,1fr) repeat(6,minmax(44px,1fr))}.vv-magius button{min-height:44px}.vv-magius-label{display:flex;align-items:center;justify-content:center}
+[data-hint][style]{border-left:4px solid var(--hint-color);background:color-mix(in srgb,var(--hint-color) 16%,var(--panel))}
+[data-hint="eye_white"],[data-hint="eye_white_pino"]{color:#222!important;background:#ededed!important}
+#vv-row-sheet .vv-pad-body{max-height:90vh;overflow-y:auto}#vv-row-sheet .vv-delete{color:var(--danger);border-color:var(--danger)}
 </style>
 <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-QCKV9H0DT1"></script>
@@ -83,7 +88,7 @@ button,[role=button],summary,.hd-btn,.jump-nav button,.jump-back{min-height:44px
 <div class="toast" id="toast"></div>
 <script src="checker-engine.js?v=20260924"></script>
 <script src="checker-bayes.js?v=20260922"></script>
-<script src="checker-data/vvv2.js?v=20261029-inputflow"></script>
+<script src="checker-data/vvv2.js?v=20261029-histedit"></script>
 <script>CheckerEngine.mount(CheckerConfigs.vvv2);</script>
 </body>
 </html>

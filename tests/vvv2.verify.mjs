@@ -25,7 +25,7 @@ check('1 全解析表・全HINT effectの正本照合',()=>{
   eq(c.CYCLE,[[14,29,4,15,13,23],[5,13,82,0,0,0],[11,18,14,12,45,0],[100,0,0,0,0,0]]);eq(c.CAPS,[6,3,5,1]);assert.equal(c.CYCLE[0].reduce((a,b)=>a+b),98);
   eq(c.END_PROBS,[[74,8,8,7,3,0,0,0],[65,5,10,7,3,10,0,0],[60,5,10,9,6,8,2,0],[60,10,5,9,6,8,2,0],[60,5,10,9,6,7,2,1]]);
   eq(c.BAFFE,[[55,45],[45,55],[45,55],[55,45],[45,55]]);eq(c.BAR,[3,4,5,6,7]);eq(c.SPECIAL,[1,2,4,8,12]);eq(c.FIRST,[476,473,464,459,456]);eq(c.PAYOUT,[97.7,99.3,104.7,110.8,114.9]);
-  eq(Object.fromEntries(Object.entries(c.HINT).map(([k,h])=>[k,[h.type,h.effect]])),{
+  eq(Object.fromEntries(Object.entries(c.HINT).filter(([k])=>!k.startsWith('eye_')).map(([k,h])=>[k,[h.type,h.effect]])),{
     sub_hito:['cycle',{capWithin:2}],sub_v3:['ref',{}],sub_hinowa:['ref',{}],sub_v5:['cycle',{capWithin:5}],sub_hiasobi:['mode',{exclude:['A']}],sub_marie:['ref',{}],voice_tekisetsu:['ref',{}],voice_bakemono:['ref',{}],voice_nice:['ref',{}],voice_wakaranai:['cycle',{capWithin:2}],pino_ayashii:['pt',{ptMax:400}],pino_chikai:['pt',{ptMax:200}],pino_kekkon:['pt',{ptMax:100}],talk_marie:['ref',{}],talk_haruto:['ref',{}],talk_souichi:['mode',{onlyIfPullMiss:['天国']}],magius4:['mode',{only:['天国']}]});
 });
 check('2 bonusEnd検算・reset3周期・小数第4位',()=>{
@@ -89,7 +89,7 @@ check('8 5設定の推測・カスタムOFFのみ・全rank除外・n<=d',()=>{
 check('9 旧データ・冪等・全階層の未知フィールド・入力のみ保存',()=>{
   const S=c.normalizeState({future:{x:1},start:{kind:'reset',future:4},counts:{future:{data:2},barDirect:3},groups:{future:{x:5},endScreen:{future:{x:6}}},spans:[{future:7,rows:[{t:'future',payload:8},{t:'cyc',k:1,pt:200,r:'miss',extra:9}]}]});
   eq(c.normalizeState(clone(S)),S);assert.equal(S.future.x,1);assert.equal(S.start.future,4);assert.equal(S.counts.future.data,2);assert.equal(S.groups.endScreen.future.x,6);assert.equal(S.groups.future.x,5);assert.equal(S.spans[0].future,7);assert.equal(S.spans[0].rows[1].extra,9);assert.equal(S.curPt,null);assert.equal(S.counts.bar,3);
-  const old=c.normalizeState({});eq(old.spans,[{rows:[],end:null}]);assert.equal(old.curPt,null);
+  const old=c.normalizeState({});eq(old.spans,[{rows:[],end:null,magius:[]}]);assert.equal(old.curPt,null);
   const before=JSON.stringify(S);c.posterior(S);c.nextPtDist(S);c.cycleCap(S);c.winPctNow(S);assert.equal(JSON.stringify(S),before);
 });
 check('10 HTML noindex・導線なし・LF・構文・後読みなし',()=>{
@@ -134,7 +134,7 @@ check('13 ptMaxは当該周期のみ・cycle示唆・参考示唆・全消去',(
   hint(S,'sub_hito',1);const capped=c.untilWin(S);near(capped.avgPt,100);near(capped.avgCycles,1);assert.equal(capped.p50,100);assert.equal(capped.p80,100);
   hint(S,'sub_v3',2);eq(c.untilWin(S),capped);
   const T=fresh('reset');cyc(T,200);cyc(T,400);cyc(T,200);assert.equal(c.untilWin(T).avgPt,null);
-  assert.ok(read('vvv2-checker.html').includes('checker-data/vvv2.js?v=20261029-inputflow'));
+  assert.ok(read('vvv2-checker.html').includes('checker-data/vvv2.js?v=20261029-histedit'));
 });
 check('14 追加便E 到達pt集合・見出し・トースト',()=>{
   const cases=[fresh(),fresh(),fresh(),fresh(),fresh()];
@@ -160,4 +160,52 @@ check('14 追加便E 到達pt集合・見出し・トースト',()=>{
   S.spans[0].rows.at(-1).at=true;eq(c.enabledPts(S),[]);
   const T=fresh();box.document.querySelector=()=>({dataset:{pt:'600'}});assert.equal(c.actions.cycle({S:T},{result:'miss'}),false);assert.equal(T.spans[0].rows.length,0);
 });
-console.log(`Verify checks: ${checks}/14; failures: ${failures}`);if(failures)process.exitCode=1;
+
+check('15 F マギウス派生・矛盾解除・旧形式・正規化・自動付与',()=>{
+  for(const [marks,cap] of [[[1,2],2],[[3,4],3]]){
+    const S=fresh();S.spans[0].magius=marks;const before=JSON.stringify(S);
+    assert.equal(c.cycleCap(S),cap);assert.equal(c.hazard('A',cap,false,c.posterior(S).active),1);
+    assert.equal(JSON.stringify(S),before);
+    for(let k=1;k<=cap;k++)cyc(S,200);
+    const R=c.posterior(S);assert.equal(R.contradiction,false);assert.equal(R.active.length,0);
+    assert.ok(R.warnings.some(w=>w.includes(marks.join('・')+'周期目')));
+  }
+  const S=fresh();S.spans[0].magius=[1,2,3,4];eq(c.posterior(S).p,[0,0,0,1]);
+  cyc(S,200);assert.ok(c.posterior(S).warnings.some(w=>w.includes('4個以上')));
+  const old=c.normalizeState({spans:[{rows:[{t:'cyc',k:1,pt:200,r:'miss',magius:true}],end:null}]});
+  eq(old.spans[0].magius,[]);assert.equal(old.spans[0].rows[0].magius,true);assert.equal(c.cycleCap(old),4);
+  for(const input of [undefined,null,'1,2',{},[6,1,1,0,7,-1,1.5,'2',null,true,NaN,Infinity,3]]){
+    const N=c.normalizeState({spans:[{rows:[],magius:input}]});
+    eq(N.spans[0].magius,Array.isArray(input)?[1,3,6]:[]);eq(c.normalizeState(clone(N)),N);
+  }
+  const T=fresh();c.actions.magius({S:T},{k:'1'});box.document={querySelector:()=>({dataset:{pt:'200'}}),getElementById:()=>null};
+  c.actions.cycle({S:T},{result:'miss'});assert.equal(T.spans[0].rows[0].magius,true);
+  c.actions.cycle({S:T},{result:'miss'});assert.equal(T.spans[0].rows[1].magius,false);
+  c.actions.magius({S:T},{k:'1'});eq(T.spans[0].magius,[]);assert.equal(T.spans[0].rows[0].magius,true);
+  assert.equal(T.schemaVersion,1);eq(c.mergeKeys,['start','counts','groups']);
+});
+check('16 F 履歴編集・全モード候補・削除再付番・終了区間保護',()=>{
+  box.document={getElementById:()=>null};
+  const S=fresh();cyc(S,200);cyc(S,600);hint(S,'sub_hito',3);cyc(S,400);hint(S,'sub_v3',4);
+  eq(c.editPts(S.spans[0],0),[100,200]);eq(c.editPts(S.spans[0],3),[100,200,300,400]);
+  c.actions.editRow({S},{index:'1',pt:'500',result:'win'});assert.equal(S.spans[0].rows[1].pt,500);assert.equal(S.spans[0].rows[1].r,'win');
+  c.actions.editRow({S},{index:'2',k:'6'});assert.equal(S.spans[0].rows[2].k,6);
+  const before=clone(S);assert.equal(c.actions.editRow({S},{index:'0',pt:'600',result:'miss'}),false);eq(S,before);
+  c.actions.deleteRow({S},{index:'1'});eq(S.spans[0].rows.map(r=>r.k),[1,5,2,3]);
+  S.spans[0].end={t:'czmiss'};const closed=clone(S);
+  for(const action of ['editRow','deleteRow']){assert.equal(c.actions[action]({S},{index:'0',pt:'100',result:'win'}),false);eq(S,closed);}
+  S.spans.push({rows:[{t:'cyc',k:1,pt:200,r:'miss'}],end:null,magius:[]});const spans=clone(S);
+  for(const action of ['editRow','deleteRow']){assert.equal(c.actions[action]({S},{span:'0',index:'0',pt:'100',result:'win'}),false);eq(S,spans);}
+  // Aのみが残っていても編集候補は全モードのテーブルから取る。
+  const T=fresh();cyc(T,200);cyc(T,600);cyc(T,400);cyc(T,200);eq(c.posterior(T).p,[1,0,0,0]);eq(c.editPts(T.spans[0],3),[100,200,300,400,500,600]);
+});
+check('17 F short・色・アイキャッチの参照専用定義',()=>{
+  const subs=['sub_hito','sub_v3','sub_hinowa','sub_v5','sub_hiasobi','sub_marie'];
+  eq(subs.map(k=>c.HINT[k].short),['火人','Valvrave 3','火ノ輪','Valvrave 5','火遊','野火マリエ']);
+  eq(subs.map(k=>c.HINT[k].color),['#ef5350','#e5c52c','#43a66b','#4b91ed','#ad6de0','#f06d42']);
+  const eyes=Object.entries(c.HINT).filter(([k])=>k.startsWith('eye_'));assert.equal(eyes.length,6);
+  for(const [key,h] of eyes){assert.equal(h.type,'ref');eq(h.effect,{});assert.ok(h.short&&h.color&&h.label.startsWith('アイキャッチ '));const S=fresh();hint(S,key);eq(c.posterior(S).p,c.priorOf(S));}
+  for(const h of Object.values(c.HINT))assert.ok(h.short&&!h.short.includes('??'));
+});
+
+console.log(`Verify checks: ${checks}/17; failures: ${failures}`);if(failures)process.exitCode=1;

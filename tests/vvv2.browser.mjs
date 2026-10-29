@@ -91,10 +91,29 @@ try{
   `});
   const act=(name,attrs='')=>click(`[data-action="${name}"]${attrs}`);
   const result=r=>act('result',`[data-result="${r}"]`);
-  async function round(pt,r='miss',magius=false){await click(`[data-pt="${pt}"]`);if(magius)await click('#vv-magius');await act('cycle',`[data-result="${r}"]`);}
+  async function round(pt,r='miss',magius=false){if(magius){const k=(await state()).spans.at(-1).rows.filter(r=>r.t==='cyc').length+1;await act('magius',`[data-k="${k}"]`);}await click(`[data-pt="${pt}"]`);await act('cycle',`[data-result="${r}"]`);}
   async function reloaded(){const saved=await state();await load(390);assert.deepEqual(await state(),saved);await tab(2);}
   async function selectStart(kind){const S=await state(),w=await run('return innerWidth;');S.spans=[{rows:[],end:null}];S.curPt=null;await seed(S,w);await tab(0);await act('start',`[data-kind="${kind}"]`);await tab(2);}
   await load(390);
+
+  // F: 指定の3列×2段・マギウス上配置を実測する。
+  {
+    const filled={start:{kind:'bonusEnd',failCount:0},spans:[{rows:[{t:'cyc',k:1,pt:200,r:'miss',magius:false},{t:'cyc',k:2,pt:600,r:'miss',magius:false},{t:'cyc',k:3,pt:400,r:'miss',magius:false}],end:null,magius:[]}]};
+    let fits=false;
+    for(const width of [390,360]){
+      await seed(filled,width);await tab(2);
+      {
+        await run('d.getElementById("main").scrollTop=0;');
+        const m=await run('return {pts:[...d.querySelectorAll("[data-pt]")].map(e=>({pt:e.dataset.pt,bottom:e.getBoundingClientRect().bottom})),magius:[...d.querySelectorAll(".vv-magius .vv-grid > *")].map(e=>({k:e.dataset.k||"label",bottom:e.getBoundingClientRect().bottom,width:e.getBoundingClientRect().width,height:e.getBoundingClientRect().height})),out:d.querySelector("[data-action=out]").getBoundingClientRect().bottom,nav:d.getElementById("nav").getBoundingClientRect().top};');
+        measures.push({width,label:'F-filled',cycle:m});console.log('F layout',JSON.stringify({width,...m}));
+        assert.equal(m.pts.length,6);assert.equal(m.magius.length,7);
+        await shot('vvv2-f-filled-'+width,width);
+        if(width===390&&m.pts.every(x=>x.bottom<m.nav)&&m.magius.every(x=>x.bottom<m.nav)&&m.out<m.nav)fits=true;
+      }
+    }
+    assert.ok(fits,'Stop condition 1: controls do not fit above the navigation at 390px');
+    await seed({},390);
+  }
   assert.deepEqual(await run('return [...d.querySelectorAll("#nav button")].map(x=>x.textContent);'),['入力','示唆','周期','カード']);
   for(const kind of ['reset','bonusEnd','fail','unknown']){await act('start',`[data-kind="${kind}"]`);assert.equal((await state()).start.kind,kind);}
   await act('start','[data-kind="fail"]');for(let i=1;i<=5;i++){await act('failCount',`[data-n="${i}"]`);assert.equal((await state()).start.failCount,i);}
@@ -151,7 +170,7 @@ try{
   const counts=JSON.stringify((await state()).counts),groups=JSON.stringify((await state()).groups);
   assert.equal(counts,JSON.stringify(keep.counts));assert.equal(groups,JSON.stringify(keep.groups));
   await click('#undoBtn');assert.equal((await state()).spans[0].rows.length,2);await round(400,'miss',true);assert.equal((await state()).spans[0].rows[2].magius,true);
-  const rows=(await state()).spans[0].rows;await act('deleteRow','[data-index="1"]');assert.equal((await state()).spans[0].rows.length,2);assert.equal((await state()).spans[0].rows[1].k,2);await click('#undoBtn');assert.deepEqual((await state()).spans[0].rows,rows);
+  const rows=(await state()).spans[0].rows;await click('[data-row-index="1"]');assert.deepEqual((await state()).spans[0].rows,rows);await click('#vv-row-delete');assert.deepEqual((await state()).spans[0].rows,rows);await click('#vv-row-confirm-delete');assert.equal((await state()).spans[0].rows.length,2);assert.equal((await state()).spans[0].rows[1].k,2);await click('#undoBtn');assert.deepEqual((await state()).spans[0].rows,rows);
   await reloaded();pass('到達pt6ボタン・bonusEnd検算表示・マギウス・削除と取消・counts/groups独立');
   await click('#curPt');await click('[data-digit="1"]');await click('[data-digit="2"]');await click('[data-digit="⌫"]');await click('[data-digit="0"]');await click('#vv-pad-save');assert.equal((await state()).curPt,10);
   await reloaded();assert.equal(await run('return d.getElementById("curPt").value;'),'10');await click('#curPt');await click('[data-digit="クリア"]');await click('#vv-pad-save');assert.equal((await state()).curPt,null);await click('#undoBtn');assert.equal((await state()).curPt,10);
@@ -178,6 +197,63 @@ try{
   for(const key of hints){await act('hint',`[data-hint="${key}"]`);assert.equal((await state()).spans[0].rows.at(-1).c,key);await click('#undoBtn');assert.equal((await state()).spans[0].rows.length,0);}
   await act('hint','[data-hint="sub_hiasobi"]');await reloaded();assert.ok(!(await run('return d.querySelector(".vv-mode").textContent;')).includes('A '));
   pass(`周期示唆${hints.length}全ボタン・取消・保存復元`);
+
+  // F: 実ボタンから編集・保存・取消、シート非再描画、トグルと色を検証。
+  {
+    const saved=await state();
+    await seed({...saved,start:{kind:'bonusEnd',failCount:0},curPt:null,spans:[{rows:[{t:'cyc',k:1,pt:200,r:'miss',magius:false},{t:'cyc',k:2,pt:600,r:'miss',magius:false},{t:'cyc',k:3,pt:400,r:'miss',magius:false}],end:null,magius:[]}]},390);await tab(2);
+    const before=await state();
+    await click('[data-row-index="1"]');assert.deepEqual(await state(),before);
+    assert.ok(await run('return d.getElementById("vv-row-sheet").parentElement===d.body;'));
+    await click('#vv-row-edit');
+    await run('w.__sheet=d.getElementById("vv-row-sheet");w.__fields=d.getElementById("vv-row-fields");');
+    // 共通描画が走ってもbody直下のシートと仮入力は残る。
+    await click('#modeBtn');await click('#modeBtn');
+    await click('[data-edit-key="pt"][data-value="500"]');await click('[data-edit-key="r"][data-value="win"]');
+    assert.deepEqual(await state(),before);
+    assert.ok(await run('return !d.getElementById("vv-row-warning").hidden&&w.__sheet===d.getElementById("vv-row-sheet")&&w.__fields===d.getElementById("vv-row-fields");'));
+    await send('Emulation.setDeviceMetricsOverride',{width:390,height:530,deviceScaleFactor:1,mobile:true});
+    const sheetScroll=await run('const el=d.querySelector("#vv-row-sheet .vv-pad-body");el.scrollTop=el.scrollHeight;return el.scrollTop;');
+    assert.ok(sheetScroll>0);await click('[data-edit-key="pt"][data-value="400"]');
+    assert.equal(await run('return d.querySelector("#vv-row-sheet .vv-pad-body").scrollTop;'),sheetScroll);
+    await click('[data-edit-key="pt"][data-value="500"]');
+    await send('Emulation.setDeviceMetricsOverride',{width:390,height:740,deviceScaleFactor:1,mobile:true});
+    await shot('vvv2-f-history-sheet-390',390);
+    await click('#vv-row-save');
+    assert.equal(await run('return !!d.getElementById("vv-row-sheet");'),false);
+    assert.ok(await run('return d.querySelector("[data-row-index=\\"1\\"]").textContent.includes("500pt 当選");'));
+    await click('#undoBtn');assert.deepEqual(await state(),before);
+    await click('[data-row-index="2"]');await click('#vv-row-edit');
+    assert.deepEqual(await run('return [...d.querySelectorAll("[data-edit-key=pt]:not(:disabled)")].map(e=>Number(e.dataset.value));'),[100,200,300,400]);
+    await click('#vv-row-close');assert.deepEqual(await state(),before);
+    await click('.vv-hints summary');await act('hint','[data-hint="sub_hito"]');
+    const hintBefore=await state();await click('[data-row-index="3"]');await click('#vv-row-edit');await click('[data-edit-key="k"][data-value="2"]');await click('#vv-row-save');
+    assert.equal((await state()).spans[0].rows[3].k,2);await click('#undoBtn');assert.deepEqual(await state(),hintBefore);
+    await seed({},390);await tab(2);
+    for(let k=1;k<=6;k++){await act('magius','[data-k="'+k+'"]');assert.deepEqual((await state()).spans[0].magius,Array.from({length:k},(_,i)=>i+1));}
+    assert.ok(await run('return [...d.querySelectorAll("[data-action=magius]")].every(e=>e.getAttribute("aria-pressed")==="true");'));
+    for(let k=6;k>=1;k--)await act('magius','[data-k="'+k+'"]');
+    assert.deepEqual((await state()).spans[0].magius,[]);await click('#undoBtn');assert.deepEqual((await state()).spans[0].magius,[1]);await act('magius','[data-k="1"]');
+    await shot('vvv2-f-cycle-first-390',390);
+    await click('.vv-hints summary');
+    const colored=await run('return [...d.querySelectorAll("[data-hint^=sub_],[data-hint^=eye_]")].map(e=>({key:e.dataset.hint,text:e.textContent,color:e.style.getPropertyValue("--hint-color"),left:getComputedStyle(e).borderLeftWidth,width:e.getBoundingClientRect().width,height:e.getBoundingClientRect().height,right:e.getBoundingClientRect().right,fg:getComputedStyle(e).color}));');
+    assert.equal(colored.length,12);
+    for(const b of colored){assert.ok(b.width>=44&&b.height>=44&&b.right<=390);assert.equal(b.left,'4px');assert.ok(b.color);assert.ok(!b.text.includes('サブモニター')&&!b.text.includes('アイキャッチ'));if(b.key.includes('white'))assert.equal(b.fg,'rgb(34, 34, 34)');}
+    assert.deepEqual(colored.filter(b=>b.key.startsWith('sub_')).map(b=>b.text),['火人','Valvrave 3','火ノ輪','Valvrave 5','火遊','野火マリエ']);
+    assert.equal(await run('return !!d.querySelector("[data-hint=magius4]");'),false);
+    await run('d.querySelector(".vv-hints").scrollIntoView();');await shot('vvv2-f-hints-open-390',390);
+    await run('d.querySelector("[data-hint=eye_black]").closest(".sec").scrollIntoView();');await shot('vvv2-f-eyecatch-390',390);
+    for(const width of [360,390,412]){
+      await send('Emulation.setDeviceMetricsOverride',{width,height:740,deviceScaleFactor:1,mobile:true});await layout(width,'F-hints-open',2);
+      assert.ok(await run('return [...d.querySelectorAll("[data-action=magius]")].every(e=>e.getBoundingClientRect().width>=44&&e.getBoundingClientRect().height>=44);'));
+    }
+    await seed({spans:[{rows:[{t:'cyc',k:1,pt:200,r:'win'}],end:{t:'czmiss'}},{rows:[{t:'out',k:1}],end:null}]},390);await tab(2);
+    await click('[data-row-index="0"]');assert.equal(await run('return !!d.getElementById("vv-row-edit");'),false);await click('#vv-row-close');
+    assert.ok(await run('const ended=[...d.querySelectorAll("details")].find(e=>e.querySelector("summary").textContent==="終了した区間");ended.open=true;return ended.querySelectorAll("button,[onclick],[data-action]").length===0;'));
+    await seed(saved,390);await tab(2);
+    pass('追加便F 履歴編集・保存/削除の取消・非再描画・周期指定6トグル・12色ボタン・終了区間表示専用');
+  }
+
   // 追加データを作ってから実際のカードタブ・詳細ボタンで描画する。
   await selectStart('bonusEnd');await round(200);await round(600);await round(400);
   const filled=await state();
