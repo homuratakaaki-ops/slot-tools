@@ -255,7 +255,7 @@ textarea{min-height:80px;resize:vertical}
 <div class="kp" id="kp"><div class="pane"><div class="sh"><div class="st" id="kpTitle">数値</div><button id="kpX" style="padding:8px 14px;min-height:44px">キャンセル</button></div><div class="disp" id="kpDisp">0</div><div class="keys" id="kpKeys"></div><div class="acts"><button id="kpClear">C</button><button id="kpBack">⌫</button><button class="ok" id="kpOk">決定</button></div></div></div>
 <div class="toast" id="toast"></div>
 
-<script src="../../js/rec-store.js?v=20261029"></script>
+<script src="../../js/rec-store.js?v=20261030"></script>
 <script>
 (function(){
 "use strict";
@@ -652,8 +652,7 @@ async function flushOutbox(){
       const batch=JSON.parse(JSON.stringify(outbox));
       const raw=localStorage.getItem(KEY),d=raw&&JSON.parse(raw);
       if(!d||d.gen!==saveGen){staleTab();return}
-      if(batch.put.length)await RecStore.putMany(DB_NAME,batch.put);
-      if(batch.del.length)await RecStore.deleteMany(DB_NAME,batch.del);
+      await RecStore.commit(DB_NAME,batch,saveGen);   // この outbox を localStorage に書いたときの世代で確かめる
       batch.put.forEach(s=>idbCache.set(s.id,JSON.stringify(s)));batch.del.forEach(id=>idbCache.delete(id));committed=true;
       if(retryAfterFlush){outbox={put:outbox.put.filter(s=>idbCache.get(s.id)!==JSON.stringify(s)),del:outbox.del.filter(id=>idbCache.has(id))};continue}   // 手順2が容量不足で失敗した保存：確定後にまとめて書き直す
       const latest=localStorage.getItem(KEY),saved=latest&&JSON.parse(latest);
@@ -663,7 +662,7 @@ async function flushOutbox(){
       localStorage.setItem(KEY,JSON.stringify({...saved,outbox:remaining}));outbox=remaining;
     }
     if(retryAfterFlush&&committed){retryAfterFlush=false;retry=true}
-  }catch(e){/* 同期保存済みの outbox を残し、次の save で再試行する。 */}
+  }catch(e){if(e&&e.stale)staleTab()}   // 古い：新しいタブ側が正なので止める。それ以外は同期保存済みの outbox を残し、次の save で再試行する。
   finally{flushBusy=false}
   if(retry)save();   // 確定後の小さい書き込み。成功すれば警告が消える
 }
@@ -689,14 +688,14 @@ async function load(){
     try{
       // 補正（起動時と同じ fixSession・stripSnaps）をかけてから移す。idbCache は補正後の文字列になる
       merged.sessions.forEach(fixSession);merged.sessions.forEach(s=>{if(s&&s.endAt)stripSnaps(s)});
-      await RecStore.putMany(DB_NAME,merged.sessions);
+      await RecStore.commit(DB_NAME,{put:merged.sessions,del:[]},saveGen);
       const verified=await RecStore.getAll(DB_NAME),byId=new Map(verified.map(s=>[s.id,JSON.stringify(s)]));
       if(!verified.every(validSessionShape)||!merged.sessions.every(s=>byId.get(s.id)===JSON.stringify(s)))throw Error("Migration verification failed");
       if(localStorage.getItem(KEY)!==r){S=merged;staleTab();skipBootSave=true;return}
       const {sessions,...rest}=d;
       localStorage.setItem(KEY,JSON.stringify({...rest,version:3,sessionsIn:"idb",outbox:{put:[],del:[]}}));
       rows=verified;
-    }catch(e){S=merged;skipBootSave=true;return}
+    }catch(e){S=merged;skipBootSave=true;if(e&&e.stale)staleTab();return}
   }
   S=merged;idbMode=true;idbCache=new Map(rows.map(s=>[s.id,JSON.stringify(s)]));
   outbox=legacy?{put:[],del:[]}:d.outbox;

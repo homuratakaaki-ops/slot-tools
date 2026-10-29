@@ -23,8 +23,13 @@ async function context(){
 async function seed(c,value=data){const p=await c.newPage();await p.goto(origin+'/empty');await p.evaluate(([k,v])=>localStorage.setItem(k,JSON.stringify(v)),[KEY,value]);return p}
 async function ready(p,url='/tools/rec-test/'){await p.goto(origin+url);await p.waitForFunction(()=>!document.body.inert&&document.querySelector('#scSetup:not(.hide),#scMain:not(.hide)'));}
 async function disk(p){return p.evaluate(k=>JSON.parse(localStorage.getItem(k)),KEY)}
-async function rows(p){return p.evaluate(db=>new Promise((resolve,reject)=>{const r=indexedDB.open(db,1);r.onsuccess=()=>{const d=r.result,t=d.transaction('sessions'),q=t.objectStore('sessions').getAll();t.oncomplete=()=>{d.close();resolve(q.result)};t.onabort=()=>reject(t.error)};r.onerror=()=>reject(r.error)}),DB)}
+async function rows(p){return p.evaluate(db=>new Promise((resolve,reject)=>{const r=indexedDB.open(db);r.onsuccess=()=>{const d=r.result,t=d.transaction('sessions'),q=t.objectStore('sessions').getAll();t.oncomplete=()=>{d.close();resolve(q.result)};t.onabort=()=>reject(t.error)};r.onerror=()=>reject(r.error)}),DB)}
 async function settled(p){await p.waitForFunction(k=>{const d=JSON.parse(localStorage.getItem(k));return d.version===3&&!d.outbox.put.length&&!d.outbox.del.length},KEY)}
+async function idbPut(p,list){await p.evaluate(([db,list])=>new Promise((res,rej)=>{const r=indexedDB.open(db);r.onsuccess=()=>{const d=r.result,t=d.transaction('sessions','readwrite');list.forEach(x=>t.objectStore('sessions').put(x));t.oncomplete=()=>{d.close();res()};t.onabort=()=>rej(t.error)};r.onerror=()=>rej(r.error)}),[DB,list])}
+async function metaGen(p){return p.evaluate(db=>new Promise((res,rej)=>{const r=indexedDB.open(db);r.onsuccess=()=>{const d=r.result,t=d.transaction('meta'),q=t.objectStore('meta').get('gen');t.oncomplete=()=>{d.close();res(q.result?q.result.gen:null)}};r.onerror=()=>rej(r.error)}),DB)}
+async function editEndNote(p,text){await note(p);await p.locator('#nList details.sess summary').first().click();await p.getByRole('button',{name:'打ち始め・終了の情報を直す',exact:true}).first().click();await p.locator('#shBody .lbl:text-is("終わりのメモ") + input').fill(text);await p.getByRole('button',{name:'この内容で直す',exact:true}).click()}
+// 次の RecStore.commit を1回だけ保留する。window.__release() で本物の commit を走らせ、結果を __heldResult に残す
+const HOLD="{const c=RecStore.commit;let held=false;RecStore.commit=(...a)=>{if(held||!window.__holdNext)return c(...a);held=true;window.__holdNext=false;return new Promise((res,rej)=>{window.__release=()=>c(...a).then(r=>{window.__heldResult='ok';res(r)},e=>{window.__heldResult=e&&e.stale?'stale':'error:'+e;rej(e)})})}}";
 async function note(p){await p.locator('#hdMenu').click();await p.getByRole('button',{name:'ノートを開く',exact:true}).click()}
 async function download(p,selector){const wait=p.waitForEvent('download');await p.locator(selector).click();const d=await wait;const file=path.join(tmp,Date.now()+'-'+Math.random()+'.json');await d.saveAs(file);return JSON.parse(fs.readFileSync(file,'utf8'))}
 async function snapshot(p){await note(p);const exp=await download(p,'#nDl');delete exp.exportedAt;
@@ -66,11 +71,11 @@ async function run(){
   result(5,`operation writes=${writes.length}; LS=${writes[0].length} chars; sessions=0; outbox.put=0`);
   const geometry=await p.evaluate(()=>({height:innerHeight,scroll:document.documentElement.scrollHeight,buttons:['bHint','bUtil','bUndo'].map(id=>{const e=document.getElementById(id),r=e.getBoundingClientRect();return {id,top:r.top,bottom:r.bottom,height:r.height,display:getComputedStyle(e).display}})}));
   assert(geometry.scroll<=844);assert(geometry.buttons.every(b=>b.bottom<=844&&b.height>0&&b.display!=='none'));await p.screenshot({path:path.join(tmp,'rec-test-390x844.png')});console.log('UI '+JSON.stringify(geometry));
-  await p.evaluate(()=>{window.__put=RecStore.putMany;RecStore.putMany=()=>new Promise(()=>{})});await finish(p);d=await disk(p);assert.equal(d.outbox.put.length,1);const added=d.outbox.put[0].id;assert.match(await p.locator('#hdTitle').innerText(),/201/);example(2,`note=201; outbox.put=1 (${JSON.stringify(d.outbox.put).length} chars)`);
+  await p.evaluate(()=>{RecStore.commit=()=>new Promise(()=>{})});await finish(p);d=await disk(p);assert.equal(d.outbox.put.length,1);const added=d.outbox.put[0].id;assert.match(await p.locator('#hdTitle').innerText(),/201/);example(2,`note=201; outbox.put=1 (${JSON.stringify(d.outbox.put).length} chars)`);
   await p.close();const resumed=await c.newPage();await ready(resumed);await settled(resumed);assert((await rows(resumed)).some(s=>s.id===added));await note(resumed);assert.match(await resumed.locator('#hdTitle').innerText(),/201/);example(3,'after close/reload sessions=201; outbox.put=0');
   // Expand the first rendered session, then delete through its real button.
   await resumed.locator('#nList details.sess summary').first().click();
-  await resumed.evaluate(()=>{RecStore.deleteMany=()=>new Promise(()=>{})});await resumed.getByRole('button',{name:'この記録を削除',exact:true}).first().click();
+  await resumed.evaluate(()=>{RecStore.commit=()=>new Promise(()=>{})});await resumed.getByRole('button',{name:'この記録を削除',exact:true}).first().click();
   d=await disk(resumed);assert.equal(d.outbox.del.length,1);assert.equal(await resumed.locator('#nList details.sess').count(),200);await resumed.reload();await resumed.waitForFunction(()=>!document.body.inert);await settled(resumed);assert.equal((await rows(resumed)).length,200);example(4,'note 201 -> 200 immediately; outbox.del 1 -> 0; IDB=200');
   // Stop after the migration transaction completes, before its verification read returns.
   const cutC=await context(),cut=await seed(cutC);await cut.route('**/js/rec-store.js?*',async route=>{const s=fs.readFileSync(path.join(ROOT,'js/rec-store.js'),'utf8');await route.fulfill({contentType:'text/javascript',body:s+'\n{const get=RecStore.getAll;let n=0;RecStore.getAll=async(...a)=>{const rows=await get(...a);if(++n===2){window.__cut=true;await new Promise(()=>{})}return rows}}'})});
@@ -84,10 +89,10 @@ async function run(){
   // v3 cannot fall back to an empty local sessions list.
   const badC=await context(),bad=await seed(badC);await ready(bad);await settled(bad);const preserved=JSON.stringify(await disk(bad));await badC.addInitScript(()=>{indexedDB.open=()=>{throw Error('offline')}});await bad.reload();await bad.locator('#brokenWarn').waitFor({state:'visible'});assert.equal(JSON.stringify(await disk(bad)),preserved);const unavailable=await download(bad,'#brokenExport');assert.equal(unavailable.localStorage,preserved);assert.deepEqual(unavailable.idbSessions,[]);
   // Corrupt IDB rows are retained and exported with the raw LS string.
-  const corruptC=await context(),corrupt=await seed(corruptC);await ready(corrupt);await settled(corrupt);await corrupt.evaluate(()=>RecStore.putMany('slot-tools-rec-test',[{id:'broken',machine:'x',events:null}]));const rawBefore=await corrupt.evaluate(k=>localStorage.getItem(k),KEY);await corrupt.reload();await corrupt.locator('#brokenWarn').waitFor({state:'visible'});const bundle=await download(corrupt,'#brokenExport');assert.equal(bundle.localStorage,rawBefore);assert.equal(bundle.idbSessions.length,201);assert.equal(await corrupt.evaluate(k=>localStorage.getItem(k),KEY),rawBefore);console.log('EXTRA PASS v3 unavailable: no writes; corrupt bundle: raw LS + idbSessions=201; v3 unavailable bundle: idbSessions=0');
+  const corruptC=await context(),corrupt=await seed(corruptC);await ready(corrupt);await settled(corrupt);await idbPut(corrupt,[{id:'broken',machine:'x',events:null}]);const rawBefore=await corrupt.evaluate(k=>localStorage.getItem(k),KEY);await corrupt.reload();await corrupt.locator('#brokenWarn').waitFor({state:'visible'});const bundle=await download(corrupt,'#brokenExport');assert.equal(bundle.localStorage,rawBefore);assert.equal(bundle.idbSessions.length,201);const brokenKey201=await corrupt.evaluate(k=>localStorage.getItem(k+'-broken'),KEY);assert.equal(brokenKey201,rawBefore);assert(await corrupt.locator('#brokenWarn').isVisible());console.log('EXTRA PASS corrupt IDB 200+1: broken key='+brokenKey201.length+' chars = LS raw '+rawBefore.length+' chars; saving stopped; export idbSessions='+bundle.idbSessions.length);assert.equal(await corrupt.evaluate(k=>localStorage.getItem(k),KEY),rawBefore);console.log('EXTRA PASS v3 unavailable: no writes; corrupt bundle: raw LS + idbSessions=201; v3 unavailable bundle: idbSessions=0');
   // 壊れた IndexedDB 200件で起動しても、退避キーには localStorage の元の文字列だけが入る（シオン 10/29）。
   const all200C=await context(),all200=await seed(all200C);await ready(all200);await settled(all200);
-  await all200.evaluate(async()=>{const rows=await RecStore.getAll('slot-tools-rec-test');await RecStore.putMany('slot-tools-rec-test',rows.map(r=>({...r,events:null})))});
+  await idbPut(all200,(await rows(all200)).map(r=>({...r,events:null})));
   const raw200=await all200.evaluate(k=>localStorage.getItem(k),KEY);await all200.reload();await all200.locator('#brokenWarn').waitFor({state:'visible'});
   const brokenKey=await all200.evaluate(k=>localStorage.getItem(k+'-broken'),KEY);
   assert.equal(brokenKey.length,raw200.length);assert.equal(brokenKey,raw200);
@@ -96,18 +101,45 @@ async function run(){
   console.log('EXTRA PASS corrupt IDB 200: broken key='+brokenKey.length+' chars = LS raw '+raw200.length+' chars; export bundle idbSessions=200 ('+JSON.stringify(bundle200).length+' chars, memory only)');
   // A failed transaction leaves its complete journal, and the next UI save retries it.
   const retryC=await context(),retry=await seed(retryC);await ready(retry);await settled(retry);await start(retry);
-  await retry.evaluate(()=>{window.__put=RecStore.putMany;RecStore.putMany=()=>Promise.reject(Error('write failed'))});await finish(retry);assert.equal((await disk(retry)).outbox.put.length,1);
-  await retry.evaluate(()=>{RecStore.putMany=window.__put});await start(retry);await settled(retry);assert.equal((await rows(retry)).length,201);
+  await retry.evaluate(()=>{window.__commit=RecStore.commit;RecStore.commit=()=>Promise.reject(Error('write failed'))});await finish(retry);assert.equal((await disk(retry)).outbox.put.length,1);
+  await retry.evaluate(()=>{RecStore.commit=window.__commit});await start(retry);await settled(retry);assert.equal((await rows(retry)).length,201);
   // Delete a just-finished record while its put is in flight; complete must not resurrect it.
-  await retry.evaluate(()=>{const put=RecStore.putMany;RecStore.putMany=(...args)=>new Promise(resolve=>{window.__release=()=>resolve(put(...args))})});await finish(retry);
+  await retry.evaluate(()=>{const c=RecStore.commit;let first=true;RecStore.commit=(...args)=>{if(!first)return c(...args);first=false;return new Promise(resolve=>{window.__release=()=>resolve(c(...args))})}});await finish(retry);
   await retry.locator('#nList details.sess summary').first().click();await retry.getByRole('button',{name:'この記録を削除',exact:true}).first().click();assert.equal((await disk(retry)).outbox.del.length,1);
   await retry.evaluate(()=>window.__release());await settled(retry);assert.equal((await rows(retry)).length,201);
   console.log('EXTRA PASS failed put retained/retried; delete during put -> IDB=201, outbox=0');
   // Migration verification failure must not rewrite the v2 raw string, even at boot.
   const mismatchC=await context(),mismatch=await seed(mismatchC);await mismatch.route('**/js/rec-store.js?*',async route=>{const s=fs.readFileSync(path.join(ROOT,'js/rec-store.js'),'utf8');await route.fulfill({contentType:'text/javascript',body:s+'\n{const get=RecStore.getAll;let n=0;RecStore.getAll=async(...a)=>{const rows=await get(...a);return ++n===2?rows.slice(1):rows}}'})});await ready(mismatch);assert.equal(await mismatch.evaluate(k=>localStorage.getItem(k),KEY),raw);
   // Public API: complete/abort, custom DB name and the bounded open wait.
-  const api=await recovered.evaluate(async()=>{let aborted=false;try{await RecStore.putMany('synthetic-api',[{id:'a'},{bad:true}])}catch{aborted=true}const count=(await RecStore.getAll('synthetic-api')).length;const open=indexedDB.open;indexedDB.open=()=>({});const at=performance.now();let timeout=false;try{await RecStore.open('synthetic-timeout')}catch{timeout=true}indexedDB.open=open;return {aborted,count,timeout,ms:Math.round(performance.now()-at)}});
-  assert(api.aborted&&api.count===0&&api.timeout&&api.ms>=2900&&api.ms<4000);console.log('EXTRA PASS migration mismatch: raw unchanged; API '+JSON.stringify(api));
+  const api=await recovered.evaluate(async()=>{let aborted=false;try{await RecStore.commit('synthetic-api',{put:[{id:'a'},{bad:true}],del:[]},1)}catch{aborted=true}const count=(await RecStore.getAll('synthetic-api')).length;const open=indexedDB.open;indexedDB.open=()=>({});const at=performance.now();let timeout=false;try{await RecStore.open('synthetic-timeout')}catch{timeout=true}indexedDB.open=open;const ms=Math.round(performance.now()-at);
+    await new Promise((res,rej)=>{const r=indexedDB.open('synthetic-v1',1);r.onupgradeneeded=()=>r.result.createObjectStore('sessions',{keyPath:'id'});r.onsuccess=()=>{const d=r.result,t=d.transaction('sessions','readwrite');t.objectStore('sessions').put({id:'v1a',n:1});t.objectStore('sessions').put({id:'v1b',n:2});t.oncomplete=()=>{d.close();res()}};r.onerror=()=>rej(r.error)});
+    const v1rows=(await RecStore.getAll('synthetic-v1')).length;const db=await RecStore.open('synthetic-v1');const v1={version:db.version,stores:[...db.objectStoreNames].sort().join(',')};db.close();
+    await RecStore.commit('synthetic-v1',{put:[{id:'v1c'}],del:[]},5);let staleFlag=false;try{await RecStore.commit('synthetic-v1',{put:[{id:'v1d'}],del:['v1a']},4)}catch(e){staleFlag=e.stale===true}const afterStale=(await RecStore.getAll('synthetic-v1')).map(r=>r.id).sort().join(',');
+    return {aborted,count,timeout,ms,v1rows,v1,staleFlag,afterStale}});
+  assert(api.aborted&&api.count===0&&api.timeout&&api.ms>=2900&&api.ms<4000);assert.equal(api.v1rows,2);assert.deepEqual(api.v1,{version:2,stores:'meta,sessions'});assert(api.staleFlag);assert.equal(api.afterStale,'v1a,v1b,v1c');console.log('EXTRA PASS migration mismatch: raw unchanged; API '+JSON.stringify(api));
+  // ネネ検収 高1：古いタブの遅れた書き込みが、新しいタブの確定済みの編集を上書きしない。
+  const raceC=await context(),tabOld=await seed(raceC);await ready(tabOld);await settled(tabOld);
+  await tabOld.addScriptTag({content:HOLD});await tabOld.evaluate(()=>{window.__holdNext=true});
+  await editEndNote(tabOld,'OLD_DELAYED');const target=(await disk(tabOld)).outbox.put[0];assert.equal(target.endNote,'OLD_DELAYED');await tabOld.waitForFunction(()=>typeof window.__release==='function');
+  const tabNew=await raceC.newPage();await ready(tabNew);await settled(tabNew);
+  await editEndNote(tabNew,'NEW_CONFIRMED');await settled(tabNew);
+  assert.equal((await rows(tabNew)).find(s=>s.id===target.id).endNote,'NEW_CONFIRMED');const genB=await metaGen(tabNew);
+  await tabOld.evaluate(()=>window.__release());await tabOld.waitForFunction(()=>window.__heldResult);
+  assert.equal(await tabOld.evaluate(()=>window.__heldResult),'stale');await tabOld.locator('#staleWarn').waitFor({state:'visible'});
+  const dbRace=(await rows(tabNew)).find(s=>s.id===target.id).endNote;assert.equal(dbRace,'NEW_CONFIRMED');assert.equal(await metaGen(tabNew),genB);
+  await tabNew.reload();await ready(tabNew);await settled(tabNew);const expRace=(await snapshot(tabNew)).exp;
+  assert.equal(expRace.sessions.find(s=>s.id===target.id).endNote,'NEW_CONFIRMED');assert.equal((await rows(tabNew)).length,200);
+  console.log('EXTRA PASS stale delayed commit: old tab commit=stale, stopped; DB='+dbRace+', meta.gen='+genB+'; reload/export=NEW_CONFIRMED; sessions=200');
+  // 移行の途中で別のタブが新しく書いた場合も、古い方（移行中のタブ）が中止される。
+  const migC=await context(),migOld=await seed(migC);
+  await migOld.route('**/js/rec-store.js?*',async route=>{const src=fs.readFileSync(path.join(ROOT,'js/rec-store.js'),'utf8');await route.fulfill({contentType:'text/javascript',body:src+'\nwindow.__holdNext=true;'+HOLD})});
+  await migOld.goto(origin+'/tools/rec-test/');await migOld.waitForFunction(()=>typeof window.__release==='function');assert.equal((await disk(migOld)).version,2);
+  const migNew=await migC.newPage();await ready(migNew);await settled(migNew);await editEndNote(migNew,'NEW_CONFIRMED');await settled(migNew);
+  const migTarget=(await rows(migNew)).find(s=>s.endNote==='NEW_CONFIRMED');const migGen=await metaGen(migNew);const lsAfterNew=await migNew.evaluate(k=>localStorage.getItem(k),KEY);
+  await migOld.evaluate(()=>window.__release());await migOld.waitForFunction(()=>window.__heldResult);assert.equal(await migOld.evaluate(()=>window.__heldResult),'stale');
+  await migOld.locator('#staleWarn').waitFor({state:'visible'});
+  assert.equal((await rows(migNew)).find(s=>s.id===migTarget.id).endNote,'NEW_CONFIRMED');assert.equal(await metaGen(migNew),migGen);assert.equal(await migNew.evaluate(k=>localStorage.getItem(k),KEY),lsAfterNew);
+  console.log('EXTRA PASS migration race: migrating tab commit=stale, stopped; DB=NEW_CONFIRMED, meta.gen='+migGen+'; LS unchanged by old tab');
   // 不完全な旧データ（補完項目が多い）でも、補正してから移すので、残り約1万文字で警告が出ない（シオン 10/29）。
   const sparse=fixture();for(const s of sparse.sessions){s.rare={};for(const k of ['modeHints','_steps','mode','parallel','revive','melonLeft','melonApprox','rewardHint','modeHint','ticket','judgeWins','returnHit','pendingReward','modeEra','melonPhase','zenchou'])delete s[k]}
   const sparseC=await context(),sparsePage=await seed(sparseC,sparse);
