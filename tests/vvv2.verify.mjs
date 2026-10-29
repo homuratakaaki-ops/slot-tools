@@ -161,7 +161,7 @@ check('14 追加便E 到達pt集合・見出し・トースト',()=>{
   const T=fresh();box.document.querySelector=()=>({dataset:{pt:'600'}});assert.equal(c.actions.cycle({S:T},{result:'miss'}),false);assert.equal(T.spans[0].rows.length,0);
 });
 
-check('15 F マギウス派生・矛盾解除・旧形式・正規化・自動付与',()=>{
+check('15 F マギウス派生・矛盾解除・旧形式・正規化・計算時判定（後からONで上限−1）',()=>{
   for(const [marks,cap] of [[[1,2],2],[[3,4],3]]){
     const S=fresh();S.spans[0].magius=marks;const before=JSON.stringify(S);
     assert.equal(c.cycleCap(S),cap);assert.equal(c.hazard('A',cap,false,c.posterior(S).active),1);
@@ -178,10 +178,13 @@ check('15 F マギウス派生・矛盾解除・旧形式・正規化・自動�
     const N=c.normalizeState({spans:[{rows:[],magius:input}]});
     eq(N.spans[0].magius,Array.isArray(input)?[1,3,6]:[]);eq(c.normalizeState(clone(N)),N);
   }
-  const T=fresh();c.actions.magius({S:T},{k:'1'});box.document={querySelector:()=>({dataset:{pt:'200'}}),getElementById:()=>null};
-  c.actions.cycle({S:T},{result:'miss'});assert.equal(T.spans[0].rows[0].magius,true);
-  c.actions.cycle({S:T},{result:'miss'});assert.equal(T.spans[0].rows[1].magius,false);
-  c.actions.magius({S:T},{k:'1'});eq(T.spans[0].magius,[]);assert.equal(T.spans[0].rows[0].magius,true);
+  // row.magius は書かず、計算のたびに span.magius から判定する（§14-2 シオン判断 10/29）
+  const T=fresh();box.document={querySelector:()=>({dataset:{pt:'200'}}),getElementById:()=>null};
+  c.actions.cycle({S:T},{result:'miss'});assert.equal('magius' in T.spans[0].rows[0],false);
+  const capBefore=c.cycleCap(T);c.actions.magius({S:T},{k:'1'});eq(T.spans[0].magius,[1]);
+  assert.equal(c.cycleCap(T),capBefore-1);assert.ok(c.rowText(T.spans[0].rows[0],T.spans[0]).includes('🔶'));
+  c.actions.magius({S:T},{k:'1'});eq(T.spans[0].magius,[]);assert.equal(c.cycleCap(T),capBefore);
+  const L=c.normalizeState({spans:[{rows:[{t:'cyc',k:1,pt:200,r:'miss',magius:true}],end:null,magius:[3]}]});assert.equal(c.cycleCap(L),5);
   assert.equal(T.schemaVersion,1);eq(c.mergeKeys,['start','counts','groups']);
 });
 check('16 F 履歴編集・全モード候補・削除再付番・終了区間保護',()=>{

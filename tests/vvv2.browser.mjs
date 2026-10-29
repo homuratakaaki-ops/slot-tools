@@ -169,7 +169,7 @@ try{
   assert.ok((await run('return d.querySelector(".now-box").textContent;')).includes('上限 あと3周期'));
   const counts=JSON.stringify((await state()).counts),groups=JSON.stringify((await state()).groups);
   assert.equal(counts,JSON.stringify(keep.counts));assert.equal(groups,JSON.stringify(keep.groups));
-  await click('#undoBtn');assert.equal((await state()).spans[0].rows.length,2);await round(400,'miss',true);assert.equal((await state()).spans[0].rows[2].magius,true);
+  await click('#undoBtn');assert.equal((await state()).spans[0].rows.length,2);await round(400,'miss',true);{const st=await state();assert.ok(st.spans[0].magius.includes(st.spans[0].rows[2].k));assert.equal('magius' in st.spans[0].rows[2],false);}
   const rows=(await state()).spans[0].rows;await click('[data-row-index="1"]');assert.deepEqual((await state()).spans[0].rows,rows);await click('#vv-row-delete');assert.deepEqual((await state()).spans[0].rows,rows);await click('#vv-row-confirm-delete');assert.equal((await state()).spans[0].rows.length,2);assert.equal((await state()).spans[0].rows[1].k,2);await click('#undoBtn');assert.deepEqual((await state()).spans[0].rows,rows);
   await reloaded();pass('到達pt6ボタン・bonusEnd検算表示・マギウス・削除と取消・counts/groups独立');
   await click('#curPt');await click('[data-digit="1"]');await click('[data-digit="2"]');await click('[data-digit="⌫"]');await click('[data-digit="0"]');await click('#vv-pad-save');assert.equal((await state()).curPt,10);
