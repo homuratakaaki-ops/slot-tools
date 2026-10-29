@@ -628,7 +628,7 @@ let idbMode=false,idbCache=new Map(),outbox={put:[],del:[]},flushBusy=false,skip
 // 全保存先の読み込み中は操作を受け付けない。
 document.body.inert=true;
 function brokenData(raw,rows){
-  loadBroken=rows===undefined?raw:JSON.stringify({localStorage:raw,indexedDB:{dbName:DB_NAME,sessions:rows}});
+  loadBroken=rows===undefined?raw:JSON.stringify({localStorage:raw,idbSessions:rows});
   try{if(!localStorage.getItem(KEY_BROKEN))localStorage.setItem(KEY_BROKEN,loadBroken);loadBrokenSaved=localStorage.getItem(KEY_BROKEN)===loadBroken}catch(e){}
 }
 function diskState(){
@@ -675,7 +675,7 @@ async function load(){
   saveGen=typeof d.gen==="number"?d.gen:0;
   let rows;
   try{rows=await RecStore.getAll(DB_NAME)}catch(e){
-    if(!legacy){brokenData(r);return}
+    if(!legacy){brokenData(r,[]);return}
     S=d;skipBootSave=true;return;
   }
   if(!rows.every(validSessionShape)){brokenData(r,rows);return}
@@ -2798,7 +2798,6 @@ if(loadBroken){
   el("brokenMsg").textContent="保存データが読めませんでした。"+(loadBrokenSaved?"元のデータはブラウザ内に退避してあります。":"元のデータの退避もできませんでした（容量不足の可能性）。必ず「元データを書き出す」を押してください。")+"このままでは何も保存されません。";
   el("brokenExport").addEventListener("click",()=>{const blob=new Blob([loadBroken],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="slot-tools-rec-broken.json";document.body.append(a);a.click();a.remove()});
   el("brokenReset").addEventListener("click",()=>{if(!confirm("退避したデータはそのまま残ります。空の状態で始めますか？"))return;loadBroken=null;S={sessions:[],cur:null,settings:{lend:DEF_LEND},stores:[],entries:[]};initTagSettings();save();location.reload()});
-  el("brokenReset").disabled=true; // 読めない保存先の破壊的な初期化はしない。
   showSetup();
   document.querySelectorAll("#scSetup button").forEach(b=>b.disabled=true);
 }else{
