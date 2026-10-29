@@ -628,8 +628,9 @@ let idbMode=false,idbCache=new Map(),outbox={put:[],del:[]},flushBusy=false,skip
 // 全保存先の読み込み中は操作を受け付けない。
 document.body.inert=true;
 function brokenData(raw,rows){
-  loadBroken=rows===undefined?raw:JSON.stringify({localStorage:raw,idbSessions:rows});
-  try{if(!localStorage.getItem(KEY_BROKEN))localStorage.setItem(KEY_BROKEN,loadBroken);loadBrokenSaved=localStorage.getItem(KEY_BROKEN)===loadBroken}catch(e){}
+  loadBroken=rows===undefined?raw:JSON.stringify({localStorage:raw,idbSessions:rows});   // 「元データを書き出す」用。IndexedDB の分はメモリにだけ持つ
+  // 退避キーには localStorage の元の文字列だけを書く（IndexedDB の中身まで入れると容量不足が再発する）
+  try{if(!localStorage.getItem(KEY_BROKEN))localStorage.setItem(KEY_BROKEN,raw);loadBrokenSaved=localStorage.getItem(KEY_BROKEN)===raw||!!localStorage.getItem(KEY_BROKEN)}catch(e){}
 }
 function diskState(){
   if(!idbMode)return S;

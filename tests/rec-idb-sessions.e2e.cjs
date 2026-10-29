@@ -85,6 +85,15 @@ async function run(){
   const badC=await context(),bad=await seed(badC);await ready(bad);await settled(bad);const preserved=JSON.stringify(await disk(bad));await badC.addInitScript(()=>{indexedDB.open=()=>{throw Error('offline')}});await bad.reload();await bad.locator('#brokenWarn').waitFor({state:'visible'});assert.equal(JSON.stringify(await disk(bad)),preserved);const unavailable=await download(bad,'#brokenExport');assert.equal(unavailable.localStorage,preserved);assert.deepEqual(unavailable.idbSessions,[]);
   // Corrupt IDB rows are retained and exported with the raw LS string.
   const corruptC=await context(),corrupt=await seed(corruptC);await ready(corrupt);await settled(corrupt);await corrupt.evaluate(()=>RecStore.putMany('slot-tools-rec-test',[{id:'broken',machine:'x',events:null}]));const rawBefore=await corrupt.evaluate(k=>localStorage.getItem(k),KEY);await corrupt.reload();await corrupt.locator('#brokenWarn').waitFor({state:'visible'});const bundle=await download(corrupt,'#brokenExport');assert.equal(bundle.localStorage,rawBefore);assert.equal(bundle.idbSessions.length,201);assert.equal(await corrupt.evaluate(k=>localStorage.getItem(k),KEY),rawBefore);console.log('EXTRA PASS v3 unavailable: no writes; corrupt bundle: raw LS + idbSessions=201; v3 unavailable bundle: idbSessions=0');
+  // 壊れた IndexedDB 200件で起動しても、退避キーには localStorage の元の文字列だけが入る（シオン 10/29）。
+  const all200C=await context(),all200=await seed(all200C);await ready(all200);await settled(all200);
+  await all200.evaluate(async()=>{const rows=await RecStore.getAll('slot-tools-rec-test');await RecStore.putMany('slot-tools-rec-test',rows.map(r=>({...r,events:null})))});
+  const raw200=await all200.evaluate(k=>localStorage.getItem(k),KEY);await all200.reload();await all200.locator('#brokenWarn').waitFor({state:'visible'});
+  const brokenKey=await all200.evaluate(k=>localStorage.getItem(k+'-broken'),KEY);
+  assert.equal(brokenKey.length,raw200.length);assert.equal(brokenKey,raw200);
+  const bundle200=await download(all200,'#brokenExport');assert.equal(bundle200.localStorage,raw200);assert.equal(bundle200.idbSessions.length,200);
+  assert.equal(await all200.evaluate(k=>localStorage.getItem(k),KEY),raw200);
+  console.log('EXTRA PASS corrupt IDB 200: broken key='+brokenKey.length+' chars = LS raw '+raw200.length+' chars; export bundle idbSessions=200 ('+JSON.stringify(bundle200).length+' chars, memory only)');
   // A failed transaction leaves its complete journal, and the next UI save retries it.
   const retryC=await context(),retry=await seed(retryC);await ready(retry);await settled(retry);await start(retry);
   await retry.evaluate(()=>{window.__put=RecStore.putMany;RecStore.putMany=()=>Promise.reject(Error('write failed'))});await finish(retry);assert.equal((await disk(retry)).outbox.put.length,1);
