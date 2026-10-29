@@ -69,6 +69,7 @@
 3. version 2 なら §4.3 の移行。version 3 なら `readRecState` で全件を作る
 4. IndexedDB から読んだ各実戦を `validSessionShape` で検査する。1件でも通らなければ「読めない」扱い（自動で捨てない）
 5. outbox が空でなければ、ここで IndexedDB へ書き込み、確定後に outbox を空にする
+   - 10/30 追記：IndexedDB の `meta.gen` が localStorage の `gen` より大きければ（localStorage を空の状態で始め直した後・localStorage の世代だけ小さいとき）、`saveGen` を `meta.gen` に合わせてから始める。起動時の outbox 反映・移行の書き込みもその値で行う（そうしないと、以後の `commit` がすべて「古い」で止まる）
 6. ここから先は今の起動処理（`fixSession`・`stripSnaps`・画面表示）と同じ
 - 起動中（IndexedDB を待つ間）は、画面の操作を受け付けない。通常は0.1秒程度
 
