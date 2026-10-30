@@ -174,12 +174,14 @@ textarea{min-height:80px;resize:vertical}
 #nSum .machs::-webkit-scrollbar{display:none}
 #nSum .machs button{flex:0 0 auto;white-space:nowrap;min-height:44px;padding:8px 12px;font-size:13px;font-weight:700}
 #nSum .machs button.on{background:var(--accent);border-color:var(--accent);color:#1a1200}
+.notice{background:var(--panel);color:var(--dim);border:1px solid var(--line);font-size:12px;line-height:1.5;padding:6px 10px;border-radius:8px;margin-top:8px}
 .warn{background:#3A2A16;color:#F0D9A8;font-size:12px;padding:8px 12px;text-align:center;border-radius:8px;margin-top:8px}
 </style>
 </head>
 <body>
 <div class="shell">
   <div class="hd"><div class="t" id="hdTitle">実戦記録</div><button class="x" id="hdMenu">≡</button></div>
+  <div class="notice">10/31（土）0時に保存方式を更新します。念のため、ノートの「保存」で書き出しをしておいてください。</div>
   <div id="storeWarn" class="warn hide">保存できません。閉じる前に必ず書き出してください。<button id="storeExport" style="margin-left:8px;padding:6px 10px">今すぐ書き出す</button></div>
   <div id="staleWarn" class="warn hide">別のタブでこの記録が更新されています。このタブの操作は保存されません。<button id="staleReload" style="margin-left:8px;padding:6px 10px">再読み込み</button><button id="staleExport" style="margin-left:6px;padding:6px 10px">このタブの内容を書き出す</button></div>
   <div id="brokenWarn" class="warn hide"><span id="brokenMsg">保存データが読めませんでした。このままでは何も保存されません。</span><br>直し方：①「元データを書き出す」でファイルに残す → ②「空の状態で始める」→ ③ 正常だったときのバックアップ（JSON）を「取り込む」。壊れた元データをそのまま取り込んでも直りません。<br><button id="brokenExport" style="margin-left:0;padding:6px 10px">元データを書き出す</button><button id="brokenReset" style="margin-left:6px;padding:6px 10px">空の状態で始める</button></div>
