@@ -174,14 +174,12 @@ textarea{min-height:80px;resize:vertical}
 #nSum .machs::-webkit-scrollbar{display:none}
 #nSum .machs button{flex:0 0 auto;white-space:nowrap;min-height:44px;padding:8px 12px;font-size:13px;font-weight:700}
 #nSum .machs button.on{background:var(--accent);border-color:var(--accent);color:#1a1200}
-.notice{background:var(--panel);color:var(--dim);border:1px solid var(--line);font-size:12px;line-height:1.5;padding:6px 10px;border-radius:8px;margin-top:8px}
 .warn{background:#3A2A16;color:#F0D9A8;font-size:12px;padding:8px 12px;text-align:center;border-radius:8px;margin-top:8px}
 </style>
 </head>
 <body>
 <div class="shell">
   <div class="hd"><div class="t" id="hdTitle">実戦記録</div><button class="x" id="hdMenu">≡</button></div>
-  <div class="notice">10/31（土）0時に保存方式を更新します。念のため、ノートの「保存」で書き出しをしておいてください。</div>
   <div id="storeWarn" class="warn hide">保存できません。閉じる前に必ず書き出してください。<button id="storeExport" style="margin-left:8px;padding:6px 10px">今すぐ書き出す</button></div>
   <div id="staleWarn" class="warn hide">別のタブでこの記録が更新されています。このタブの操作は保存されません。<button id="staleReload" style="margin-left:8px;padding:6px 10px">再読み込み</button><button id="staleExport" style="margin-left:6px;padding:6px 10px">このタブの内容を書き出す</button></div>
   <div id="brokenWarn" class="warn hide"><span id="brokenMsg">保存データが読めませんでした。このままでは何も保存されません。</span><br>直し方：①「元データを書き出す」でファイルに残す → ②「空の状態で始める」→ ③ 正常だったときのバックアップ（JSON）を「取り込む」。壊れた元データをそのまま取り込んでも直りません。<br><button id="brokenExport" style="margin-left:0;padding:6px 10px">元データを書き出す</button><button id="brokenReset" style="margin-left:6px;padding:6px 10px">空の状態で始める</button></div>
@@ -257,10 +255,12 @@ textarea{min-height:80px;resize:vertical}
 <div class="kp" id="kp"><div class="pane"><div class="sh"><div class="st" id="kpTitle">数値</div><button id="kpX" style="padding:8px 14px;min-height:44px">キャンセル</button></div><div class="disp" id="kpDisp">0</div><div class="keys" id="kpKeys"></div><div class="acts"><button id="kpClear">C</button><button id="kpBack">⌫</button><button class="ok" id="kpOk">決定</button></div></div></div>
 <div class="toast" id="toast"></div>
 
+<script src="../../js/rec-store.js?v=20261031"></script>
 <script>
 (function(){
 "use strict";
 const KEY="slot-tools-rec";
+const DB_NAME="slot-tools-rec";
 const DEF_LEND=46;
 
 /* =====================================================================
@@ -624,39 +624,107 @@ function validEntry(e){
   if(e.linkedSessionId!=null&&typeof e.linkedSessionId!=="string")return false;
   return true;
 }
-function load(){
+let idbMode=false,idbCache=new Map(),outbox={put:[],del:[]},flushBusy=false,skipBootSave=false,storageStarting=true,retryAfterFlush=false,idbReadFailed=false;
+// 全保存先の読み込み中は操作を受け付けない。
+document.body.inert=true;
+function brokenData(raw,rows){
+  loadBroken=rows===undefined?raw:JSON.stringify({localStorage:raw,idbSessions:rows});   // 「元データを書き出す」用。IndexedDB の分はメモリにだけ持つ
+  // 退避キーには localStorage の元の文字列だけを書く（IndexedDB の中身まで入れると容量不足が再発する）
+  try{if(!localStorage.getItem(KEY_BROKEN))localStorage.setItem(KEY_BROKEN,raw);loadBrokenSaved=localStorage.getItem(KEY_BROKEN)===raw||!!localStorage.getItem(KEY_BROKEN)}catch(e){}
+}
+function diskState(){
+  if(!idbMode)return S;
+  const {sessions,...rest}=S;
+  return {...rest,version:3,sessionsIn:"idb",outbox};
+}
+function pendingSessions(){
+  const current=new Map(S.sessions.map(s=>[s.id,JSON.stringify(s)]));
+  // 実行中の put の削除・巻き戻しも後続の書き込みで補償する。
+  const pending=new Set(outbox.put.map(s=>s.id));
+  return {put:S.sessions.filter(s=>idbCache.get(s.id)!==current.get(s.id)||pending.has(s.id)||outbox.del.includes(s.id)),
+    del:[...new Set([...idbCache.keys(),...pending,...outbox.del])].filter(id=>!current.has(id))};
+}
+async function flushOutbox(){
+  if(flushBusy||!idbMode||loadBroken||staleShown)return;
+  flushBusy=true;let committed=false,retry=false;
+  try{
+    while(outbox.put.length||outbox.del.length){
+      const batch=JSON.parse(JSON.stringify(outbox));
+      const raw=localStorage.getItem(KEY),d=raw&&JSON.parse(raw);
+      if(!d||d.gen!==saveGen){staleTab();return}
+      await RecStore.commit(DB_NAME,batch,saveGen);   // この outbox を localStorage に書いたときの世代で確かめる
+      batch.put.forEach(s=>idbCache.set(s.id,JSON.stringify(s)));batch.del.forEach(id=>idbCache.delete(id));committed=true;
+      if(retryAfterFlush){outbox={put:outbox.put.filter(s=>idbCache.get(s.id)!==JSON.stringify(s)),del:outbox.del.filter(id=>idbCache.has(id))};continue}   // 手順2が容量不足で失敗した保存：確定後にまとめて書き直す
+      const latest=localStorage.getItem(KEY),saved=latest&&JSON.parse(latest);
+      if(!saved||saved.gen!==saveGen||staleShown)return;
+      const remaining={put:outbox.put.filter(s=>idbCache.get(s.id)!==JSON.stringify(s)),del:outbox.del.filter(id=>idbCache.has(id))};
+      // complete 後は世代を進めず、保存済みの最新 cur 等を保つ。
+      localStorage.setItem(KEY,JSON.stringify({...saved,outbox:remaining}));outbox=remaining;
+    }
+    if(retryAfterFlush&&committed){retryAfterFlush=false;retry=true}
+  }catch(e){if(e&&e.stale)staleTab()}   // 古い：新しいタブ側が正なので止める。それ以外は同期保存済みの outbox を残し、次の save で再試行する。
+  finally{flushBusy=false}
+  if(retry)save();   // 確定後の小さい書き込み。成功すれば警告が消える
+}
+async function load(){
   let r=null;
-  try{r=localStorage.getItem(KEY)}catch(e){}
-  if(!r)return;
-  let d=null;
-  try{d=JSON.parse(r)}catch(e){d=null}
-  if(!validState(d)||!d.sessions.every(validSessionShape)||(d.cur&&!validSessionShape(d.cur))){
-    // 壊れている：元のまま退避して、このタブでは保存しない
-    let saved=false;try{if(!localStorage.getItem(KEY_BROKEN))localStorage.setItem(KEY_BROKEN,r);saved=localStorage.getItem(KEY_BROKEN)===r||!!localStorage.getItem(KEY_BROKEN)}catch(e){}
-    loadBroken=r;loadBrokenSaved=saved;return;
+  try{r=localStorage.getItem(KEY)}catch(e){brokenData("null");return}
+  let d=r?null:S;
+  try{if(r)d=JSON.parse(r)}catch(e){}
+  const legacy=d&&Array.isArray(d.sessions);
+  const modern=d&&d.version===3&&d.sessionsIn==="idb"&&d.outbox&&Array.isArray(d.outbox.put)&&Array.isArray(d.outbox.del)&&d.outbox.del.every(id=>typeof id==="string");
+  const shape=legacy?d:modern?{...d,sessions:d.outbox.put}:null;
+  if(!validState(shape)||!shape.sessions.every(validSessionShape)||(d.cur&&!validSessionShape(d.cur))){brokenData(r||"null");return}
+  saveGen=typeof d.gen==="number"?d.gen:0;
+  let rows,metaGen=0;
+  try{rows=await RecStore.getAll(DB_NAME);metaGen=await RecStore.getGen(DB_NAME)}catch(e){
+    if(!legacy){idbReadFailed=true;brokenData(r,[]);return}
+    S=d;skipBootSave=true;return;
   }
-  S=d;if(!S.settings)S.settings={};if(!S.settings.lend)S.settings.lend=DEF_LEND;
-  saveGen=typeof S.gen==="number"?S.gen:0;
+  if(!rows.every(validSessionShape)){brokenData(r,rows);return}
+  const merged=RecStore.mergeRecState(d,rows);
+  if(localStorage.getItem(KEY)!==r){S=merged;staleTab();skipBootSave=true;return}
+  // IndexedDB の世代の方が進んでいたら（空の状態で始め直した・localStorage の世代だけ小さい）、それに合わせて始める
+  const genAdopted=metaGen>saveGen;if(genAdopted)saveGen=metaGen;
+  if(legacy){
+    try{
+      // 補正（起動時と同じ fixSession・stripSnaps）をかけてから移す。idbCache は補正後の文字列になる
+      merged.sessions.forEach(fixSession);merged.sessions.forEach(s=>{if(s&&s.endAt)stripSnaps(s)});
+      await RecStore.commit(DB_NAME,{put:merged.sessions,del:[]},saveGen);
+      const verified=await RecStore.getAll(DB_NAME),byId=new Map(verified.map(s=>[s.id,JSON.stringify(s)]));
+      if(!verified.every(validSessionShape)||!merged.sessions.every(s=>byId.get(s.id)===JSON.stringify(s)))throw Error("Migration verification failed");
+      if(localStorage.getItem(KEY)!==r){S=merged;staleTab();skipBootSave=true;return}
+      const {sessions,...rest}=d;
+      localStorage.setItem(KEY,JSON.stringify({...rest,gen:saveGen,version:3,sessionsIn:"idb",outbox:{put:[],del:[]}}));
+      rows=verified;
+    }catch(e){S=merged;skipBootSave=true;if(e&&e.stale)staleTab();return}
+  }
+  S=merged;idbMode=true;idbCache=new Map(rows.map(s=>[s.id,JSON.stringify(s)]));
+  outbox=legacy?{put:[],del:[]}:d.outbox;
+  if(genAdopted&&!legacy){try{localStorage.setItem(KEY,JSON.stringify({...d,gen:saveGen}))}catch(e){}}   // 起動時の outbox 反映も合わせた世代で行う
+  await flushOutbox();
 }
 function save(opts){
-  if(loadBroken)return;   // 読めなかったデータの上に書かない
+  if(loadBroken||staleShown||storageStarting)return;   // 読めなかったデータの上に書かない
   const boot=opts&&opts.boot;
+  if(boot&&skipBootSave)return;
   if(!boot){
     // 複数タブ：自分が読んだ世代より進んでいたら止める（操作による保存だけ世代を上げる）
     try{const r=localStorage.getItem(KEY);if(r){const g=(JSON.parse(r)||{}).gen;if(typeof g==="number"&&g>saveGen){staleTab();return}}}catch(e){}
   }
   const next=boot?saveGen:saveGen+1;
   S.gen=next;
+  if(idbMode)outbox=pendingSessions();
   try{
-    try{localStorage.setItem(KEY,JSON.stringify(S))}
+    try{localStorage.setItem(KEY,JSON.stringify(diskState()))}
     catch(e){
       if(!(e&&(e.name==="QuotaExceededError"||e.name==="NS_ERROR_DOM_QUOTA_REACHED"||e.code===22||e.code===1014)))throw e;
       S.sessions.forEach(stripSnaps);
-      localStorage.setItem(KEY,JSON.stringify(S));
+      localStorage.setItem(KEY,JSON.stringify(diskState()));
     }
-    saveGen=next;if(!saveOK){saveOK=true;el("storeWarn").classList.add("hide")}
+    saveGen=next;retryAfterFlush=false;if(idbMode)void flushOutbox();if(!saveOK){saveOK=true;el("storeWarn").classList.add("hide")}
   }
-  catch(e){S.gen=saveGen;saveOK=false;el("storeWarn").classList.remove("hide")}   // 失敗したら世代を進めない
+  catch(e){S.gen=saveGen;saveOK=false;el("storeWarn").classList.remove("hide");if(idbMode){retryAfterFlush=true;void flushOutbox()}}   // 失敗したら世代を進めない。IndexedDB への書き込みは続ける
 }
 // 別のタブが先に進んでいる：このタブは保存しない
 let staleShown=false;
@@ -2727,12 +2795,15 @@ el("stStart").addEventListener("click",()=>{
 });
 
 /* ---------- 起動 ---------- */
-load();
+(async()=>{
+await load();
+storageStarting=false;document.body.inert=false;
+if(!S.settings)S.settings={};
 if(!S.settings.lend)S.settings.lend=DEF_LEND;
 initTagSettings();
 if(loadBroken){
   el("brokenWarn").classList.remove("hide");
-  el("brokenMsg").textContent="保存データが読めませんでした。"+(loadBrokenSaved?"元のデータはブラウザ内に退避してあります。":"元のデータの退避もできませんでした（容量不足の可能性）。必ず「元データを書き出す」を押してください。")+"このままでは何も保存されません。";
+  el("brokenMsg").textContent=idbReadFailed?"保存先のデータを読み込めないため、保存を止めています。「元データを書き出す」でファイルに保存して保管してください。":"保存データが読めませんでした。"+(loadBrokenSaved?"元のデータはブラウザ内に退避してあります。":"元のデータの退避もできませんでした（容量不足の可能性）。必ず「元データを書き出す」を押してください。")+"このままでは何も保存されません。";
   el("brokenExport").addEventListener("click",()=>{const blob=new Blob([loadBroken],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="slot-tools-rec-broken.json";document.body.append(a);a.click();a.remove()});
   el("brokenReset").addEventListener("click",()=>{if(!confirm("退避したデータはそのまま残ります。空の状態で始めますか？"))return;loadBroken=null;S={sessions:[],cur:null,settings:{lend:DEF_LEND},stores:[],entries:[]};initTagSettings();save();location.reload()});
   showSetup();
@@ -2743,6 +2814,7 @@ if(loadBroken){
   S.sessions.forEach(s=>{if(s&&s.endAt)stripSnaps(s)});
   if(S.cur){fixSession(S.cur);save({boot:true});showMain()}else{save({boot:true});showSetup()}
 }
+})().catch(()=>{storageStarting=false;document.body.inert=false;brokenData(localStorage.getItem(KEY)||"null");el("brokenWarn").classList.remove("hide");el("brokenReset").disabled=true});
 el("staleReload").addEventListener("click",()=>location.reload());
 el("staleExport").addEventListener("click",()=>dlJson({sessions:S.sessions,cur:S.cur,entries:S.entries,stores:S.stores,note:"このタブの内容（別タブと競合したため保存されていない分）"},"jissen-thistab-"+ymd(nowISO()).replace(/\//g,"")+".json"));
 el("storeExport").addEventListener("click",()=>dlJson({sessions:S.sessions,cur:S.cur,entries:S.entries,stores:S.stores},"jissen-backup-"+ymd(nowISO()).replace(/\//g,"")+".json"));
