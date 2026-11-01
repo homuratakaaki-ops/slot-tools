@@ -1,4 +1,4 @@
-// node tests/ggovivy-test.browser.mjs（§9-108） — headless Chrome / CDP。成果物は CHECKER_ARTIFACTS または os.tmpdir()。
+// node tests/ggovivy-suggest.browser.mjs（本番、§9-108-2 で 65de568 のテスト版から反映） — headless Chrome / CDP。成果物は CHECKER_ARTIFACTS または os.tmpdir()。
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -7,8 +7,8 @@ import http from 'node:http';
 import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
-const artifacts=fs.mkdtempSync(path.join(process.env.CHECKER_ARTIFACTS||os.tmpdir(),'slot-ggovivy-test-'));
-const profile=fs.mkdtempSync(path.join(os.tmpdir(),'slot-ggovivy-test-profile-'));
+const artifacts=fs.mkdtempSync(path.join(process.env.CHECKER_ARTIFACTS||os.tmpdir(),'slot-ggovivy-suggest-'));
+const profile=fs.mkdtempSync(path.join(os.tmpdir(),'slot-ggovivy-suggest-profile-'));
 const chrome=process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe';
 const IDS=['ggo','vivy'];let KEY='',PAGE='';const errors=[],measures=[];
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
@@ -93,7 +93,22 @@ try{
     CanvasRenderingContext2D.prototype.fillText=function(text,x,y,...args){(window.__texts[this.canvas.id]??=[]).push({text:String(text),x,y,w:this.measureText(String(text)).width,font:this.font});return original.call(this,text,x,y,...args);};
   `});
   for(const id of IDS){
-    KEY=id+'-checker-v1-test';PAGE='/'+id+'-test-checker.html';
+    KEY=id+'-checker-v1';PAGE='/'+id+'-checker.html';
+    // 既存の本番データ（0以外・反映前の形・知らない項目入り）を置いて開く：値はそのまま、新項目は0で増える（§9-108-4）。
+    await load();
+    const oldCounts=Object.fromEntries(Object.keys(await run('return CheckerConfigs['+JSON.stringify(id)+'].defaults.counts;')).map((k,i)=>[k,i+4]));
+    const old={gameLog:[700,1300],games:2,counts:{...oldCounts,future:9},img:null,iconChoice:'default',futureRoot:'keep'}; // iconChoice は保存時に engine が埋めるので、実際に保存される値で置く
+    await seed(old);
+    for(const [k,v] of Object.entries(oldCounts))assert.equal(await run(`return d.querySelector('[data-c="counts.${k}"] .num').textContent;`),String(v));
+    assert.deepEqual(await state(),old,'開いただけでは本番データを書き換えない');
+    await tab(1);const firstKey=await run('return d.querySelector("[data-c]").dataset.c;');await plus(firstKey);
+    {const st=await state(),[g0,k0]=firstKey.split('.');
+     for(const [k,v] of Object.entries(old))if(k!=='counts')assert.deepEqual(st[k],v,k);
+     assert.deepEqual(st.counts,old.counts,'counts は値も知らない項目もそのまま');
+     const defs=await run('return CheckerConfigs['+JSON.stringify(id)+'].defaults;');
+     for(const g of Object.keys(defs).filter(g=>defs[g]&&typeof defs[g]==='object'&&!Array.isArray(defs[g])&&g!=='counts'))for(const k of Object.keys(defs[g]))assert.equal(st[g][k],g===g0&&k===k0?1:0,g+'.'+k);}
+    pass(id+' existing non-zero production data: values kept, unknown keys kept, new items added as 0');
+    await run('localStorage.removeItem('+JSON.stringify(KEY)+');');
     await load();
     assert.deepEqual(await run('return [...d.querySelectorAll("#nav button")].map(b=>b.textContent);'),['入力','示唆','参照','カード']);
     const keys=await run('return [...d.querySelectorAll("[data-c]")].map(e=>e.dataset.c);');
@@ -130,7 +145,7 @@ try{
     await click('#modeBtn');await plus(suggestionKeys[0]);await plus(suggestionKeys[1]);await click('#undoBtn');
     const [g0,k0]=suggestionKeys[0].split('.'),[g1,k1]=suggestionKeys[1].split('.');assert.equal((await state())[g0][k0],1);assert.equal((await state())[g1][k1],0);
     pass(id+' '+suggestionKeys.length+' suggestion buttons / percentages / subtract / undo isolation / save / reload');
-    const full=await run('return structuredClone(CheckerConfigs["'+id+'-test"].defaults);');
+    const full=await run('return structuredClone(CheckerConfigs["'+id+'"].defaults);');
     for(const key of suggestionKeys){const [g,k]=key.split('.');full[g][k]=1;}
     full.gameLog=[1500,2500];keys.forEach((k,i)=>{full.counts[k.split('.')[1]]=[21,11][i];});
     for(const [label,S] of [['empty',{}],['filled',full]]){
@@ -139,7 +154,7 @@ try{
     }
     await tab(0);assert.equal(await run(`return d.querySelector('[data-c="${keys[0]}"] .pct').textContent;`),'1/190.5');
     await tab(3);await pause(150);
-    assert.equal(await run(`return d.getElementById('tpl').value;`),await run(`return CheckerConfigs["${id}-test"].template({S:JSON.parse(localStorage.getItem(${JSON.stringify(KEY)}))});`));
+    assert.equal(await run(`return d.getElementById('tpl').value;`),await run(`return CheckerConfigs["${id}"].template({S:JSON.parse(localStorage.getItem(${JSON.stringify(KEY)}))});`));
     const card=await canvas('cardCanvas',id+'-summary-card');
     for(const text of ['1/190.5','通常G','4000G'])assert.ok(card.texts.some(t=>t.text.includes(text)),id+' '+text);
     if(id==='vivy')for(const text of ['計10回','確定演出 619(6濃厚) ×1'])assert.ok(card.texts.some(t=>t.text.includes(text)),text);
@@ -151,8 +166,8 @@ try{
     assert.ok(!detail.texts.some(t=>/銅.*%|411.*%|ヴィヴィ.*%/.test(t.text)));
     for(const t of detail.texts.filter(t=>t.text.startsWith('• ')))assert.ok(t.x+t.w<=1010,JSON.stringify(t));
     assert.deepEqual(await run('return window.__errors;'),[]);
-    assert.deepEqual(await run("return ['ggo-checker-v1','vivy-checker-v1'].map(k=>localStorage.getItem(k));"),[null,null]);
-    pass(id+' 360px 4 tabs overflow 0 / buttons >=44px / card PNG / production storage absent');
+    assert.deepEqual(await run("return ['ggo-checker-v1-test','vivy-checker-v1-test'].map(k=>localStorage.getItem(k));"),[null,null],'テスト版のキーは使わない');
+    pass(id+' 360px 4 tabs overflow 0 / buttons >=44px / card PNG / no -test key');
   }
   assert.deepEqual(errors,[]);
 }catch(e){failures++;console.error(e.stack);process.exitCode=1;}
