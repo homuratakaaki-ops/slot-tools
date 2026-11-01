@@ -33,6 +33,7 @@
   const zeroCounts=rows=>Object.fromEntries(rows.map(c=>[c[0],0]));
   const zeroRates=rows=>Object.fromEntries(rows.flatMap(c=>[[c[0]+'D',0],[c[0]+'W',0]]));
   const SUIKA_HINT='表はスイカ成立時の当選率です。小役変異の緑アイコンからの当選が表に含まれるかは出典に書かれていません。\nAT中：設定別の数値は出典で確認できていないため、記録のみです。';
+  const END_HINT='ATを獲得したボーナスの後は終了画面が出ません。';
   const KITEI_HINT='その規定ゲーム数に到達したとき、当選したら当選、しなかったらハズレを押します。設定差は公表されていないため記録のみです。';
   // 正本: docs/specs/godzieva2-nana-template-v01.txt。行名だけ出典に合わせて置換。夢爽 2026-11-01 裁定・なな様へ事後報告。
   const TEMPLATE="ゴジエヴァ2\n\n\n■ボーナス当選率\n\n■スイカからのCZ\n通常 ▶︎ 0/0\nAT中▶︎ 0/0\n\n■規定ゲーム数\nAT後⤵︎             AT後以外⤵︎\n100g▶︎ 0/0   ・100g▶︎ 0/0\n250g▶︎ 0/0   ・250g▶︎ 0/0\n400g▶︎ 0/0   ・400g▶︎0/0\n550g▶︎ 0/0   ・550g▶︎ 0/0\n700g▶︎ 0/0   ・700g▶︎ 0/0\n850g▶︎ 0/0   ・850g▶︎ 0/0\n\n■ボーナス・AT終了画面\nシンジ(奇数)▶︎ \nレイ(偶数)    ▶︎ \nマリ(弱)        ▶︎ \nアスカ(強)    ▶︎ \nモスラ　　　▶︎ \nXレイ　　　▶︎ \nレイ背景       ▶︎ \nｺﾞｼﾞﾗ初号機 ▶︎ \n全員集合       ▶︎ \nカヲル          ▶︎ \n\n■エンディング中ボイス\nシンジ▶︎ \nアスカ▶︎ \nミサト▶︎ \nゲンドウ▶︎ \nカヲル▶︎";
@@ -56,14 +57,16 @@
       .cycle-row .pct{min-width:78px;text-align:right;color:var(--cyan);font-family:var(--seg);font-size:11px;white-space:nowrap}
       .cycle-actions{display:flex;gap:6px;margin-left:4px;flex:none}.cycle-btn{height:44px;min-width:54px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;font-weight:900;font-size:12px;padding:0 8px;white-space:nowrap;writing-mode:horizontal-tb;line-height:1;display:flex;align-items:center;justify-content:center}.cycle-btn.win{color:var(--gold)}.minus .cycle-btn{border-color:rgba(255,91,91,.55);color:#ff9b9b}
       .hint-paras .hint-body{white-space:pre-line}
+      .role-row{flex-wrap:wrap;row-gap:6px}.role-row .ct{flex:1 0 100%}.role-row .ct b,.role-row .ct small{display:inline}.role-row .ct small{margin-left:8px;white-space:nowrap}.role-row .pct{margin-left:auto}
     </style>`;
   }
   function ratio(a,b){return b>0?`${a}/${b} ${(100*a/b).toFixed(0)}%`:`${a}/0 -`;}
   function endTotal(S){return END_SCREEN.reduce((sum,c)=>sum+n(S.endScreen,c[0]),0);}
+  // 補足（目安）のある行は paripi の role-row と同じく1行目を行名＋補足の全幅にし、目安を途中で折らない。
   function rateRow(ctx,group,d,w,name,sub){
     const a=n(ctx.S[group],w),b=n(ctx.S[group],d);
     const missAttrs=ctx.mode<0&&b<=a?'disabled aria-disabled="true"':`data-bump="${group}.${d}"`;
-    return `<div class="crow cycle-row">
+    return `<div class="crow cycle-row${sub?" role-row":""}">
       <div class="ct"><b>${name}</b>${sub?`<small>${sub}</small>`:''}</div>
       <div class="pct">${ratio(a,b)}</div>
       <div class="cycle-actions">
@@ -85,7 +88,7 @@
   }
   function pageSuggest(ctx){
     const S=ctx.S,total=endTotal(S),voices=ED_VOICE.reduce((sum,c)=>sum+n(S.edVoice,c[0]),0);
-    return pageStyle()+`<section class="sec"><div class="sec-h">ボーナス・AT終了画面<span class="sub">計${total}回</span></div><div class="cgrid">${END_SCREEN.map(c=>ctx.crow('endScreen.'+c[0],c[1],c[2],false,v=>ctx.pct(v,total))).join('')}</div></section>
+    return pageStyle()+`<section class="sec"><div class="sec-h">ボーナス・AT終了画面<span class="sub">計${total}回</span></div><div class="cgrid">${END_SCREEN.map(c=>ctx.crow('endScreen.'+c[0],c[1],c[2],false,v=>ctx.pct(v,total))).join('')}</div><div class="hint">${END_HINT}</div></section>
     <section class="sec"><div class="sec-h">エンディング中ボイス<span class="sub">計${voices}回</span></div><div class="cgrid">${ED_VOICE.map(c=>ctx.crow('edVoice.'+c[0],c[1],'示唆内容は調査中',false)).join('')}</div></section>`;
   }
   const REF_SECTIONS=[

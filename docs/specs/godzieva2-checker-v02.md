@@ -37,7 +37,7 @@ v0.1（docs/specs/godzieva2-checker-v01.md）からの差分だけでなく、�
 ## 1. ファイル
 
 - `checker-data/godzieva2.js`（storageKey `'godzieva2-checker-v1'` のまま、uiV2:true、**nanaCollab:true**）
-- `godzieva2-checker.html`（noindex,nofollow。タブ4つ：**入力／示唆／参照／カード**。`checker-data/godzieva2.js?v=20261101-nana`）
+- `godzieva2-checker.html`（noindex,nofollow。タブ4つ：**入力／示唆／参照／カード**。`checker-data/godzieva2.js?v=20261101-nana2`。v0.2.1 で nana2）
 - `godzieva2-guide.html`（noindex,nofollow）
 
 ## 2. 状態（defaults と mergeKeys）
@@ -85,6 +85,8 @@ v0.1（docs/specs/godzieva2-checker-v01.md）からの差分だけでなく、�
 AT中：設定別の数値は出典で確認できていないため、記録のみです。
 ```
 
+行のレイアウト（v0.2.1、夢爽 2026-11-01）：目安が数字の途中で折れないよう、補足のある行は paripi の role-row と同じく1行目を「行名＋補足」の全幅（補足は nowrap）にし、2行目に割合と当選／ハズレを置く。360px では nowrap のまま横に並べると収まらない（補足の空き幅が約100pxで、目安は約140px）。
+
 ### 4.2 規定ゲーム数（当選／ハズレの2ボタン行×12）
 
 行名は `AT後 100G` … `AT後 850G`、続けて `AT後以外 100G` … `AT後以外 850G`（補足なし）。
@@ -113,6 +115,7 @@ AT中：設定別の数値は出典で確認できていないため、記録の
 | カヲル | 示唆内容は調査中 |
 
 確定演出には入れない（hot にしない）。
+説明（v0.2.1、出典A）：「ATを獲得したボーナスの後は終了画面が出ません。」
 
 ### 5.2 エンディング中ボイス（カウント5行、見出しに「計N回」、割合は出さない）
 
