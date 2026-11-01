@@ -42,7 +42,7 @@ function ctx(S){return {S,pct:(v,d)=>d>0?`${v}/${d} ${(100*v/d).toFixed(0)}%`:`$
 }};}
 // 仕様書「## 3.」の表を読む（列：設定 / 各カウント / 出玉率）。
 function specTable(id){
-  const sec=read(`docs/specs/${id}-checker-${id==='ragnador'?'v02':'v01'}.md`).split('## 3.')[1].split('## 4.')[0];
+  const sec=read(`docs/specs/${id}-checker-${['ragnador','garo'].includes(id)?'v02':'v01'}.md`).split('## 3.')[1].split('## 4.')[0];
   const lines=sec.split('\n').filter(l=>l.startsWith('|'));
   const head=lines[0].split('|').slice(1,-1).map(s=>s.trim());
   const rows=lines.slice(2).map(l=>l.split('|').slice(1,-1).map(s=>s.trim()));
@@ -55,7 +55,7 @@ for(const [id,E] of Object.entries(EXPECTED)){
     const {head,rows}=specTable(id);
     assert.deepEqual(head,['設定',...E.counts.map(x=>x[1]),'出玉率']);
     assert.equal(rows.length,6);
-    const ref=c.pages(ctx(fresh()),()=>'')[id==='ragnador'?2:1](),input=c.pages(ctx(fresh()),()=>'')[0]();
+    const ref=c.pages(ctx(fresh()),()=>'')[['ragnador','garo'].includes(id)?2:1](),input=c.pages(ctx(fresh()),()=>'')[0]();
     E.counts.forEach(([key,label,dens],ci)=>{
       dens.forEach((d,i)=>{assert.equal(rows[i][ci+1],'1/'+d.toFixed(1),`${id} ${label} 設定${i+1}`);assert.ok(ref.includes(label+' 1/'+d.toFixed(1)),`${id} ref ${label} ${i+1}`);});
       const target=(E.target||{})[key]||`設1:1/${dens[0].toFixed(1)}⇔設6:1/${dens[5].toFixed(1)}`;
@@ -63,15 +63,15 @@ for(const [id,E] of Object.entries(EXPECTED)){
     });
     rows.forEach((r,i)=>{assert.equal(r[0],String(i+1));assert.ok(ref.includes(`<td>設定${i+1}</td>`)&&ref.includes('出玉率 '+r[r.length-1]),id+' payout '+(i+1));});
     assert.deepEqual(Object.keys(c.defaults.counts),E.counts.map(x=>x[0]));
-    if(id!=='ragnador')assert.ok(input.startsWith(input.match(/^<style>[\s\S]*?<\/style>/)[0]+`<div class="hint">${PENDING}</div>`),'入力タブ先頭の調査中 hint');
+    if(!['ragnador','garo'].includes(id))assert.ok(input.startsWith(input.match(/^<style>[\s\S]*?<\/style>/)[0]+`<div class="hint">${PENDING}</div>`),'入力タブ先頭の調査中 hint');
     assert.ok(input.includes(`<div class="hint">${E.hint}</div>`));
     assert.ok(input.includes(`<div class="hint">${GAMES_HINT}</div>`),'当選ごとのG hint');
     assert.ok(input.includes('<label>当選時のG数</label><input type="number" inputmode="numeric" id="gameLogIn" value=""'));
     assert.ok(input.includes('data-action="addGameLog"')&&input.includes('data-action="popGameLog" data-label="当選G取消" disabled>最後の1件を取り消す'));
     assert.doesNotMatch(input,/打ち始め|現在の回転数|data-number-key="(startGames|currentGames)"/);
-    assert.doesNotMatch(read('checker-data/'+id+'.js')+read(id+'-guide.html')+read(`docs/specs/${id}-checker-${id==='ragnador'?'v02':'v01'}.md`),/連動アプリでAT間G数が確認できる場合はそれを通常Gに使えます/);
+    assert.doesNotMatch(read('checker-data/'+id+'.js')+read(id+'-guide.html')+read(`docs/specs/${id}-checker-${['ragnador','garo'].includes(id)?'v02':'v01'}.md`),/連動アプリでAT間G数が確認できる場合はそれを通常Gに使えます/);
     assert.ok(read(id+'-guide.html').includes('当選するたびに、その当選までのG数（ホールのデータカウンターの当選G、または台メニューのAT間G）'),'ガイドの通常G説明');
-    assert.ok(read(`docs/specs/${id}-checker-${id==='ragnador'?'v02':'v01'}.md`).includes('分母＝当選ごとのG合計（§9-105）'),'仕様書の分母明記');
+    assert.ok(read(`docs/specs/${id}-checker-${['ragnador','garo'].includes(id)?'v02':'v01'}.md`).includes('分母＝当選ごとのG合計（§9-105）'),'仕様書の分母明記');
     assert.ok(ref.includes(THIRD));assert.doesNotMatch(ref+input,/設定差なし|メーカー公式/);
     if(id==='vivy')assert.ok(ref.includes('設定1＜設定3＜設定2＜設定5＜設定4＜設定6'));
   });
@@ -85,7 +85,7 @@ for(const [id,E] of Object.entries(EXPECTED)){
       assert.ok(c.template(ctx(S)).includes(`${label}▶${v}回（${x}）`));
       assert.equal(c.card.blocks(ctx(S))[i][1],x);
       assert.equal(c.card.detail(ctx(S))[0].items[i].text,`${label} ×${v} ${x}`);
-      assert.equal(c.card.bottom(ctx(S)).columns[0].items[i+(id==='ragnador'?1:0)].text,`${label} ${v}回 ${x}`);
+      assert.equal(c.card.bottom(ctx(S)).columns[0].items[i+(id==='garo'?2:id==='ragnador'?1:0)].text,`${label} ${v}回 ${x}`);
     });
     const blocks=c.card.blocks(ctx(S));assert.deepEqual(clone(blocks[blocks.length-1]),['通常G','3000G']);assert.ok(blocks.length<=4);
     for(const b of blocks)assert.ok([...b[0]].length<=8,b[0]);
@@ -119,7 +119,7 @@ for(const [id,E] of Object.entries(EXPECTED)){
     const first=E.counts[0][0];
     const old={currentGames:'800.7',startGames:-3,gameLog:['800.7',-3,'x',0,250],counts:{[first]:'4.9',future:3.2},futureRoot:'keep'};
     const a=c.normalizeState(clone(old)),b=c.normalizeState(clone(a));
-    assert.deepEqual(clone(a),clone(b));assert.equal(a.counts[first],4);assert.equal(a.counts.future,id==='ragnador'?undefined:3);assert.equal(a.futureRoot,'keep');
+    assert.deepEqual(clone(a),clone(b));assert.equal(a.counts[first],4);assert.equal(a.counts.future,['ragnador','garo'].includes(id)?undefined:3);assert.equal(a.futureRoot,'keep');
     assert.deepEqual(clone(a.gameLog),[800,250]);
     assert.deepEqual(clone(c.normalizeState({counts:{}}).gameLog),[]);assert.deepEqual(clone(c.normalizeState({gameLog:'500'}).gameLog),[]);
     for(const [key] of E.counts)assert.ok(Number.isInteger(a.counts[key])&&a.counts[key]>=0);
@@ -128,12 +128,12 @@ for(const [id,E] of Object.entries(EXPECTED)){
   });
   check(id+': HTML（noindex・導線なし・機種別タブ数・LF・構文）',()=>{
     assert.equal(c.storageKey,id+'-checker-v1');assert.equal(c.uiV2,true);assert.equal(c.nanaCollab,false);assert.equal(c.sourceUrl,E.url);
-    assert.deepEqual(clone(c.mergeKeys),id==='ragnador'?['counts','edVoice','atVoice','czVoice']:['counts']);assert.equal(c.pages(ctx(c.defaults),()=>'').length,id==='ragnador'?4:3);
+    assert.deepEqual(clone(c.mergeKeys),id==='garo'?['counts','bonusEnd','rushEnd','trophy','payout','lamp','stepup','item']:id==='ragnador'?['counts','edVoice','atVoice','czVoice']:['counts']);assert.equal(c.pages(ctx(c.defaults),()=>'').length,['ragnador','garo'].includes(id)?4:3);
     assert.equal(c.card.title,E.title);assert.ok(c.card.footerTags.endsWith(' #設定判別'));
     const html=read(id+'-checker.html');
-    assert.deepEqual([...html.matchAll(/<button data-p="\d"[^>]*>(.*?)<\/button>/g)].map(m=>m[1]),id==='ragnador'?['入力','示唆','参照','カード']:['入力','参照','カード']);
-    assert.ok(html.includes('grid-template-columns:repeat('+(id==='ragnador'?4:3)+',1fr)'));assert.ok(!html.includes('checker-bayes.js'));
-    for(const s of ['checker-engine.js?v=20260924',`checker-data/${id}.js?v=${id==='ragnador'?'20261101-voice':'20261028-glog'}`,`CheckerEngine.mount(CheckerConfigs.${id});`,`${id}-guide.html`,`<div class="hd-title">${E.header||E.title}<small>`])assert.ok(html.includes(s),s);
+    assert.deepEqual([...html.matchAll(/<button data-p="\d"[^>]*>(.*?)<\/button>/g)].map(m=>m[1]),['ragnador','garo'].includes(id)?['入力','示唆','参照','カード']:['入力','参照','カード']);
+    assert.ok(html.includes('grid-template-columns:repeat('+(['ragnador','garo'].includes(id)?4:3)+',1fr)'));assert.ok(!html.includes('checker-bayes.js'));
+    for(const s of ['checker-engine.js?v=20260924',`checker-data/${id}.js?v=${id==='garo'?'20261102-garo':id==='ragnador'?'20261101-voice':'20261028-glog'}`,`CheckerEngine.mount(CheckerConfigs.${id});`,`${id}-guide.html`,`<div class="hd-title">${E.header||E.title}<small>`])assert.ok(html.includes(s),s);
     for(const p of ['checkers.html','index.html','sitemap.xml'])assert.ok(!read(p).includes(id+'-checker')&&!read(p).includes(id+'-guide'),p+' に導線なし');
     const tmp=fs.mkdtempSync(path.join(os.tmpdir(),id+'-syntax-'));
     for(const [i,p] of [id+'-checker.html',id+'-guide.html'].entries()){
@@ -144,7 +144,7 @@ for(const [id,E] of Object.entries(EXPECTED)){
       }
     }
     const src=read('checker-data/'+id+'.js');assert.ok(!src.includes('\r'));assert.doesNotMatch(src,/\(\?<([=!])/);
-    assert.equal(read(id+'-guide.html').includes(PENDING),id!=='ragnador');
+    assert.equal(read(id+'-guide.html').includes(PENDING),!['ragnador','garo'].includes(id));
     assert.ok(checkerFiles.includes(id+'-checker.html'));
   });
 }
