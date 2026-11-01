@@ -461,7 +461,7 @@ check('defaults・0埋め・既存データ・未知キー除去・整数化・�
   for(const g of c.mergeKeys){assert.ok(Object.values(c.defaults[g]).every(v=>v===0));for(const k of Object.keys(c.defaults[g]))for(const [input,expected] of [[-1,0],[NaN,0],[Infinity,0],['bad',0],[null,0],['2.9',2]]){const S=fresh();S[g][k]=input;S[g].future=99;c.normalizeState(S);assert.equal(S[g][k],expected);assert.equal(S[g].future,undefined);assert.deepEqual(clone(c.normalizeState(clone(S))),clone(S));}}
   const old=c.normalizeState({counts:{cz:4,bonus:2},gameLog:['500.9',-1,'x'],futureRoot:'keep'});assert.equal(old.counts.cz,4);assert.equal(old.counts.bonus,2);assert.deepEqual(clone(old.gameLog),[500]);assert.equal(old.futureRoot,'keep');
 });
-check('HTML4タブ・noindex・クエリ・ガイド・LF・後読みなし・構文',()=>{
+check('HTML4タブ・公開（index可）・クエリ・ガイド・LF・後読みなし・構文',()=>{
   assert.equal(c.storageKey,'garo-checker-v1');assert.equal(c.pages(ctx(fresh()),()=>'').length,4);
   const html=read('garo-checker.html'),guide=read('garo-guide.html');
   assert.deepEqual([...html.matchAll(/<button data-p="\d"[^>]*>(.*?)<\/button>/g)].map(m=>m[1]),['入力','示唆','参照','カード']);
@@ -471,7 +471,7 @@ check('HTML4タブ・noindex・クエリ・ガイド・LF・後読みなし・�
   const tmp=fs.mkdtempSync(path.join(process.env.CHECKER_ARTIFACTS||os.tmpdir(),'garo-syntax-'));
   for(const p of ['garo-checker.html','garo-guide.html','checker-data/garo.js']){
     const src=read(p);assert.ok(!src.includes('\r'));assert.doesNotMatch(src,/\(\?<([=!])/);assert.doesNotMatch(src,/濃厚示唆|最強|設定差なし/);
-    if(p.endsWith('.html')){assert.ok(src.includes('<meta name="robots" content="noindex,nofollow">'));for(const [i,m] of [...src.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)].entries())if(!/\bsrc=/.test(m[1])){const f=path.join(tmp,path.basename(p)+i+'.mjs');fs.writeFileSync(f,m[2]);execFileSync(process.execPath,['--check',f]);}}
+    if(p.endsWith('.html')){assert.ok(!src.includes('name="robots"'),p+' 公開（11/2、PR #83）');for(const [i,m] of [...src.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)].entries())if(!/\bsrc=/.test(m[1])){const f=path.join(tmp,path.basename(p)+i+'.mjs');fs.writeFileSync(f,m[2]);execFileSync(process.execPath,['--check',f]);}}
     else execFileSync(process.execPath,['--check',path.join(root,p)]);
   }
 });

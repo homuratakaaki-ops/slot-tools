@@ -126,7 +126,7 @@ for(const [id,E] of Object.entries(EXPECTED)){
     assert.deepEqual(clone(c.normalizeState({})),clone(c.defaults));
     assert.equal(c.normalizeState({counts:{[first]:NaN}}).counts[first],0);
   });
-  check(id+(id==='garo'?': HTML（noindex・導線なし':': HTML（公開：index可・checkers.html／sitemap 掲載')+'・機種別タブ数・LF・構文）',()=>{
+  check(id+': HTML（公開：index可・checkers.html／sitemap 掲載・機種別タブ数・LF・構文）',()=>{
     assert.equal(c.storageKey,id+'-checker-v1');assert.equal(c.uiV2,true);assert.equal(c.nanaCollab,false);assert.equal(c.sourceUrl,E.url);
     assert.deepEqual(clone(c.mergeKeys),id==='garo'?['counts','bonusEnd','rushEnd','trophy','payout','lamp','stepup','item']:id==='ragnador'?['counts','edVoice','atVoice','czVoice']:['counts']);assert.equal(c.pages(ctx(c.defaults),()=>'').length,['ragnador','garo'].includes(id)?4:3);
     assert.equal(c.card.title,E.title);assert.ok(c.card.footerTags.endsWith(' #設定判別'));
@@ -134,8 +134,8 @@ for(const [id,E] of Object.entries(EXPECTED)){
     assert.deepEqual([...html.matchAll(/<button data-p="\d"[^>]*>(.*?)<\/button>/g)].map(m=>m[1]),['ragnador','garo'].includes(id)?['入力','示唆','参照','カード']:['入力','参照','カード']);
     assert.ok(html.includes('grid-template-columns:repeat('+(['ragnador','garo'].includes(id)?4:3)+',1fr)'));assert.ok(!html.includes('checker-bayes.js'));
     for(const s of ['checker-engine.js?v=20260924',`checker-data/${id}.js?v=${id==='garo'?'20261102-garo':id==='ragnador'?'20261101-voice':'20261028-glog'}`,`CheckerEngine.mount(CheckerConfigs.${id});`,`${id}-guide.html`,`<div class="hd-title">${E.header||E.title}<small>`])assert.ok(html.includes(s),s);
-    // 11/2 に4機種を公開（PR #83）。牙狼は示唆追加のため外し、noindex・導線なしのまま（夢爽 11/1）。
-    const pub=id!=='garo';
+    // 11/2 に5機種を公開（PR #83）。牙狼は示唆追加後にネネ検収合格（11/2）で戻した。
+    const pub=true;
     if(!pub)for(const p of ['checkers.html','index.html','sitemap.xml'])assert.ok(!read(p).includes(id+'-checker')&&!read(p).includes(id+'-guide'),p+' に導線なし');
     else{const list=read('checkers.html').split('<div class="section-label">スマスロ・AT機</div>')[1];assert.ok(list.includes(`<a class="checker-main" href="${id}-checker.html">`)&&list.includes(`<a class="checker-guide" href="${id}-guide.html">使い方</a>`),'checkers.html に掲載');
       for(const k of ['checker','guide'])assert.ok(read('sitemap.xml').includes(`<loc>https://slot-tools.jp/${id}-${k}.html</loc>\n    <lastmod>2026-11-02</lastmod>`),'sitemap '+k);}

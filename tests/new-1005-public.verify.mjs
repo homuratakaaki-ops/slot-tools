@@ -52,8 +52,8 @@ assert.equal((news.match(/<p>/g)||[]).length,8);
 const oct4=[...news.matchAll(/<p>10\/4｜<a href="([^"]+)/g)].map(m=>m[1]);
 const oct4ids=oct4.filter(u=>ids.some(id=>u===id+'-checker.html'));
 assert.deepEqual(oct4ids,ids.slice(0,oct4ids.length).map(id=>id+'-checker.html'));
-const arch=read('docs/ARCHITECTURE.md');// 公開機種数は checkers.html の掲載数と一致させる（11/1 の godzieva2 公開で28、11/2 の4機種公開で32）。
-const listed=(read('checkers.html').match(/class="checker-main"/g)||[]).length;assert.equal(listed,32);assert.equal((arch.match(new RegExp(listed+'機種','g'))||[]).length,2);assert.ok(!arch.includes('23機種')&&!arch.includes('26機種'));
+const arch=read('docs/ARCHITECTURE.md');// 公開機種数は checkers.html の掲載数と一致させる（11/1 の godzieva2 公開で28、11/2 の5機種公開で33）。
+const listed=(read('checkers.html').match(/class="checker-main"/g)||[]).length;assert.equal(listed,33);assert.equal((arch.match(new RegExp(listed+'機種','g'))||[]).length,2);assert.ok(!arch.includes('23機種')&&!arch.includes('26機種'));
 assert.deepEqual(arch.split('\n').filter(l=>l.includes('21機種')),baseline('docs/ARCHITECTURE.md').split('\n').filter(l=>l.includes('21機種')));
 console.log('PASS public routes 2, reciprocal links 2, sitemap 取り下げ2経路, NEW 8, architecture 2; guides style/meta/wording 2');
 // ricorico は 10/14 に「■弱ﾘｺﾘｽ目変換高確」の1行を足した（解析更新）。その1行を除いた全バイトを旧版と比べる。
