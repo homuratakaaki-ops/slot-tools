@@ -43,22 +43,22 @@ check('期待度UP・一輝・不明は確定演出に数えない／最上位�
   assert.equal(c.card.blocks(ctx(S))[2][1],'計3回');
   assert.equal(c.card.bottom(ctx(S)).columns[0].items[0].text,'確定演出 アンコウ座(6濃厚) ×1');
 });
-check('通常CZ合計（種別不明を含む）と種別割合（不明を除く）の分離',()=>{
+check('通常CZ合計と種別割合は2種のみ・旧不明を無視',()=>{
   const S=fresh();S.gameLog=[700,600,500];S.counts.czWho=3;S.counts.czKage=1;S.counts.czUnknown=4;S.counts.at=5;
   const html=pages(S)[0]();
-  assert.equal(pctOf(html,'counts.czWho'),'3/4 75%');assert.equal(pctOf(html,'counts.czKage'),'1/4 25%');assert.equal(pctOf(html,'counts.czUnknown'),'');
+  assert.equal(pctOf(html,'counts.czWho'),'3/4 75%');assert.equal(pctOf(html,'counts.czKage'),'1/4 25%');assert.ok(!html.includes('data-c="counts.czUnknown"'));
   const total=html.split('data-total="cz"')[1].split('<div class="hint">')[0];
-  assert.match(total,/通常CZ合計/);assert.match(total,/<div class="num">8<\/div><div class="pct">1\/225\.0<\/div>/);
+  assert.match(total,/通常CZ合計/);assert.match(total,/<div class="num">4<\/div><div class="pct">1\/450\.0<\/div>/);
   assert.match(total,/設1:1\/214\.4⇔設6:1\/200\.3（設定差は小さい）/);
   assert.equal(pctOf(html,'counts.at'),'1/360.0');
   assert.match(html,/設1:1\/364\.2⇔設6:1\/310\.5/);
   assert.ok(!/data-c="counts\.czTotal"/.test(html),'合計行は押せない表示行');
-  assert.deepEqual(clone(c.card.blocks(ctx(S)).slice(0,2)),[['CZ合計','1/225.0'],['AT','1/360.0']]);
+  assert.deepEqual(clone(c.card.blocks(ctx(S)).slice(0,2)),[['CZ合計','1/450.0'],['AT','1/360.0']]);
   assert.deepEqual(clone(c.card.chart(ctx(S)).items),[{label:'フーアーユー',value:3},{label:'影ノ襲来',value:1}]);
   const t=c.template(ctx(S));
-  for(const line of ['通常CZ合計▶8回（1/225.0）','CZ フーアーユー▶3回 (75%)','CZ 影ノ襲来▶1回 (25%)','通常CZ（種別不明）▶4回','AT初当り▶5回（1/360.0）'])assert.ok(t.includes(line),line);
+  for(const line of ['通常CZ合計▶4回（1/450.0）','CZ フーアーユー▶3回 (75%)','CZ 影ノ襲来▶1回 (25%)','AT初当り▶5回（1/360.0）'])assert.ok(t.includes(line),line);
   S.counts.czWho=S.counts.czKage=0;
-  assert.equal(pctOf(pages(S)[0](),'counts.czWho'),'0/0 —');assert.ok(c.template(ctx(S)).includes('通常CZ合計▶4回（1/450.0）'));
+  assert.equal(pctOf(pages(S)[0](),'counts.czWho'),'0/0 —');assert.ok(!c.template(ctx(S)).includes('通常CZ合計▶'));
   assert.ok(!c.template(ctx(S)).includes('%'));
   // 分母0（未登録）は「—」。旧方式の打ち始めG・現在Gが残っていても分母に使わない。
   S.gameLog=[];S.startGames=100;S.currentGames=3000;assert.equal(c.card.blocks(ctx(S))[0][1],'—');assert.equal(pctOf(pages(S)[0](),'counts.at'),'—');
@@ -84,26 +84,26 @@ check('当選ごとのG: 入力欄・追加・最後の1件の取消・hint・�
   assert.ok(read('seiya12-guide.html').includes('当選するたびに、その当選までのG数（ホールのデータカウンターの当選G、または台メニューのAT間G）'));
   assert.ok(read('docs/specs/seiya12-checker-v01.md').includes('分母＝当選ごとのG合計（§9-105）'));
 });
-check('AT終了画面だけ割合（不明を除く）・ほかは割合なし',()=>{
+check('AT終了画面8行の割合・旧不明値を無視・ほかは割合なし',()=>{
   const S=fresh();S.atEnd.none=2;S.atEnd.saori=1;S.atEnd.ikki=1;S.atEnd.unknown=9;
   for(const g of ['trophy','erFirst','erSecond','card'])for(const id of Object.keys(S[g]))S[g][id]=1;
   const html=pages(S)[1]();
-  assert.equal(pctOf(html,'atEnd.none'),'2/4 50%');assert.equal(pctOf(html,'atEnd.ikki'),'1/4 25%');assert.equal(pctOf(html,'atEnd.unknown'),'');
+  assert.equal(pctOf(html,'atEnd.none'),'2/4 50%');assert.equal(pctOf(html,'atEnd.ikki'),'1/4 25%');assert.ok(!html.includes('data-c="atEnd.unknown"'));
   for(const g of ['trophy','erFirst','erSecond','card'])for(const id of Object.keys(S[g]))assert.equal(pctOf(html,g+'.'+id),'',g+'.'+id);
   const d=c.card.detail(ctx(S));
   const at=d.find(s=>s.title==='AT終了画面');assert.equal(at.denominator,4);assert.equal(at.percent,true);
-  assert.equal(at.items.find(i=>i.label==='不明').text,'不明 ×9');
+  assert.ok(!at.items.some(i=>i.label==='不明'));
   assert.ok(d.filter(s=>s.title!=='AT終了画面'&&s.title!=='カウント系').every(s=>s.percent===false&&!s.denominator));
   assert.ok(c.template(ctx(S)).includes('沙織▶1回 (25%)'));
-  assert.equal(c.card.blocks(ctx(S))[3][1],'計6回','トロフィーは色不明も出現回数に入れる');
+  assert.equal(c.card.blocks(ctx(S))[3][1],'計5回','トロフィーは5色だけ');
 });
 check('示唆の行名・示唆文・不明行・hint',()=>{
   const S=fresh(),html=pages(S)[1]();
   const rows=[
-    ['trophy.bronze','銅','設定2以上濃厚'],['trophy.silver','銀','設定3以上濃厚'],['trophy.gold','金','設定4以上濃厚'],['trophy.clown','クマノミ柄','設定5以上濃厚'],['trophy.rainbow','虹','設定6濃厚'],['trophy.unknown','色不明',''],
+    ['trophy.bronze','銅','設定2以上濃厚'],['trophy.silver','銀','設定3以上濃厚'],['trophy.gold','金','設定4以上濃厚'],['trophy.clown','クマノミ柄','設定5以上濃厚'],['trophy.rainbow','虹','設定6濃厚'],
     ['atEnd.none','キャラなし','デフォルト'],['atEnd.bronze3','青銅3人','奇数設定 期待度UP'],['atEnd.bronze4','青銅4人','偶数設定 期待度UP'],
     ['atEnd.bronze4L','左向きの青銅4人','高設定 期待度UP'],['atEnd.bronze5','青銅5人（正面に一輝）','高設定 期待度UP（強）'],
-    ['atEnd.marin','魔鈴＆シャイナ','設定4以上濃厚'],['atEnd.saori','沙織','設定6濃厚'],['atEnd.ikki','一輝','復活濃厚（設定示唆ではない）'],['atEnd.unknown','不明','割合の母数に入れない'],
+    ['atEnd.marin','魔鈴＆シャイナ','設定4以上濃厚'],['atEnd.saori','沙織','設定6濃厚'],['atEnd.ikki','一輝','復活濃厚（設定示唆ではない）'],
     ['erFirst.shaka','シャカ','高設定 期待度UP'],['erFirst.gemini','ジェミニ','設定4以上濃厚'],['erFirst.unknown','不明',''],
     ['erSecond.mu','ムウ','高設定 期待度UP'],['erSecond.aiolos','アイオロス','高設定 期待度UP（強）'],['erSecond.unknown','不明',''],
     ['card.harisenbon','ハリセンボン座','設定2以上濃厚'],['card.same','サメ座','設定4以上濃厚'],['card.ebi','エビ座','設定5以上濃厚'],['card.ankou','アンコウ座','設定6濃厚']
@@ -130,8 +130,8 @@ check('テンプレ・detail が全セクション・全行を網羅',()=>{
   const t=c.template(ctx(S)),detail=c.card.detail(ctx(S));
   assert.deepEqual(clone(detail.map(s=>s.title)),['カウント系','トロフィー','AT終了画面','ER 1人目','ER 2人目','星座']);
   for(const sec of detail)for(const item of sec.items){assert.ok([...item.label].length<=10,item.label);assert.ok(item.value>0||item.text,item.label);}
-  assert.deepEqual(clone(detail.find(s=>s.title==='AT終了画面').items.map(i=>i.label)),['キャラなし','青銅3人','青銅4人','左向き青銅4','青銅5一輝','魔鈴シャイナ','沙織','一輝','不明']);
-  assert.deepEqual(clone(detail[0].items.map(i=>i.text)),['通常CZ合計 ×3 1/2666.7','CZ フーアーユー ×1 (50%)','CZ 影ノ襲来 ×1 (50%)','通常CZ 種別不明 ×1','AT初当り ×1 1/8000.0']);
+  assert.deepEqual(clone(detail.find(s=>s.title==='AT終了画面').items.map(i=>i.label)),['キャラなし','青銅3人','青銅4人','左向き青銅4','青銅5一輝','魔鈴シャイナ','沙織','一輝']);
+  assert.deepEqual(clone(detail[0].items.map(i=>i.text)),['通常CZ合計 ×2 1/4000.0','CZ フーアーユー ×1 (50%)','CZ 影ノ襲来 ×1 (50%)','AT初当り ×1 1/8000.0']);
   for(const s of ['■カウント系','■トロフィー','■AT終了画面','■エクストララウンド キャラ紹介（1人目）','■エクストララウンド キャラ紹介（2人目）','■カード演出の星座'])assert.ok(t.includes(s),s);
   for(const key of Object.keys(S).filter(k=>k!=='counts'&&S[k]&&typeof S[k]==='object'&&!Array.isArray(S[k])))for(const id of Object.keys(S[key])){
     const label=pages(S)[1]().split(`data-c="${key}.${id}"`)[1].match(/<b>(.*?)<\/b>/)[1];assert.ok(t.includes(label+'▶1回'),key+'.'+id);
@@ -144,11 +144,11 @@ check('テンプレ・detail が全セクション・全行を網羅',()=>{
   assert.deepEqual(clone(rows.map(r=>r.text)),['確定演出 虹(6濃厚) ×1','トロフィー 銅×1・銀×1・金×1・クマノミ柄×1・虹×1','終了画面 魔鈴シャイナ×1・沙織×1','星座 ハリセンボン×1・サメ×1・エビ×1・アンコウ×1','ER1人目 シャカ×1・ジェミニ×1','ER2人目 ムウ×1・アイオロス×1','AT初当り 1回 1/8000.0']);
   assert.equal(c.card.footerTags,'#聖闘士星矢 #設定判別');assert.equal(c.card.title,'L聖闘士星矢 黄金十二宮');
 });
-check('normalize: 旧データ補完・不正値・未知キー保持・冪等',()=>{
+check('normalize: 旧データ補完・不正値・対象グループの未知キー除外・冪等',()=>{
   const S={startGames:-4,currentGames:'8000.9',gameLog:['8000.9',-4,'x',120],counts:{czWho:'3.8',at:-2,czKage:Infinity},trophy:{gold:NaN,future:4.8},futureRoot:'keep'};
   const a=c.normalizeState(S),b=c.normalizeState(clone(a));assert.deepEqual(clone(a),clone(b));
-  assert.equal(a.counts.czWho,3);assert.equal(a.counts.at,0);assert.equal(a.counts.czKage,0);assert.equal(a.counts.czUnknown,0);
-  assert.equal(a.trophy.gold,0);assert.equal(a.trophy.future,4);assert.deepEqual(clone(a.gameLog),[8000,120]);assert.equal(a.futureRoot,'keep');
+  assert.equal(a.counts.czWho,3);assert.equal(a.counts.at,0);assert.equal(a.counts.czKage,0);assert.equal(a.counts.czUnknown,undefined);
+  assert.equal(a.trophy.gold,0);assert.equal(a.trophy.future,undefined);assert.deepEqual(clone(a.gameLog),[8000,120]);assert.equal(a.futureRoot,'keep');
   for(const key of c.mergeKeys)for(const id of Object.keys(c.defaults[key]))assert.ok(Number.isInteger(a[key][id])&&a[key][id]>=0,key+'.'+id);
   assert.deepEqual(clone(c.normalizeState({})),clone(c.defaults));
   const old={currentGames:500,counts:{czWho:2}};const o=c.normalizeState(clone(old));assert.deepEqual(clone(o.gameLog),[]);
@@ -161,7 +161,7 @@ check('HTML: noindex・導線なし・推測タブなし・LF・構文',()=>{
   const html=read('seiya12-checker.html');
   assert.deepEqual([...html.matchAll(/<button data-p="\d"[^>]*>(.*?)<\/button>/g)].map(m=>m[1]),['入力','示唆','参照','カード']);
   assert.ok(!html.includes('checker-bayes.js'));
-  for(const s of ['checker-engine.js?v=20260924','checker-data/seiya12.js?v=20261028-glog','CheckerEngine.mount(CheckerConfigs.seiya12);','seiya12-guide.html'])assert.ok(html.includes(s),s);
+  for(const s of ['checker-engine.js?v=20260924','checker-data/seiya12.js?v=20261101-voice','CheckerEngine.mount(CheckerConfigs.seiya12);','seiya12-guide.html'])assert.ok(html.includes(s),s);
   assert.equal(html.match(/<style>[\s\S]*?<\/style>/)[0],read('paripi-checker.html').match(/<style>[\s\S]*?<\/style>/)[0],'4タブのスタイル');
   for(const p of ['checkers.html','index.html','sitemap.xml'])assert.ok(!read(p).includes('seiya12'),p+' に導線なし');
   const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'seiya12-syntax-'));
@@ -174,6 +174,15 @@ check('HTML: noindex・導線なし・推測タブなし・LF・構文',()=>{
   }
   const src=read('checker-data/seiya12.js');assert.ok(!src.includes('\r'));assert.doesNotMatch(src,/\(\?<([=!])/);
   assert.doesNotMatch(src+read('seiya12-guide.html'),/濃厚示唆|最強|ベイズ|事後確率/);
+});
+
+check('削除3項目の旧値は全出力で無視・ER不明は保持',()=>{
+ const old=fresh();old.counts.czWho=3;old.counts.czKage=1;old.atEnd.none=3;old.atEnd.saori=1;old.trophy.bronze=2;
+ const clean=clone(old);old.counts.czUnknown=99;old.trophy.unknown=99;old.atEnd.unknown=99;
+ const out=S=>[pages(S)[0](),pages(S)[1](),c.card.blocks(ctx(S)),c.card.bottom(ctx(S)),c.card.detail(ctx(S)),c.template(ctx(S))];
+ assert.deepEqual(clone(out(old)),clone(out(clean)));c.normalizeState(old);assert.deepEqual(clone(old),clean);
+ for(const key of ['counts','trophy','atEnd'])assert.deepEqual(Object.keys(old[key]),Object.keys(c.defaults[key]));
+ old.erFirst.unknown=2;old.erSecond.unknown=3;assert.ok(c.template(ctx(old)).includes('不明▶2回'));assert.ok(c.template(ctx(old)).includes('不明▶3回'));
 });
 console.log(`seiya12: ${checks} passed / ${failures} failed`);
 if(failures)process.exitCode=1;
