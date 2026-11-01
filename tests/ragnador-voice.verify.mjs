@@ -94,7 +94,7 @@ check('HTML4タブ・noindex・クエリ・ガイド・LF・後読みなし・�
   const tmp=fs.mkdtempSync(path.join(process.env.CHECKER_ARTIFACTS||os.tmpdir(),'ragnador-syntax-'));
   for(const p of ['ragnador-checker.html','ragnador-guide.html','checker-data/ragnador.js']){
     const src=read(p);assert.ok(!src.includes('\r'));assert.doesNotMatch(src,/\(\?<([=!])/);assert.doesNotMatch(src,/濃厚示唆|最強|設定差なし/);
-    if(p.endsWith('.html')){assert.ok(src.includes('<meta name="robots" content="noindex,nofollow">'));for(const [i,m] of [...src.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)].entries())if(!/\bsrc=/.test(m[1])){const f=path.join(tmp,path.basename(p)+i+'.mjs');fs.writeFileSync(f,m[2]);execFileSync(process.execPath,['--check',f]);}}
+    if(p.endsWith('.html')){assert.ok(!src.includes('name="robots"'),p+' 公開（11/2、PR #83）');for(const [i,m] of [...src.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)].entries())if(!/\bsrc=/.test(m[1])){const f=path.join(tmp,path.basename(p)+i+'.mjs');fs.writeFileSync(f,m[2]);execFileSync(process.execPath,['--check',f]);}}
     else execFileSync(process.execPath,['--check',path.join(root,p)]);
   }
 });

@@ -154,7 +154,7 @@ check('normalize: 旧データ補完・不正値・対象グループの未知�
   const old={currentGames:500,counts:{czWho:2}};const o=c.normalizeState(clone(old));assert.deepEqual(clone(o.gameLog),[]);
   assert.equal(o.counts.czWho,2);assert.deepEqual(clone(o.atEnd),clone(c.defaults.atEnd));assert.deepEqual(clone(c.normalizeState(clone(o))),clone(o));
 });
-check('HTML: noindex・導線なし・推測タブなし・LF・構文',()=>{
+check('HTML: 公開（index可・checkers.html／sitemap 掲載）・推測タブなし・LF・構文',()=>{
   assert.equal(c.storageKey,'seiya12-checker-v1');assert.equal(c.uiV2,true);assert.equal(c.nanaCollab,false);
   assert.equal(c.sourceUrl,'https://chonborista.com/slot/sanyo-slot/260304/');
   assert.equal(c.pages(ctx(fresh()),()=>'').length,4);
@@ -163,10 +163,12 @@ check('HTML: noindex・導線なし・推測タブなし・LF・構文',()=>{
   assert.ok(!html.includes('checker-bayes.js'));
   for(const s of ['checker-engine.js?v=20260924','checker-data/seiya12.js?v=20261102-seiya','CheckerEngine.mount(CheckerConfigs.seiya12);','seiya12-guide.html'])assert.ok(html.includes(s),s);
   assert.equal(html.match(/<style>[\s\S]*?<\/style>/)[0],read('paripi-checker.html').match(/<style>[\s\S]*?<\/style>/)[0],'4タブのスタイル');
-  for(const p of ['checkers.html','index.html','sitemap.xml'])assert.ok(!read(p).includes('seiya12'),p+' に導線なし');
+  // 11/2 公開（PR #83）。導線なしの固定を公開状態の検査に置き換えた。
+  {const id='seiya12';const list=read('checkers.html').split('<div class="section-label">スマスロ・AT機</div>')[1];assert.ok(list.includes(`<a class="checker-main" href="${id}-checker.html">`)&&list.includes(`<a class="checker-guide" href="${id}-guide.html">使い方</a>`),'checkers.html に掲載');
+      for(const k of ['checker','guide'])assert.ok(read('sitemap.xml').includes(`<loc>https://slot-tools.jp/${id}-${k}.html</loc>\n    <lastmod>2026-11-02</lastmod>`),'sitemap '+k);}
   const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'seiya12-syntax-'));
   for(const [i,p] of ['seiya12-checker.html','seiya12-guide.html'].entries()){
-    const src=read(p);assert.ok(src.includes('<meta name="robots" content="noindex,nofollow">'),p);
+    const src=read(p);assert.ok(!src.includes('name="robots"'),p+' robots 指定なし（index可）');
     assert.ok(src.includes(`href="https://slot-tools.jp/${p}"`));assert.ok(!src.includes('\r'));
     for(const [j,m] of [...src.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)].entries())if(!/\bsrc=/.test(m[1])){
       const f=path.join(tmp,`${i}-${j}.mjs`);fs.writeFileSync(f,m[2]);execFileSync(process.execPath,['--check',f]);
