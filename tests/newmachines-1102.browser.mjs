@@ -93,8 +93,8 @@ try{
   for(const id of IDS){
     KEY=id+'-checker-v1';PAGE='/'+id+'-checker.html';
     await load();
-    assert.deepEqual(await run('return [...d.querySelectorAll("#nav button")].map(b=>b.textContent);'),['ragnador','garo'].includes(id)?['入力','示唆','参照','カード']:['入力','参照','カード']);
-    if(!['ragnador','garo'].includes(id))assert.ok((await run('return d.querySelector("#main .hint").textContent;')).startsWith('設定示唆（終了画面・トロフィーなど）は出典で調査中です。'));
+    assert.deepEqual(await run('return [...d.querySelectorAll("#nav button")].map(b=>b.textContent);'),['ragnador','garo','ggo','vivy'].includes(id)?['入力','示唆','参照','カード']:['入力','参照','カード']);
+    if(!['ragnador','garo','ggo','vivy'].includes(id))assert.ok((await run('return d.querySelector("#main .hint").textContent;')).startsWith('設定示唆（終了画面・トロフィーなど）は出典で調査中です。'));
     const keys=await run('return [...d.querySelectorAll("[data-c]")].map(e=>e.dataset.c);');
     for(const key of keys){await plus(key);const [group,k]=key.split('.');assert.equal((await state())[group][k],1);}
     await plus(keys[0]);await click('#undoBtn');assert.equal((await state()).counts[keys[0].split('.')[1]],1);
@@ -116,16 +116,16 @@ try{
     full.gameLog=[1500,2500];keys.forEach((k,i)=>{full.counts[k.split('.')[1]]=[21,11][i];});
     for(const [label,S] of [['empty',{}],['filled',full]]){
       await seed(S);
-      for(let p=0;p<(['ragnador','garo'].includes(id)?4:3);p++){await tab(p);await layout(360,label,p);await shot(id+'-'+(['ragnador','garo'].includes(id)?['input','suggest','reference','card']:['input','reference','card'])[p]+'-360-'+label,360);}
+      for(let p=0;p<(['ragnador','garo','ggo','vivy'].includes(id)?4:3);p++){await tab(p);await layout(360,label,p);await shot(id+'-'+(['ragnador','garo','ggo','vivy'].includes(id)?['input','suggest','reference','card']:['input','reference','card'])[p]+'-360-'+label,360);}
     }
     await tab(0);assert.equal(await run(`return d.querySelector('[data-c="${keys[0]}"] .pct').textContent;`),'1/190.5');
-    await tab(['ragnador','garo'].includes(id)?3:2);await pause(150);
+    await tab(['ragnador','garo','ggo','vivy'].includes(id)?3:2);await pause(150);
     const card=await canvas('cardCanvas',id+'-summary-card');
     for(const s of ['1/190.5','通常G','4000G'])assert.ok(card.texts.some(t=>t.text.includes(s)),id+' '+s);
     for(const t of card.texts.filter(t=>t.y>=270&&t.y<=400&&t.x>=70))assert.ok(t.x+t.w<=1010,JSON.stringify(t));
     await click('#detailBtn');await pause(250);await canvas('detailCanvas',id+'-detail-card');
     await load(360,'/'+id+'-guide.html');assert.equal(await run('return d.documentElement.scrollWidth-d.documentElement.clientWidth;'),0);
-    assert.deepEqual(await run('return window.__errors;'),[]);pass(id+' 360px '+(['ragnador','garo'].includes(id)?4:3)+' tabs overflow 0 / buttons >=44px / card PNG / guide');
+    assert.deepEqual(await run('return window.__errors;'),[]);pass(id+' 360px '+(['ragnador','garo','ggo','vivy'].includes(id)?4:3)+' tabs overflow 0 / buttons >=44px / card PNG / guide');
   }
   assert.deepEqual(errors,[]);
 }catch(e){console.error(e.stack);process.exitCode=1;}

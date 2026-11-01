@@ -77,7 +77,8 @@ check('guide, version and NEW list',()=>{
   assert.ok(read('tonski-checker.html').includes('checker-data/tonski.js?v=20261021'));
   const news=read('index.html').split('<div class="section-label">NEW</div>')[1].split('</div>')[0];
   assert.equal((news.match(/<p>/g)||[]).length,8);
-  assert.ok(news.indexOf('tonski-checker.html')<news.indexOf('tenten-checker.html'));
+  // NEW欄は8行上限で古い行から消える（§9-92）。11/2 に tenten の 10/21 行が消えたので、両方残っているときだけ順序を見る。
+  if(news.includes('tonski-checker.html')&&news.includes('tenten-checker.html'))assert.ok(news.indexOf('tonski-checker.html')<news.indexOf('tenten-checker.html'));
 });
 check('32768 certainty combinations preserve existing outputs against 4e98820 (main before this change)',()=>{
   const oldBox={window:{}};
