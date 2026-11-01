@@ -23,7 +23,7 @@ const END=['shinji','rei','mari','asuka','mothra','xrei','reiBg','godzillaShogok
 const VOICE=['shinji','asuka','misato','gendo','kaworu'];
 const RATES=[['suika','normal'],['suika','at'],...['after','other'].flatMap(p=>G.map(g=>['kitei',p+g]))];
 const GROUPS=['counts','suika','kitei','endScreen','edVoice'];
-const COUNT=[['first','初当り',[234.2,229.0,221.8,207.0,201.5,195.0]],['at','AT',[460.5,446.5,425.5,390.4,374.2,355.5]]];
+const COUNT=[['first','ボーナス初当り',[234.2,229.0,221.8,207.0,201.5,195.0]],['at','AT',[460.5,446.5,425.5,390.4,374.2,355.5]]];
 const PAY=[97.7,98.9,101.2,105.8,110.6,114.9],CZ=[21.9,23.4,25.0,28.1,29.7,31.3];
 const raw=read('docs/specs/godzieva2-nana-template-v01.txt');
 // 実装の定数・正規表現を流用せず、原文を行ごとに加工して期待値を作る。
@@ -85,7 +85,7 @@ for(const [group,key] of [...RATES.flatMap(([g,k])=>[[g,k+'D'],[g,k+'W']]),...EN
     else if(key.endsWith('W'))assert.ok(changed[0].includes('1/1'));else if(key.endsWith('D'))assert.ok(changed[0].includes('0/1'));
   });
 }
-check('全項目異なる値・テンプレ順序・分母ありの初当り/AT',()=>{
+check('全項目異なる値・テンプレ順序・分母ありのボーナス初当り/AT',()=>{
   const S=fresh();S.gameLog=[1000,2000];let i=1;for(const group of GROUPS)for(const key of Object.keys(S[group]))S[group][key]=i++;c.normalizeState(S);
   assert.equal(c.template(ctx(S)),expected(S));assert.equal(c.compactTemplate(ctx(S)),c.template(ctx(S)));
 });
@@ -115,7 +115,7 @@ check('詳細カード全項目36行・母数0非表示・終了画面割合',()
 check('HTML・ガイド・LF・後読みなし・構文・導線なし',()=>{
   assert.equal(c.storageKey,'godzieva2-checker-v1');assert.equal(c.uiV2,true);assert.equal(c.nanaCollab,true);assert.equal(c.pages(ctx(fresh()),()=>'').length,4);
   const html=read('godzieva2-checker.html'),guide=read('godzieva2-guide.html');assert.deepEqual([...html.matchAll(/<button data-p="\d"[^>]*>(.*?)<\/button>/g)].map(m=>m[1]),['入力','示唆','参照','カード']);
-  for(const text of ['grid-template-columns:repeat(4,1fr)','checker-data/godzieva2.js?v=20261101-nana3','checker-engine.js?v=20260924','← 機種選択','使い方','G-QCKV9H0DT1'])assert.ok(html.includes(text),text);
+  for(const text of ['grid-template-columns:repeat(4,1fr)','checker-data/godzieva2.js?v=20261101-nana4','checker-engine.js?v=20260924','← 機種選択','使い方','G-QCKV9H0DT1'])assert.ok(html.includes(text),text);
   assert.ok(!html.includes('checker-bayes.js'));
   for(const p of ['checkers.html','index.html','sitemap.xml'])assert.ok(!read(p).includes('godzieva2-checker')&&!read(p).includes('godzieva2-guide'));
   for(const text of ['スイカからのCZ','規定ゲーム数','ボーナス・AT終了画面','エンディング中ボイス','カードとテンプレ','テンプレのコピー','2026年11月1日','「入力」「示唆」「参照」「カード」'])assert.ok(guide.includes(text),text);
@@ -126,5 +126,18 @@ check('HTML・ガイド・LF・後読みなし・構文・導線なし',()=>{
     for(const [i,m] of [...src.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)].entries())if(!/\bsrc=/.test(m[1])){const f=path.join(tmp,p+i+'.mjs');fs.writeFileSync(f,m[2]);execFileSync(process.execPath,['--check',f]);}
   }
   const src=read('checker-data/godzieva2.js');assert.ok(!src.includes('\r'));assert.doesNotMatch(src,/\(\?<([=!])/);execFileSync(process.execPath,['--check',path.join(root,'checker-data/godzieva2.js')]);
+});
+check('名称「ボーナス初当り」（夢爽 11/1）・保存キーは counts.first のまま・テンプレ本文は不変',()=>{
+  const S=fresh();S.counts.first=3;const cx=ctx(S),input=c.pages(cx,()=>'')[0](),ref=c.pages(cx,()=>'')[2](),tpl=c.template(cx);
+  assert.ok('first' in c.defaults.counts&&!('bonus' in c.defaults.counts));
+  assert.ok(input.includes('<b>ボーナス初当り</b>')&&input.includes('data-c="counts.first"'));
+  assert.ok(input.includes('<div class="hint">ボーナスのストック放出・上位移行・引戻しはボーナス初当りに数えない。</div>'));
+  assert.equal(c.card.blocks(cx)[0][0],'ボーナス初当り');assert.equal(c.card.chart(cx).items[0].label,'ボーナス初当り');
+  assert.ok(c.card.detail(cx)[0].items[0].text.startsWith('ボーナス初当り ×3'));assert.ok(c.card.bottom(cx).columns[0].items[0].text.startsWith('ボーナス初当り 3回'));
+  assert.ok(ref.includes('ボーナス初当り・AT・出玉率')&&ref.includes('ボーナス初当り 1/234.2'));
+  assert.ok(tpl.includes('■ボーナス当選率\nボーナス▶︎ 3回\n'));assert.ok(!tpl.includes('初当り'),'テンプレ本文は「ボーナス▶︎ N回」のまま');
+  // 「ボーナス」の付かない「初当り」が画面・ガイド・HTMLに残っていない
+  for(const [name,s] of [['input',input],['ref',ref],['detail',JSON.stringify(c.card.detail(cx))],['js',read('checker-data/godzieva2.js')],['html',read('godzieva2-checker.html')],['guide',read('godzieva2-guide.html')]])
+    assert.ok(!s.split('ボーナス初当り').join('').includes('初当り'),name);
 });
 console.log(`godzieva2-nana: ${checks} passed / ${failures} failed`);if(failures)process.exitCode=1;
