@@ -35,9 +35,9 @@ for(const [group,id,rank,label] of strongCases)check('確定演出 '+group+'.'+i
   assert.equal(c.card.bottom(ctx(S)).columns[0].items[0].text,`確定演出 ${label}(${rank===6?'6濃厚':rank+'以上'}) ×2`);
   assert.match(c.template(ctx(S)),/確定演出2回/);
 });
-check('期待度UP・一輝・不明は確定演出に数えない／最上位を選ぶ',()=>{
+check('期待度UP・一輝は確定演出に数えない／最上位を選ぶ',()=>{
   const S=fresh();
-  for(const [g,ids] of Object.entries({trophy:['unknown'],atEnd:['none','bronze3','bronze4','bronze4L','bronze5','ikki','unknown'],erFirst:['shaka','unknown'],erSecond:['mu','aiolos','unknown']}))for(const id of ids)S[g][id]=3;
+  for(const [g,ids] of Object.entries({atEnd:['none','bronze3','bronze4','bronze4L','bronze5','ikki'],erFirst:['shaka'],erSecond:['mu','aiolos']}))for(const id of ids)S[g][id]=3;
   assert.equal(c.card.blocks(ctx(S))[2][1],'計0回');assert.equal(c.card.bottom(ctx(S)).columns[0].items[0].text,'確定演出 なし');
   S.trophy.bronze=1;S.card.ankou=1;S.erFirst.gemini=1;
   assert.equal(c.card.blocks(ctx(S))[2][1],'計3回');
@@ -97,15 +97,15 @@ check('AT終了画面8行の割合・旧不明値を無視・ほかは割合な�
   assert.ok(c.template(ctx(S)).includes('沙織▶1回 (25%)'));
   assert.equal(c.card.blocks(ctx(S))[3][1],'計5回','トロフィーは5色だけ');
 });
-check('示唆の行名・示唆文・不明行・hint',()=>{
+check('示唆の行名・示唆文（不明行なし）・hint',()=>{
   const S=fresh(),html=pages(S)[1]();
   const rows=[
     ['trophy.bronze','銅','設定2以上濃厚'],['trophy.silver','銀','設定3以上濃厚'],['trophy.gold','金','設定4以上濃厚'],['trophy.clown','クマノミ柄','設定5以上濃厚'],['trophy.rainbow','虹','設定6濃厚'],
     ['atEnd.none','キャラなし','デフォルト'],['atEnd.bronze3','青銅3人','奇数設定 期待度UP'],['atEnd.bronze4','青銅4人','偶数設定 期待度UP'],
     ['atEnd.bronze4L','左向きの青銅4人','高設定 期待度UP'],['atEnd.bronze5','青銅5人（正面に一輝）','高設定 期待度UP（強）'],
     ['atEnd.marin','魔鈴＆シャイナ','設定4以上濃厚'],['atEnd.saori','沙織','設定6濃厚'],['atEnd.ikki','一輝','復活濃厚（設定示唆ではない）'],
-    ['erFirst.shaka','シャカ','高設定 期待度UP'],['erFirst.gemini','ジェミニ','設定4以上濃厚'],['erFirst.unknown','不明',''],
-    ['erSecond.mu','ムウ','高設定 期待度UP'],['erSecond.aiolos','アイオロス','高設定 期待度UP（強）'],['erSecond.unknown','不明',''],
+    ['erFirst.shaka','シャカ','高設定 期待度UP'],['erFirst.gemini','ジェミニ','設定4以上濃厚'],
+    ['erSecond.mu','ムウ','高設定 期待度UP'],['erSecond.aiolos','アイオロス','高設定 期待度UP（強）'],
     ['card.harisenbon','ハリセンボン座','設定2以上濃厚'],['card.same','サメ座','設定4以上濃厚'],['card.ebi','エビ座','設定5以上濃厚'],['card.ankou','アンコウ座','設定6濃厚']
   ];
   const all=[...html.matchAll(/data-c="([^"]+)"/g)].map(m=>m[1]);
@@ -161,7 +161,7 @@ check('HTML: noindex・導線なし・推測タブなし・LF・構文',()=>{
   const html=read('seiya12-checker.html');
   assert.deepEqual([...html.matchAll(/<button data-p="\d"[^>]*>(.*?)<\/button>/g)].map(m=>m[1]),['入力','示唆','参照','カード']);
   assert.ok(!html.includes('checker-bayes.js'));
-  for(const s of ['checker-engine.js?v=20260924','checker-data/seiya12.js?v=20261101-voice','CheckerEngine.mount(CheckerConfigs.seiya12);','seiya12-guide.html'])assert.ok(html.includes(s),s);
+  for(const s of ['checker-engine.js?v=20260924','checker-data/seiya12.js?v=20261102-seiya','CheckerEngine.mount(CheckerConfigs.seiya12);','seiya12-guide.html'])assert.ok(html.includes(s),s);
   assert.equal(html.match(/<style>[\s\S]*?<\/style>/)[0],read('paripi-checker.html').match(/<style>[\s\S]*?<\/style>/)[0],'4タブのスタイル');
   for(const p of ['checkers.html','index.html','sitemap.xml'])assert.ok(!read(p).includes('seiya12'),p+' に導線なし');
   const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'seiya12-syntax-'));
@@ -176,13 +176,14 @@ check('HTML: noindex・導線なし・推測タブなし・LF・構文',()=>{
   assert.doesNotMatch(src+read('seiya12-guide.html'),/濃厚示唆|最強|ベイズ|事後確率/);
 });
 
-check('削除3項目の旧値は全出力で無視・ER不明は保持',()=>{
+check('削除した不明5項目（CZ種別・トロフィー色・AT終了画面・ER1人目・ER2人目）の旧値は全出力で無視',()=>{
  const old=fresh();old.counts.czWho=3;old.counts.czKage=1;old.atEnd.none=3;old.atEnd.saori=1;old.trophy.bronze=2;
- const clean=clone(old);old.counts.czUnknown=99;old.trophy.unknown=99;old.atEnd.unknown=99;
+ const clean=clone(old);old.counts.czUnknown=99;old.trophy.unknown=99;old.atEnd.unknown=99;old.erFirst.unknown=99;old.erSecond.unknown=99;
  const out=S=>[pages(S)[0](),pages(S)[1](),c.card.blocks(ctx(S)),c.card.bottom(ctx(S)),c.card.detail(ctx(S)),c.template(ctx(S))];
  assert.deepEqual(clone(out(old)),clone(out(clean)));c.normalizeState(old);assert.deepEqual(clone(old),clean);
- for(const key of ['counts','trophy','atEnd'])assert.deepEqual(Object.keys(old[key]),Object.keys(c.defaults[key]));
- old.erFirst.unknown=2;old.erSecond.unknown=3;assert.ok(c.template(ctx(old)).includes('不明▶2回'));assert.ok(c.template(ctx(old)).includes('不明▶3回'));
+ for(const key of c.mergeKeys)assert.deepEqual(Object.keys(old[key]),Object.keys(c.defaults[key]));
+ for(const key of c.mergeKeys)assert.ok(!('unknown' in c.defaults[key])&&!('czUnknown' in c.defaults[key]),key+' に不明行なし');
+ assert.doesNotMatch(read('checker-data/seiya12.js')+read('seiya12-guide.html'),/不明/);
 });
 console.log(`seiya12: ${checks} passed / ${failures} failed`);
 if(failures)process.exitCode=1;

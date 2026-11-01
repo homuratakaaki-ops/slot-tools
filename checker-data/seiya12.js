@@ -29,10 +29,10 @@
     ['ikki','一輝','復活濃厚（設定示唆ではない）',0]
   ];
   const ER_FIRST=[
-    ['shaka','シャカ','高設定 期待度UP',0],['gemini','ジェミニ','設定4以上濃厚',4],['unknown','不明','',0]
+    ['shaka','シャカ','高設定 期待度UP',0],['gemini','ジェミニ','設定4以上濃厚',4]
   ];
   const ER_SECOND=[
-    ['mu','ムウ','高設定 期待度UP',0],['aiolos','アイオロス','高設定 期待度UP（強）',0],['unknown','不明','',0]
+    ['mu','ムウ','高設定 期待度UP',0],['aiolos','アイオロス','高設定 期待度UP（強）',0]
   ];
   const CARD=[
     ['harisenbon','ハリセンボン座','設定2以上濃厚',2],['same','サメ座','設定4以上濃厚',4],
@@ -66,7 +66,7 @@
   function oneIn(count,den){return den>0&&count>0?'1/'+(den/count).toFixed(1):'—';}
   // 通常CZ合計と種別の割合の母数は同じ2種。
   function czTotal(S){return n(S.counts,'czWho')+n(S.counts,'czKage');}
-  function knownTotal(S,key){return GROUPS[key].filter(c=>c[0]!=='unknown').reduce((a,c)=>a+n(S[key],c[0]),0);}
+  function knownTotal(S,key){return GROUPS[key].reduce((a,c)=>a+n(S[key],c[0]),0);}
   // トロフィーは5色の出現回数。
   function trophyTotal(S){return TROPHY.reduce((a,c)=>a+n(S.trophy,c[0]),0);}
   function hasPercent(key){return key==='atEnd';}
@@ -93,7 +93,7 @@
   }
   function groupRows(ctx,key){
     const total=knownTotal(ctx.S,key);
-    return GROUPS[key].map(c=>ctx.crow(key+'.'+c[0],c[1],c[2],c[3],hasPercent(key)&&c[0]!=='unknown'?v=>ctx.pct(v,total):undefined)).join('');
+    return GROUPS[key].map(c=>ctx.crow(key+'.'+c[0],c[1],c[2],c[3],hasPercent(key)?v=>ctx.pct(v,total):undefined)).join('');
   }
   function groupSection(ctx,key){return `<section class="sec"><div class="sec-h">${TITLES[key]}</div><div class="cgrid">${groupRows(ctx,key)}</div><div class="hint">${HINTS[key]}</div></section>`;}
   function pageCounts(ctx){
@@ -142,7 +142,7 @@
     t+=section('カウント系',lines);
     Object.entries(GROUPS).forEach(([key,arr])=>{
       const total=knownTotal(S,key);
-      t+=section(TITLES[key],arr.filter(c=>n(S[key],c[0])>0).map(c=>`${c[1]}▶${n(S[key],c[0])}回${hasPercent(key)&&c[0]!=='unknown'&&total>0?' ('+(100*n(S[key],c[0])/total).toFixed(0)+'%)':''}`));
+      t+=section(TITLES[key],arr.filter(c=>n(S[key],c[0])>0).map(c=>`${c[1]}▶${n(S[key],c[0])}回${hasPercent(key)&&total>0?' ('+(100*n(S[key],c[0])/total).toFixed(0)+'%)':''}`));
     });
     return t+'\nby slot-tools.jp\n解析出典:ちょんぼりすた様';
   }
@@ -155,10 +155,10 @@
       item('AT初当り',n(S.counts,'at'),'AT初当り ×'+n(S.counts,'at')+' '+oneIn(n(S.counts,'at'),g))
     ]},
     ...Object.entries(GROUPS).map(([key,arr])=>({title:DETAIL_TITLES[key],percent:hasPercent(key),...(hasPercent(key)?{denominator:knownTotal(S,key)}:{}),
-      items:arr.map(c=>({label:shortLabel(key,c),value:n(S[key],c[0]),hot:!!c[3],...(c[0]==='unknown'&&hasPercent(key)?{text:c[1]+' ×'+n(S[key],c[0]),show:n(S[key],c[0])>0}:{})}))}))];
+      items:arr.map(c=>({label:shortLabel(key,c),value:n(S[key],c[0]),hot:!!c[3]}))}))];
   }
   function summary(S,key,label,predicate){
-    const hits=GROUPS[key].filter(c=>c[0]!=='unknown'&&(!predicate||predicate(c))&&n(S[key],c[0])>0);
+    const hits=GROUPS[key].filter(c=>(!predicate||predicate(c))&&n(S[key],c[0])>0);
     return row(label+' '+(hits.map(c=>shortLabel(key,c)+'×'+n(S[key],c[0])).join('・')||'−'),hits.reduce((a,c)=>a+n(S[key],c[0]),0));
   }
   function normalizeState(out){
@@ -166,7 +166,8 @@
     out.games=integer(out.games);
     out.gameLog=Array.isArray(out.gameLog)?out.gameLog.map(integer).filter(v=>v>0):[];
     ['counts',...Object.keys(GROUPS)].forEach(key=>{
-      out[key]=['counts','trophy','atEnd'].includes(key)?Object.fromEntries(Object.keys(DEF[key]).map(k=>[k,(out[key]||{})[k]??DEF[key][k]])):Object.assign({},DEF[key],out[key]||{});
+      // 11/1・11/2 に削除した行の旧データの値・未知キーは、DEF のキーだけにそろえて捨てる。
+      out[key]=Object.fromEntries(Object.keys(DEF[key]).map(k=>[k,(out[key]||{})[k]??DEF[key][k]]));
       Object.keys(out[key]).forEach(k=>{out[key][k]=integer(out[key][k]);});
     });
     if(out.img===undefined)out.img=DEF.img;

@@ -97,7 +97,7 @@ try{
     await tab(p);const keys=await run('return [...d.querySelectorAll("[data-c]")].map(e=>e.dataset.c);');
     for(const key of keys){await plus(key);const [group,id]=key.split('.');assert.equal((await state())[group][id],1);count++;}
   }
-  assert.equal(count,3+23);
+  assert.equal(count,3+21);
   await tab(0);
   assert.equal(await run(`return d.querySelector('[data-total="cz"] .num').textContent;`),'2','通常CZ合計は2種');
   await run(`d.querySelector('[data-total="cz"]').click();`);assert.equal((await state()).counts.czWho,1,'合計行は押しても加算しない');
@@ -120,16 +120,16 @@ try{
   const full=await run('return structuredClone(CheckerConfigs.seiya12.defaults);');
   full.gameLog=[2500,3500];full.counts={czWho:18,czKage:9,czUnknown:3,at:17};
   for(const key of ['trophy','atEnd','erFirst','erSecond','card'])for(const id of Object.keys(full[key]))full[key][id]=1;
-  full.trophy.unknown=99;full.atEnd.unknown=99;
+  full.trophy.unknown=99;full.atEnd.unknown=99;full.erFirst.unknown=99;full.erSecond.unknown=99;
   await seed(full);await tab(0);
   assert.equal(await run('return d.querySelectorAll(\'[data-c="counts.czUnknown"]\').length;'),0);
   assert.equal(await run(`return d.querySelector('[data-c="counts.czWho"] .pct').textContent;`),'18/27 67%');
   assert.equal(await run(`return d.querySelector('[data-total="cz"] .pct').textContent;`),'1/222.2');
   assert.equal(await run(`return d.querySelector('[data-c="counts.at"] .pct').textContent;`),'1/352.9');
   await tab(1);assert.equal(await run(`return d.querySelector('[data-c="atEnd.none"] .pct').textContent;`),'1/8 13%');
-  assert.equal(await run(`return d.querySelectorAll('[data-c^="atEnd."] .pct').length;`),8,'不明行に割合を出さない');
+  assert.equal(await run(`return d.querySelectorAll('[data-c^="atEnd."] .pct').length;`),8,'AT終了画面8行に割合');
   assert.equal(await run(`return d.querySelectorAll('[data-c^="trophy."] .pct,[data-c^="erFirst."] .pct,[data-c^="erSecond."] .pct,[data-c^="card."] .pct').length;`),0);
-  assert.equal(await run('return d.querySelectorAll(\'[data-c="trophy.unknown"],[data-c="atEnd.unknown"]\').length;'),0);
+  assert.equal(await run('return d.querySelectorAll(\'[data-c$=".unknown"],[data-c="counts.czUnknown"]\').length;'),0);
   pass('rendered 1/x, CZ type split and AT end-screen percentages');
   for(const width of [360,390,412])for(const [label,S] of [['empty',{}],['filled',full]]){
     await seed(S,width);
@@ -142,11 +142,11 @@ try{
   await seed(full);await tab(3);await click('#detailBtn');await pause(250);
   const detail=await canvas('detailCanvas','detail-card'),summary=await canvas('cardCanvas','summary-card');
   for(const title of ['カウント系','トロフィー','AT終了画面','ER 1人目','ER 2人目','星座'])assert.ok(detail.texts.some(t=>t.text===title),title);
-  for(const s of ['通常CZ合計 ×27 1/222.2','魔鈴シャイナ ×1 (13%)','不明 ×1'])assert.ok(detail.texts.some(t=>t.text.includes(s)),s);
+  for(const s of ['通常CZ合計 ×27 1/222.2','魔鈴シャイナ ×1 (13%)','ムウ ×1'])assert.ok(detail.texts.some(t=>t.text.includes(s)),s);
   for(const s of ['CZ合計','1/222.2','確定演出','計12回','トロフィー','計5回','フーアーユー','影ノ襲来','#聖闘士星矢 #設定判別'])assert.ok(summary.texts.some(t=>t.text.includes(s)),s);
   assert.equal(await run('return w.__checkerApp._detailRows().length;')<=40,true);
-  const template=await run('return d.getElementById("tpl").value;');assert.doesNotMatch(template,/種別不明|色不明|不明▶99回/);
-  assert.ok(!detail.texts.some(t=>/種別不明|色不明|不明 ×99/.test(t.text)));
+  const template=await run('return d.getElementById("tpl").value;');assert.doesNotMatch(template,/不明/);
+  assert.ok(!detail.texts.some(t=>/不明/.test(t.text)));
   assert.ok(!summary.texts.some(t=>/種別不明|色不明/.test(t.text)));
   // サマリーの行が列幅（左490px・右450px）を越えない（§9-85）。
   for(const t of summary.texts.filter(t=>t.y>=760&&t.y<=936&&(t.x===70||t.x===560)))assert.ok(t.w<=(t.x===70?490:450)+1,JSON.stringify(t));
