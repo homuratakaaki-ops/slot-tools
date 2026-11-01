@@ -130,11 +130,12 @@ check('normalize: missing/default/invalid/fractional/future/idempotent',()=>{
 });
 check('HTML shell, source, public routes, guide, LF, syntax',()=>{
   const list=read('checkers.html').split('<div class="section-label">スマスロ・AT機</div>')[1];
-  assert.equal(list.match(/class="checker-main" href="([^"]+)/)[1],'mahoako-checker.html');
+  // 11/1 に godzieva2 が先頭に入ったので先頭位置ではなく、掲載と並び（paripi より前）で見る。
+  const order=[...list.matchAll(/class="checker-main" href="([^"]+)/g)].map(m=>m[1]);assert.ok(order.includes('mahoako-checker.html')&&order.indexOf('mahoako-checker.html')<order.indexOf('paripi-checker.html'));
   assert.ok(list.includes('<a class="checker-main" href="mahoako-checker.html">L 魔法少女にあこがれて</a><a class="checker-guide" href="mahoako-guide.html">使い方</a>'));
   for(const p of ['mahoako-checker.html','mahoako-guide.html'])assert.ok(read('sitemap.xml').includes('<loc>https://slot-tools.jp/'+p+'</loc>\n    <lastmod>2026-10-19</lastmod>'),p);
   const news=read('index.html').split('<div class="section-label">NEW</div>')[1].split('</section>')[0];
-  assert.equal((news.match(/<p>/g)||[]).length,8);assert.equal(news.split('｜<a href="mahoako-checker.html">L 魔法少女にあこがれて 設定判別カウンターを公開</a>').length,2);
+  assert.equal((news.match(/<p>/g)||[]).length,8);assert.ok(news.split('｜<a href="mahoako-checker.html">L 魔法少女にあこがれて 設定判別カウンターを公開</a>').length<=2,'NEW欄は8行上限で古い行から消える（§9-92）');
   assert.equal(c.storageKey,'mahoako-checker-v1');assert.equal(c.uiV2,true);assert.equal(c.nanaCollab,false);
   assert.equal(c.sourceUrl,'https://chonborista.com/slot/newgin-slot/264698/');
   const html=read('mahoako-checker.html'),guide=read('mahoako-guide.html');

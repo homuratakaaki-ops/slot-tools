@@ -321,6 +321,7 @@ RB中のキャラ紹介が全15パターン判明し、エンディング中の�
 
 - [x] `checker-data/godzieva2.js` を nanaCollab:true にし、スイカからのCZ（通常時は目安 設1:21.9%⇔設6:31.3%・AT中は記録のみ）・規定ゲーム数（AT後／AT後以外×6）・ボーナス・AT終了画面10種・エンディング中ボイス5種を追加。4タブ（入力／示唆／参照／カード）、推測タブなし。仕様書は `docs/specs/godzieva2-checker-v02.md`、テンプレ原文の正本は `docs/specs/godzieva2-nana-template-v01.txt`（800バイト）。規定ゲーム数の行名は原文の150〜850Gを出典どおり100・250・400・550・700・850Gに変更（夢爽裁定・なな様へ事後報告）。「ボーナス▶︎ N回（1/x）」の行は夢爽確認待ちの暫定。検証は tests/godzieva2-nana.verify.mjs・.browser.mjs
 - [ ] noindex・導線なしのまま。なな様への事後報告、ボーナス行の確定、夢爽の実機確認
+- [x] 公開導線（feat/godzieva2-publish）：検収（ネネ①②③・％再確認、360px 夢爽スマホ）合格を受けて、noindex 外し（checker・guide）・checkers.html「スマスロ・AT機」先頭・sitemap（checker・guide、2026-11-01）・NEW欄1行（11/1、最古の 10/19 mahoako 行を削除）・ARCHITECTURE の公開機種数 28 を同じPRに入れる（マージは夢爽の承認後）
 
 
 ---
