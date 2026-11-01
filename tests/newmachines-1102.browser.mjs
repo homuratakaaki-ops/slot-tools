@@ -1,3 +1,4 @@
+// godzieva2 は v0.2 で tests/godzieva2-nana.* に移した
 // node tests/newmachines-1102.browser.mjs（11/2導入5機種の最小版） — headless Chrome / CDP。成果物は os.tmpdir() のみ。
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -10,7 +11,7 @@ const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const artifacts=fs.mkdtempSync(path.join(os.tmpdir(),'slot-newmachines-1102-'));
 const profile=fs.mkdtempSync(path.join(os.tmpdir(),'slot-newmachines-1102-profile-'));
 const chrome=process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe';
-const IDS=['ragnador','garo','ggo','godzieva2','vivy'];let KEY='',PAGE='';const errors=[],measures=[];
+const IDS=['ragnador','garo','ggo','vivy'];let KEY='',PAGE='';const errors=[],measures=[];
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
 const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.png':'image/png','.jpg':'image/jpeg','.webp':'image/webp'};
 const server=http.createServer((req,res)=>{

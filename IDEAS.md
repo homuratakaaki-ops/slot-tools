@@ -317,6 +317,11 @@ RB中のキャラ紹介が全15パターン判明し、エンディング中の�
 
 - [~] `vvv2-checker.html`＋`checker-data/vvv2.js`（保存キー `vvv2-checker-v1`）＋`vvv2-guide.html`。4タブ（入力／示唆／周期／カード）。周期タブは周期の到達pt・当否からモード確率・次の到達pt候補・参考%を出す「周期ナビ」。設定は1・2・4・5・6の5段階で設定推測（内蔵型）。仕様書は `docs/specs/vvv2-checker-v01.md`（骨格書 `docs/specs/vvv2-skeleton-v01.md`）。noindex・導線なしで main に置き、公開導線は夢爽承認後の別PR
 
+## Lパチスロ ゴジラ対エヴァンゲリオン2 なな様テンプレ対応（2026-11-01・ちょんぼりすた様 2026-11-01 照合）
+
+- [x] `checker-data/godzieva2.js` を nanaCollab:true にし、スイカからのCZ（通常時は目安 設1:21.9%⇔設6:31.3%・AT中は記録のみ）・規定ゲーム数（AT後／AT後以外×6）・ボーナス・AT終了画面10種・エンディング中ボイス5種を追加。4タブ（入力／示唆／参照／カード）、推測タブなし。仕様書は `docs/specs/godzieva2-checker-v02.md`、テンプレ原文の正本は `docs/specs/godzieva2-nana-template-v01.txt`（800バイト）。規定ゲーム数の行名は原文の150〜850Gを出典どおり100・250・400・550・700・850Gに変更（夢爽裁定・なな様へ事後報告）。「ボーナス▶︎ N回（1/x）」の行は夢爽確認待ちの暫定。検証は tests/godzieva2-nana.verify.mjs・.browser.mjs
+- [ ] noindex・導線なしのまま。なな様への事後報告、ボーナス行の確定、夢爽の実機確認
+
 
 ---
 

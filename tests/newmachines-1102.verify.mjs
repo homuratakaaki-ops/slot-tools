@@ -1,3 +1,4 @@
+// godzieva2 は v0.2 で tests/godzieva2-nana.* に移した
 // node tests/newmachines-1102.verify.mjs — 11/2導入5機種の最小版（指示書【作業②】2026-10-28）。
 // 目安値は指示書の値をここに直書きし（独立期待値）、仕様書の表・画面・参照タブの3か所と突き合わせる。
 import assert from 'node:assert/strict';
@@ -26,9 +27,6 @@ const EXPECTED={
   ggo:{title:'Lソードアート・オンライン オルタナティブ ガンゲイル・オンライン',url:'https://chonborista.com/slot/kyoraku-slot/267264/',
     counts:[['bonus','通常ボーナス初当り',[192.0,189.2,180.9,168.6,155.4,153.9]],['sj','SJ初当り',[521.7,510.4,486.6,445.3,405.0,392.6]]],
     hint:'SJ中の報酬ボーナスは通常初当りに数えない。'},
-  godzieva2:{title:'Lパチスロ ゴジラ対エヴァンゲリオン2',url:'https://chonborista.com/slot/bisty-slot/267113/',
-    counts:[['first','初当り',[234.2,229.0,221.8,207.0,201.5,195.0]],['at','AT',[460.5,446.5,425.5,390.4,374.2,355.5]]],
-    hint:'ボーナスのストック放出・上位移行・引戻しは初当りに数えない。'},
   vivy:{title:"スロット Vivy -Fluorite Eye's Song-",url:'https://chonborista.com/slot/daito-slot/268864/',
     counts:[['at','AT初当り',[276.5,251.7,272.1,222.8,235.9,210.3]]],
     target:{at:'設1:1/276.5⇔設6:1/210.3（設定順に並びません。参照タブ参照）'},
