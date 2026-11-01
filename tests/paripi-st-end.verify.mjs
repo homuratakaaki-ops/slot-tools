@@ -5,6 +5,8 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {execFileSync,spawnSync} from 'node:child_process';
+// 2026-11-02: allow only the specified orphan spacer insertion and engine cache query.
+const beforeOrphan=s=>s.replace("          // drawDetailCard の maxRows=20 に対応：左列最終行の見出しを右列へ送る。\n          if(rows.length===19)rows.push({type:'spacer',hot:false,value:0});\n",'').replace("        if(row.type==='spacer')return;\n",'').replaceAll('checker-engine.js?v=20261102-orphan','checker-engine.js?v=20260924');
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const read=p=>fs.readFileSync(path.join(root,p),'utf8');
 const baseline=p=>execFileSync('git',['-c','safe.directory='+root.replaceAll('\\','/'),'show','c914173:'+p],{encoding:'utf8'});
@@ -71,7 +73,7 @@ assert.deepEqual(clone(c.normalizeState(clone(invalid))),clone(invalid));assert.
 console.log('PASS percentages share known-key total; zero games; template omission/header; legacy/unknown/negative/idempotent state');
 const checker=read('paripi-checker.html'),style=s=>s.match(/<style>([\s\S]*?)<\/style>/)[1];
 assert.doesNotMatch(checker,/noindex/);assert.ok(checker.includes('href="paripi-guide.html">使い方</a>'));
-assert.ok(checker.includes('checker-data/paripi.js?v=20261026"'));assert.ok(checker.includes('checker-engine.js?v=20260924'));
+assert.ok(checker.includes('checker-data/paripi.js?v=20261026"'));assert.ok(checker.includes('checker-engine.js?v=20261102-orphan'));
 // mhsunbreak は BZ入口の手順3（PR #48）で自機種専用の1行を足した。その1行を除いて共有CSSの一致を見る。
 const mhOnly='.pick-row .pick-table-label,.pick-row .pick-result-label{display:inline-block;white-space:nowrap}\n';
 assert.equal(style(read('mhsunbreak-checker.html')).split(mhOnly).length-1,1);
@@ -116,7 +118,7 @@ for(const name of ['gameSection'])assert.equal(source.match(new RegExp('  functi
 // tenten.js は 10/21 のリールロック記録追加（tests/tenten-1021.verify.mjs で検証）で変更済み。
 // mogumogu.js は 10/21 のED中の巻物・CZ種別の内訳の追加（tests/mogumogu-1021.verify.mjs で検証）で変更済み。
 // tonski.js は 10/21 の333G到達時の女神の舞の記録追加（tests/tonski-1021.verify.mjs で検証）で変更済み。
-for(const p of ['checker-engine.js','checker-bayes.js',...fs.readdirSync(path.join(root,'checker-data')).filter(f=>f.endsWith('.js')&&!f.endsWith('-test.js')&&!['paripi.js','mhsunbreak.js','toaru2.js','kanokari.js','ricorico.js','garei_zero_re.js','mahoako.js','tenten.js','mogumogu.js','tonski.js','seiya12.js','ragnador.js','garo.js','ggo.js','godzieva2.js','vivy.js','vvv2.js'].includes(f)).map(f=>'checker-data/'+f)])assert.equal(read(p),baseline(p),p+' unchanged');
+for(const p of ['checker-engine.js','checker-bayes.js',...fs.readdirSync(path.join(root,'checker-data')).filter(f=>f.endsWith('.js')&&!f.endsWith('-test.js')&&!['paripi.js','mhsunbreak.js','toaru2.js','kanokari.js','ricorico.js','garei_zero_re.js','mahoako.js','tenten.js','mogumogu.js','tonski.js','seiya12.js','ragnador.js','garo.js','ggo.js','godzieva2.js','vivy.js','vvv2.js'].includes(f)).map(f=>'checker-data/'+f)])assert.equal(beforeOrphan(read(p)),baseline(p),p+' unchanged');
 for(const p of ['checker-data/paripi.js','paripi-checker.html','paripi-guide.html','checkers.html','sitemap.xml','index.html','docs/ARCHITECTURE.md','tests/paripi-st-end.verify.mjs','tests/new-1005-four-machines.test.mjs','tests/new-1005-public.verify.mjs','tests/new-1005-four-machines.browser.mjs'])assert.ok(!read(p).includes('\r'),p+' LF');
 console.log('PASS input HTML / blocks / chart bytes vs c914173; common files and all other machine data unchanged; LF');
 

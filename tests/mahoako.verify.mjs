@@ -140,7 +140,7 @@ check('HTML shell, source, public routes, guide, LF, syntax',()=>{
   assert.equal(c.sourceUrl,'https://chonborista.com/slot/newgin-slot/264698/');
   const html=read('mahoako-checker.html'),guide=read('mahoako-guide.html');
   assert.deepEqual([...html.matchAll(/<button data-p="\d"[^>]*>(.*?)<\/button>/g)].map(m=>m[1]),['入力','示唆','設定推測','参照','カード']);
-  for(const s of ['checker-engine.js?v=20260924','checker-bayes.js?v=20260827-2','checker-data/mahoako.js?v=20261019','CheckerEngine.mount(CheckerConfigs.mahoako);','mahoako-guide.html'])assert.ok(html.includes(s),s);
+  for(const s of ['checker-engine.js?v=20261102-orphan','checker-bayes.js?v=20260827-2','checker-data/mahoako.js?v=20261019','CheckerEngine.mount(CheckerConfigs.mahoako);','mahoako-guide.html'])assert.ok(html.includes(s),s);
   assert.equal(html.match(/<style>[\s\S]*?<\/style>/)[0],read('garei-zero-re-checker.html').match(/<style>[\s\S]*?<\/style>/)[0]);
   assert.equal(guide.match(/<style>[\s\S]*?<\/style>/)[0],read('garei-zero-re-guide.html').match(/<style>[\s\S]*?<\/style>/)[0]);
   const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'mahoako-syntax-'));

@@ -80,6 +80,6 @@ check('existing outputs unchanged except specified additions',()=>{
   assert.equal(c.template({S}),base.template({S}));for(const k of ['blocks','chart'])assert.deepEqual(clone(c.card[k]({S})),clone(base.card[k]({S})));
   const bot=clone(c.card.bottom({S}));bot.columns[1].items.pop();assert.deepEqual(bot,clone(base.card.bottom({S})));
   const d=clone(c.card.detail({S}));d.pop();d[0].items.splice(1,2);assert.deepEqual(d,clone(base.card.detail({S})));
-  const html=read('mogumogu-checker.html'),old=execFileSync('git',['show','4e98820:mogumogu-checker.html'],{encoding:'utf8'});assert.equal(html.match(/checker-engine.js\?v=[^"]+/)[0],old.match(/checker-engine.js\?v=[^"]+/)[0]);
+  const html=read('mogumogu-checker.html'),old=execFileSync('git',['show','4e98820:mogumogu-checker.html'],{encoding:'utf8'});assert.equal(html.match(/checker-engine.js\?v=[^"]+/)[0],old.match(/checker-engine.js\?v=[^"]+/)[0].replace('20260924','20261102-orphan'));
 });
 console.log(`PASS ${checks} verification groups`);

@@ -143,7 +143,7 @@ try{
     for(const s of ['1/190.5','通常G','4000G','確定演出','計4回','確定演出 ぬりかべ(6濃厚) ×1'])assert.ok(card.texts.some(t=>t.text.includes(s)),id+' '+s);
     for(const t of card.texts.filter(t=>t.y>=270&&t.y<=400&&t.x>=70))assert.ok(t.x+t.w<=1010,JSON.stringify(t));
     await click('#detailBtn');await pause(250);const detail=await canvas('detailCanvas',id+'-detail-card');assert.ok(!detail.texts.some(t=>/ほか \d+項目/.test(t.text)));for(const text of ['EDボイス','AT終了ボイス','CZ終了ボイス','イヅナ「よしっ！」 ×1 (13%)'])assert.ok(detail.texts.some(t=>t.text.includes(text)),text);
-    assert.equal(await run('return w.__checkerApp._detailRows().length;'),24);
+    assert.equal(await run('return w.__checkerApp._detailRows().length;'),25);
     for(const t of detail.texts.filter(t=>t.text.startsWith('• ')))assert.ok(t.x+t.w<=1010,JSON.stringify(t));
     assert.deepEqual(await run('return window.__errors;'),[]);
     await load(360,'/'+id+'-guide.html');assert.equal(await run('return d.documentElement.scrollWidth-d.documentElement.clientWidth;'),0);

@@ -133,7 +133,7 @@ for(const [id,E] of Object.entries(EXPECTED)){
     const html=read(id+'-checker.html');
     assert.deepEqual([...html.matchAll(/<button data-p="\d"[^>]*>(.*?)<\/button>/g)].map(m=>m[1]),['ragnador','garo'].includes(id)?['入力','示唆','参照','カード']:['入力','参照','カード']);
     assert.ok(html.includes('grid-template-columns:repeat('+(['ragnador','garo'].includes(id)?4:3)+',1fr)'));assert.ok(!html.includes('checker-bayes.js'));
-    for(const s of ['checker-engine.js?v=20260924',`checker-data/${id}.js?v=${id==='garo'?'20261102-garo':id==='ragnador'?'20261101-voice':'20261028-glog'}`,`CheckerEngine.mount(CheckerConfigs.${id});`,`${id}-guide.html`,`<div class="hd-title">${E.header||E.title}<small>`])assert.ok(html.includes(s),s);
+    for(const s of ['checker-engine.js?v=20261102-orphan',`checker-data/${id}.js?v=${id==='garo'?'20261102-garo':id==='ragnador'?'20261101-voice':'20261028-glog'}`,`CheckerEngine.mount(CheckerConfigs.${id});`,`${id}-guide.html`,`<div class="hd-title">${E.header||E.title}<small>`])assert.ok(html.includes(s),s);
     // 11/2 に5機種を公開（PR #83）。牙狼は示唆追加後にネネ検収合格（11/2）で戻した。
     const pub=true;
     if(!pub)for(const p of ['checkers.html','index.html','sitemap.xml'])assert.ok(!read(p).includes(id+'-checker')&&!read(p).includes(id+'-guide'),p+' に導線なし');

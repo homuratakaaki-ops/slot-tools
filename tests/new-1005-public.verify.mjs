@@ -3,6 +3,8 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
+// 2026-11-02: allow only the specified orphan spacer insertion and engine cache query.
+const beforeOrphan=s=>s.replace("          // drawDetailCard の maxRows=20 に対応：左列最終行の見出しを右列へ送る。\n          if(rows.length===19)rows.push({type:'spacer',hot:false,value:0});\n",'').replace("        if(row.type==='spacer')return;\n",'').replaceAll('checker-engine.js?v=20261102-orphan','checker-engine.js?v=20260924');
 const root=new URL('../',import.meta.url);
 const read=p=>fs.readFileSync(new URL(p,root),'utf8');
 const baseline=p=>execFileSync('git',['-c','safe.directory='+decodeURIComponent(root.pathname).replace(/^\//,''),'show',(process.env.RELEASE_BASE||'abbe054')+':'+p],{encoding:'utf8'});
@@ -123,6 +125,6 @@ const approvedData={
 };
 for(const file of ['checker-engine.js','checker-bayes.js',...fs.readdirSync(new URL('checker-data/',root)).filter(f=>f.endsWith('.js')&&!['mhsunbreak.js','magireco.js','tenten.js','takoslot.js','paripi.js','toaru2.js','kanokari.js','ricorico.js','garei_zero_re.js','mahoako.js','seiya12.js','ragnador.js','garo.js','ggo.js','godzieva2.js','vivy.js','vvv2.js'].includes(f)).map(f=>'checker-data/'+f)]){
   const expected=approvedData[file]?execFileSync('git',['show',approvedData[file]+':'+file],{encoding:'utf8'}):hitBaseline(file);
-  bytes(read(file),expected);
+  bytes(beforeOrphan(read(file)),expected);
 }
 console.log('PASS both common files and every other machine data file: #76/#77 approved heads exact, others vs 74f8e03; MH golden validated above');

@@ -6,6 +6,8 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import {execFileSync} from 'node:child_process';
 
+// 2026-11-02: allow only the specified orphan spacer insertion and engine cache query.
+const beforeOrphan=s=>s.replace("          // drawDetailCard の maxRows=20 に対応：左列最終行の見出しを右列へ送る。\n          if(rows.length===19)rows.push({type:'spacer',hot:false,value:0});\n",'').replace("        if(row.type==='spacer')return;\n",'').replaceAll('checker-engine.js?v=20261102-orphan','checker-engine.js?v=20260924');
 const root=new URL('../',import.meta.url);
 const clone=v=>JSON.parse(JSON.stringify(v));
 const BASE='3fd3f65';   // 改修前の main（PR #78 のマージ）
@@ -195,7 +197,7 @@ test('猛焔一閃直撃のhint・参照クエリ',()=>{
 });
 
 test('共通ファイルは変更しない',()=>{
-  assert.equal(fs.readFileSync(new URL('checker-engine.js',root),'utf8'),show(BASE+':checker-engine.js'));
+  assert.equal(beforeOrphan(fs.readFileSync(new URL('checker-engine.js',root),'utf8')),show(BASE+':checker-engine.js'));
 });
 
 console.log(`PASS mhsunbreak setting diff: ${checks} checks`);

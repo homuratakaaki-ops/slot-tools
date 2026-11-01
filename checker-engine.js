@@ -800,6 +800,8 @@ nav button{min-height:44px}
         const rows=[];
         prepared.forEach(sec=>{
           if(sec.items.length===1){rows.push({type:'inline',title:sec.title,item:sec.items[0],hot:!!sec.items[0].hot,value:sec.items[0]._value});return;}
+          // drawDetailCard の maxRows=20 に対応：左列最終行の見出しを右列へ送る。
+          if(rows.length===19)rows.push({type:'spacer',hot:false,value:0});
           rows.push({type:'section',title:sec.title,hot:false,value:0});
           sec.items.forEach(item=>rows.push({type:'item',item,hot:!!item.hot,value:item._value}));
         });
@@ -861,6 +863,7 @@ nav button{min-height:44px}
       x.strokeStyle='#2c2340';x.lineWidth=2;x.beginPath();x.moveTo(70,306+extra);x.lineTo(1010,306+extra);x.stroke();
       const colX=[70,560],maxRows=20,rowGap=30,startY=338+extra;
       rows.forEach((row,i)=>{
+        if(row.type==='spacer')return;
         const col=Math.floor(i/maxRows),slot=i%maxRows,x0=colX[col]||colX[1],y=startY+slot*rowGap;
         if(row.type==='section'){
           x.fillStyle='#ff3d8f';x.font="800 22px 'M PLUS 1p'";x.fillText(row.title,x0,y);return;

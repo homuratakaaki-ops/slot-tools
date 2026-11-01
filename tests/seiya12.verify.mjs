@@ -161,7 +161,7 @@ check('HTML: 公開（index可・checkers.html／sitemap 掲載）・推測タ�
   const html=read('seiya12-checker.html');
   assert.deepEqual([...html.matchAll(/<button data-p="\d"[^>]*>(.*?)<\/button>/g)].map(m=>m[1]),['入力','示唆','参照','カード']);
   assert.ok(!html.includes('checker-bayes.js'));
-  for(const s of ['checker-engine.js?v=20260924','checker-data/seiya12.js?v=20261102-seiya','CheckerEngine.mount(CheckerConfigs.seiya12);','seiya12-guide.html'])assert.ok(html.includes(s),s);
+  for(const s of ['checker-engine.js?v=20261102-orphan','checker-data/seiya12.js?v=20261102-seiya','CheckerEngine.mount(CheckerConfigs.seiya12);','seiya12-guide.html'])assert.ok(html.includes(s),s);
   assert.equal(html.match(/<style>[\s\S]*?<\/style>/)[0],read('paripi-checker.html').match(/<style>[\s\S]*?<\/style>/)[0],'4タブのスタイル');
   // 11/2 公開（PR #83）。導線なしの固定を公開状態の検査に置き換えた。
   {const id='seiya12';const list=read('checkers.html').split('<div class="section-label">スマスロ・AT機</div>')[1];assert.ok(list.includes(`<a class="checker-main" href="${id}-checker.html">`)&&list.includes(`<a class="checker-guide" href="${id}-guide.html">使い方</a>`),'checkers.html に掲載');
