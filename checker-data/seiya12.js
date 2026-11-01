@@ -16,7 +16,7 @@
   ];
   const TROPHY=[
     ['bronze','銅','設定2以上濃厚',2],['silver','銀','設定3以上濃厚',3],['gold','金','設定4以上濃厚',4],
-    ['clown','クマノミ柄','設定5以上濃厚',5],['rainbow','虹','設定6濃厚',6],['unknown','色不明','',0]
+    ['clown','クマノミ柄','設定5以上濃厚',5],['rainbow','虹','設定6濃厚',6]
   ];
   const AT_END=[
     ['none','キャラなし','デフォルト',0],
@@ -26,14 +26,13 @@
     ['bronze5','青銅5人（正面に一輝）','高設定 期待度UP（強）',0],
     ['marin','魔鈴＆シャイナ','設定4以上濃厚',4],
     ['saori','沙織','設定6濃厚',6],
-    ['ikki','一輝','復活濃厚（設定示唆ではない）',0],
-    ['unknown','不明','割合の母数に入れない',0]
+    ['ikki','一輝','復活濃厚（設定示唆ではない）',0]
   ];
   const ER_FIRST=[
-    ['shaka','シャカ','高設定 期待度UP',0],['gemini','ジェミニ','設定4以上濃厚',4],['unknown','不明','',0]
+    ['shaka','シャカ','高設定 期待度UP',0],['gemini','ジェミニ','設定4以上濃厚',4]
   ];
   const ER_SECOND=[
-    ['mu','ムウ','高設定 期待度UP',0],['aiolos','アイオロス','高設定 期待度UP（強）',0],['unknown','不明','',0]
+    ['mu','ムウ','高設定 期待度UP',0],['aiolos','アイオロス','高設定 期待度UP（強）',0]
   ];
   const CARD=[
     ['harisenbon','ハリセンボン座','設定2以上濃厚',2],['same','サメ座','設定4以上濃厚',4],
@@ -49,14 +48,14 @@
   };
   const HINTS={
     games:'当選するたびに、その当選までのG数（ホールのデータカウンターの当選G、または台メニューのAT間G）を入力して追加します。合計が設定推定の分母になります。今まわしている未当選区間のG数は分母に含めません。',
-    cz:'通常CZ（フーアーユー・影ノ襲来）を突入のたびに1回押します。種別が分からなければ「通常CZ（種別不明）」。合計には種別不明も入り、種別の割合には入りません。上位CZ「最終決戦サガバトル」は数えません。',
+    cz:'通常CZ（フーアーユー・影ノ襲来）を突入のたびに1回押します。合計・種別の割合の母数はこの2種です。上位CZ「最終決戦サガバトル」は数えません。',
     at:'AT初当りは初当りだけを押します。セット継続・上位移行・千日戦争の引戻しは数えません。CZ成功からの自動加算はしません。',
     trophy:'黄金聖闘士バトル・千日戦争の継続バトル・サガバトル敗北時に出ることがあります。出現率はホール設定で変わるため、出ないことを低設定の根拠にしません。',
     atEnd:'AT・上位ATの終了時（黄金聖闘士バトル敗北後など）に出ます。一輝は復活の示唆で設定とは無関係です。',
     er:'エクストララウンド中の黄金聖闘士バトルに勝利したときに発生します。1人目・2人目をそれぞれ記録します。割合は出しません。',
     card:'通常時のカード演出で出る星座です。設定示唆のある4種だけ記録します。'
   };
-  const DEF={gameLog:[],games:0,counts:{czWho:0,czKage:0,czUnknown:0,at:0},
+  const DEF={gameLog:[],games:0,counts:{czWho:0,czKage:0,at:0},
     ...Object.fromEntries(Object.entries(GROUPS).map(([key,arr])=>[key,Object.fromEntries(arr.map(c=>[c[0],0]))])),img:null,iconChoice:null};
   function n(obj,key){return Number((obj||{})[key])||0;}
   // 分母＝当選ごとのG数の合計（§9-105）。今まわしている未当選区間は含めない。
@@ -65,11 +64,10 @@
   function freeText(S){return freeGames(S)+'G';}
   function logText(S){return freeText(S)+'（'+gameLog(S).length+'件）';}
   function oneIn(count,den){return den>0&&count>0?'1/'+(den/count).toFixed(1):'—';}
-  // 通常CZ合計は種別不明を含む。種別の割合の母数は種別が分かった2種だけ（値の出典はこの2関数）。
-  function czTotal(S){return n(S.counts,'czWho')+n(S.counts,'czKage')+n(S.counts,'czUnknown');}
-  function czKnown(S){return n(S.counts,'czWho')+n(S.counts,'czKage');}
-  function knownTotal(S,key){return GROUPS[key].filter(c=>c[0]!=='unknown').reduce((a,c)=>a+n(S[key],c[0]),0);}
-  // トロフィーは出現回数（色不明も出現として数える）。
+  // 通常CZ合計と種別の割合の母数は同じ2種。
+  function czTotal(S){return n(S.counts,'czWho')+n(S.counts,'czKage');}
+  function knownTotal(S,key){return GROUPS[key].reduce((a,c)=>a+n(S[key],c[0]),0);}
+  // トロフィーは5色の出現回数。
   function trophyTotal(S){return TROPHY.reduce((a,c)=>a+n(S.trophy,c[0]),0);}
   function hasPercent(key){return key==='atEnd';}
   function shortLabel(key,c){return (SHORT[key]||{})[c[0]]||c[1];}
@@ -95,19 +93,18 @@
   }
   function groupRows(ctx,key){
     const total=knownTotal(ctx.S,key);
-    return GROUPS[key].map(c=>ctx.crow(key+'.'+c[0],c[1],c[2],c[3],hasPercent(key)&&c[0]!=='unknown'?v=>ctx.pct(v,total):undefined)).join('');
+    return GROUPS[key].map(c=>ctx.crow(key+'.'+c[0],c[1],c[2],c[3],hasPercent(key)?v=>ctx.pct(v,total):undefined)).join('');
   }
   function groupSection(ctx,key){return `<section class="sec"><div class="sec-h">${TITLES[key]}</div><div class="cgrid">${groupRows(ctx,key)}</div><div class="hint">${HINTS[key]}</div></section>`;}
   function pageCounts(ctx){
-    const S=ctx.S,g=freeGames(S),log=gameLog(S),known=czKnown(S);
+    const S=ctx.S,g=freeGames(S),log=gameLog(S),known=czTotal(S);
     return pageStyle()+`<section class="sec">
       <div class="sec-h">当選ごとのG<span class="sub">累計通常G <b style="color:#6fd8ff" data-glog-sum>${g}G</b> ／ <span data-glog-count>${log.length}</span>件</span></div>
       <div class="inrow"><label>当選時のG数</label><input type="number" inputmode="numeric" id="gameLogIn" value="" placeholder="0"><button type="button" class="glog-btn" data-action="addGameLog" data-label="当選G追加">追加</button></div>
       <div class="glog-row"><span class="glog-last">${log.length?'最後に追加：'+log[log.length-1]+'G':'まだ登録がありません'}</span><button type="button" class="glog-btn" data-action="popGameLog" data-label="当選G取消" ${log.length?'':'disabled'}>最後の1件を取り消す</button></div>
       <div class="hint">${HINTS.games}</div>
     </section><section class="sec"><div class="sec-h">カウント系</div><div class="cgrid">
-      ${CZ_TYPES.map(c=>ctx.crow('counts.'+c[0],c[1],'種別の割合（種別不明を除く）',0,v=>ctx.pct(v,known))).join('')}
-      ${ctx.crow('counts.czUnknown','通常CZ（種別不明）','合計に入れ、種別の割合には入れない',0)}
+      ${CZ_TYPES.map(c=>ctx.crow('counts.'+c[0],c[1],'種別の割合',0,v=>ctx.pct(v,known))).join('')}
       <div class="crow total-row" data-total="cz"><div class="lbl"><div class="nm">通常CZ合計</div><div class="mn">設1:1/214.4⇔設6:1/200.3（設定差は小さい）</div></div><div class="num">${czTotal(S)}</div><div class="pct">${oneIn(czTotal(S),g)}</div></div>
       </div><div class="hint">${HINTS.cz}</div>
       <div class="cgrid" style="margin-top:6px">${ctx.crow('counts.at','AT初当り','設1:1/364.2⇔設6:1/310.5',0,v=>oneIn(v,g))}</div>
@@ -136,34 +133,32 @@
       REF_SECTIONS.map((sec,i)=>`<section class="sec" id="ref${i+1}"><div class="sec-h">${sec[0]}</div><table class="ref-table"><tbody>${sec[1].map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('')}</tbody></table></section>`).join('');
   }
   function tplText(ctx){
-    const S=ctx.S,g=freeGames(S),known=czKnown(S);
+    const S=ctx.S,g=freeGames(S),known=czTotal(S);
     let t=`設定判別メモ｜L聖闘士星矢 黄金十二宮\n累計通常G ${logText(S)} / 確定演出${strongCount(S)}回\n_______\n`;
     const lines=[];
     if(czTotal(S)>0)lines.push(`通常CZ合計▶${czTotal(S)}回（${oneIn(czTotal(S),g)}）`);
     CZ_TYPES.forEach(c=>{const v=n(S.counts,c[0]);if(v>0)lines.push(`${c[1]}▶${v}回${known>0?' ('+(100*v/known).toFixed(0)+'%)':''}`);});
-    if(n(S.counts,'czUnknown')>0)lines.push(`通常CZ（種別不明）▶${n(S.counts,'czUnknown')}回`);
     if(n(S.counts,'at')>0)lines.push(`AT初当り▶${n(S.counts,'at')}回（${oneIn(n(S.counts,'at'),g)}）`);
     t+=section('カウント系',lines);
     Object.entries(GROUPS).forEach(([key,arr])=>{
       const total=knownTotal(S,key);
-      t+=section(TITLES[key],arr.filter(c=>n(S[key],c[0])>0).map(c=>`${c[1]}▶${n(S[key],c[0])}回${hasPercent(key)&&c[0]!=='unknown'&&total>0?' ('+(100*n(S[key],c[0])/total).toFixed(0)+'%)':''}`));
+      t+=section(TITLES[key],arr.filter(c=>n(S[key],c[0])>0).map(c=>`${c[1]}▶${n(S[key],c[0])}回${hasPercent(key)&&total>0?' ('+(100*n(S[key],c[0])/total).toFixed(0)+'%)':''}`));
     });
     return t+'\nby slot-tools.jp\n解析出典:ちょんぼりすた様';
   }
   function detail(ctx){
-    const S=ctx.S,g=freeGames(S),known=czKnown(S);
+    const S=ctx.S,g=freeGames(S),known=czTotal(S);
     const item=(label,value,text)=>({label,value,hot:false,text,show:value>0});
     return [{title:'カウント系',items:[
       item('通常CZ合計',czTotal(S),'通常CZ合計 ×'+czTotal(S)+' '+oneIn(czTotal(S),g)),
       ...CZ_TYPES.map(c=>{const v=n(S.counts,c[0]);return item(c[1],v,c[1]+' ×'+v+(known>0?' ('+(100*v/known).toFixed(0)+'%)':''));}),
-      item('通常CZ不明',n(S.counts,'czUnknown'),'通常CZ 種別不明 ×'+n(S.counts,'czUnknown')),
       item('AT初当り',n(S.counts,'at'),'AT初当り ×'+n(S.counts,'at')+' '+oneIn(n(S.counts,'at'),g))
     ]},
     ...Object.entries(GROUPS).map(([key,arr])=>({title:DETAIL_TITLES[key],percent:hasPercent(key),...(hasPercent(key)?{denominator:knownTotal(S,key)}:{}),
-      items:arr.map(c=>({label:shortLabel(key,c),value:n(S[key],c[0]),hot:!!c[3],...(c[0]==='unknown'&&hasPercent(key)?{text:c[1]+' ×'+n(S[key],c[0]),show:n(S[key],c[0])>0}:{})}))}))];
+      items:arr.map(c=>({label:shortLabel(key,c),value:n(S[key],c[0]),hot:!!c[3]}))}))];
   }
   function summary(S,key,label,predicate){
-    const hits=GROUPS[key].filter(c=>c[0]!=='unknown'&&(!predicate||predicate(c))&&n(S[key],c[0])>0);
+    const hits=GROUPS[key].filter(c=>(!predicate||predicate(c))&&n(S[key],c[0])>0);
     return row(label+' '+(hits.map(c=>shortLabel(key,c)+'×'+n(S[key],c[0])).join('・')||'−'),hits.reduce((a,c)=>a+n(S[key],c[0]),0));
   }
   function normalizeState(out){
@@ -171,7 +166,8 @@
     out.games=integer(out.games);
     out.gameLog=Array.isArray(out.gameLog)?out.gameLog.map(integer).filter(v=>v>0):[];
     ['counts',...Object.keys(GROUPS)].forEach(key=>{
-      out[key]=Object.assign({},DEF[key],out[key]||{});
+      // 11/1・11/2 に削除した行の旧データの値・未知キーは、DEF のキーだけにそろえて捨てる。
+      out[key]=Object.fromEntries(Object.keys(DEF[key]).map(k=>[k,(out[key]||{})[k]??DEF[key][k]]));
       Object.keys(out[key]).forEach(k=>{out[key][k]=integer(out[key][k]);});
     });
     if(out.img===undefined)out.img=DEF.img;

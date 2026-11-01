@@ -7,13 +7,13 @@
   const TITLE="Lパチスロ ゴジラ対エヴァンゲリオン2";
   // [path の末尾, 行名, 設定別の分母, 目安, カード用の短名]
   const COUNTS=[
-    ["first","初当り",{1:234.2,2:229.0,3:221.8,4:207.0,5:201.5,6:195.0},"設1:1/234.2⇔設6:1/195.0","初当り"],
+    ["first","ボーナス初当り",{1:234.2,2:229.0,3:221.8,4:207.0,5:201.5,6:195.0},"設1:1/234.2⇔設6:1/195.0","ボーナス初当り"],
     ["at","AT",{1:460.5,2:446.5,3:425.5,4:390.4,5:374.2,6:355.5},"設1:1/460.5⇔設6:1/355.5","AT"]
   ];
   const PAYOUT={1:97.7,2:98.9,3:101.2,4:105.8,5:110.6,6:114.9};
   const HINTS={
     games:'当選するたびに、その当選までのG数（ホールのデータカウンターの当選G、または台メニューのAT間G）を入力して追加します。合計が設定推定の分母になります。今まわしている未当選区間のG数は分母に含めません。',
-    counts:"ボーナスのストック放出・上位移行・引戻しは初当りに数えない。"
+    counts:"ボーナスのストック放出・上位移行・引戻しはボーナス初当りに数えない。"
   };
   const REF_NOTES=['当ページの解析値は第三者の独自調査値です。'];
   const G_VALUES=[100,250,400,550,700,850];
@@ -115,7 +115,8 @@
   function detail(ctx){
     const S=ctx.S,g=freeGames(S);
     return [{title:'カウント系',items:COUNTS.map(c=>({label:c[1],value:n(S.counts,c[0]),hot:false,text:c[1]+' ×'+n(S.counts,c[0])+' '+oneIn(n(S.counts,c[0]),g),show:n(S.counts,c[0])>0}))},
-      ...[['スイカCZ','suika',SUIKA],['規定G','kitei',KITEI]].map(([title,group,rows])=>({title,items:rows.map(c=>({label:c[1].replace(' ',''),value:n(S[group],c[0]+'W'),hot:false,text:c[1].replace(' ','')+' '+n(S[group],c[0]+'W')+'/'+n(S[group],c[0]+'D'),show:n(S[group],c[0]+'D')>0}))})),
+      // 率の行は入力画面と同じ ratio() で「n/d xx%」（§9-47・ネネ検収 11/1）。分母0の行は％を省く（show:false で出さない）。
+      ...[['スイカCZ','suika',SUIKA],['規定G','kitei',KITEI]].map(([title,group,rows])=>({title,items:rows.map(c=>({label:c[1].replace(' ',''),value:n(S[group],c[0]+'W'),hot:false,text:c[1].replace(' ','')+' '+(n(S[group],c[0]+'D')>0?ratio(n(S[group],c[0]+'W'),n(S[group],c[0]+'D')):n(S[group],c[0]+'W')+'/0'),show:n(S[group],c[0]+'D')>0}))})),
       {title:'終了画面',items:END_SCREEN.map(c=>({label:c[3],value:n(S.endScreen,c[0]),hot:false})),percent:true,denominator:endTotal(S)},
       {title:'EDボイス',items:ED_VOICE.map(c=>({label:c[1],value:n(S.edVoice,c[0]),hot:false}))}
     ];

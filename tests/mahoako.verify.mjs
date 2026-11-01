@@ -130,7 +130,7 @@ check('normalize: missing/default/invalid/fractional/future/idempotent',()=>{
 });
 check('HTML shell, source, public routes, guide, LF, syntax',()=>{
   const list=read('checkers.html').split('<div class="section-label">スマスロ・AT機</div>')[1];
-  // 11/1 に5機種が先頭に入ったので先頭位置ではなく、掲載と並び（paripi より前）で見る。
+  // 11/1 に godzieva2 が先頭に入ったので先頭位置ではなく、掲載と並び（paripi より前）で見る。
   const order=[...list.matchAll(/class="checker-main" href="([^"]+)/g)].map(m=>m[1]);assert.ok(order.includes('mahoako-checker.html')&&order.indexOf('mahoako-checker.html')<order.indexOf('paripi-checker.html'));
   assert.ok(list.includes('<a class="checker-main" href="mahoako-checker.html">L 魔法少女にあこがれて</a><a class="checker-guide" href="mahoako-guide.html">使い方</a>'));
   for(const p of ['mahoako-checker.html','mahoako-guide.html'])assert.ok(read('sitemap.xml').includes('<loc>https://slot-tools.jp/'+p+'</loc>\n    <lastmod>2026-10-19</lastmod>'),p);
