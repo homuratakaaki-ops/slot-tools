@@ -115,7 +115,8 @@
   function detail(ctx){
     const S=ctx.S,g=freeGames(S);
     return [{title:'カウント系',items:COUNTS.map(c=>({label:c[1],value:n(S.counts,c[0]),hot:false,text:c[1]+' ×'+n(S.counts,c[0])+' '+oneIn(n(S.counts,c[0]),g),show:n(S.counts,c[0])>0}))},
-      ...[['スイカCZ','suika',SUIKA],['規定G','kitei',KITEI]].map(([title,group,rows])=>({title,items:rows.map(c=>({label:c[1].replace(' ',''),value:n(S[group],c[0]+'W'),hot:false,text:c[1].replace(' ','')+' '+n(S[group],c[0]+'W')+'/'+n(S[group],c[0]+'D'),show:n(S[group],c[0]+'D')>0}))})),
+      // 率の行は入力画面と同じ ratio() で「n/d xx%」（§9-47・ネネ検収 11/1）。分母0の行は％を省く（show:false で出さない）。
+      ...[['スイカCZ','suika',SUIKA],['規定G','kitei',KITEI]].map(([title,group,rows])=>({title,items:rows.map(c=>({label:c[1].replace(' ',''),value:n(S[group],c[0]+'W'),hot:false,text:c[1].replace(' ','')+' '+(n(S[group],c[0]+'D')>0?ratio(n(S[group],c[0]+'W'),n(S[group],c[0]+'D')):n(S[group],c[0]+'W')+'/0'),show:n(S[group],c[0]+'D')>0}))})),
       {title:'終了画面',items:END_SCREEN.map(c=>({label:c[3],value:n(S.endScreen,c[0]),hot:false})),percent:true,denominator:endTotal(S)},
       {title:'EDボイス',items:ED_VOICE.map(c=>({label:c[1],value:n(S.edVoice,c[0]),hot:false}))}
     ];

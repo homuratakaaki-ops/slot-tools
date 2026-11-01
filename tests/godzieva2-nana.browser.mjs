@@ -156,7 +156,7 @@ try{
     const card=await canvas('cardCanvas',id+'-summary-card');
     for(const s of ['1/190.5','通常G','4000G'])assert.ok(card.texts.some(t=>t.text.includes(s)),id+' '+s);
     for(const t of card.texts.filter(t=>t.y>=270&&t.y<=400&&t.x>=70))assert.ok(t.x+t.w<=1010,JSON.stringify(t));
-    await click('#detailBtn');await pause(250);const detail=await canvas('detailCanvas',id+'-detail-card');assert.ok(!detail.texts.some(t=>/ほか \d+項目/.test(t.text)));for(const text of ['スイカCZ','規定G','終了画面','EDボイス','シンジ(奇数) ×1 (10%)'])assert.ok(detail.texts.some(t=>t.text.includes(text)),text);
+    await click('#detailBtn');await pause(250);const detail=await canvas('detailCanvas',id+'-detail-card');assert.ok(!detail.texts.some(t=>/ほか \d+項目/.test(t.text)));assert.ok(detail.texts.some(t=>/AT後100G \d+\/[1-9]\d* \d+%/.test(t.text))&&detail.texts.some(t=>/通常時 \d+\/[1-9]\d* \d+%/.test(t.text)),'詳細カードの率の行に％（§9-47）');for(const text of ['スイカCZ','規定G','終了画面','EDボイス','シンジ(奇数) ×1 (10%)'])assert.ok(detail.texts.some(t=>t.text.includes(text)),text);
     assert.deepEqual(await run('return window.__errors;'),[]);
     await load(360,'/'+id+'-guide.html');assert.equal(await run('return d.documentElement.scrollWidth-d.documentElement.clientWidth;'),0);
     assert.deepEqual(await run('return window.__errors;'),[]);pass(id+' 360px 4 tabs overflow 0 / buttons >=44px / card PNG / guide');

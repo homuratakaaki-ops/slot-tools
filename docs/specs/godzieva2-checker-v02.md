@@ -37,7 +37,7 @@ v0.1（docs/specs/godzieva2-checker-v01.md）からの差分だけでなく、�
 ## 1. ファイル
 
 - `checker-data/godzieva2.js`（storageKey `'godzieva2-checker-v1'` のまま、uiV2:true、**nanaCollab:true**）
-- `godzieva2-checker.html`（noindex,nofollow。タブ4つ：**入力／示唆／参照／カード**。`checker-data/godzieva2.js?v=20261101-nana2`。v0.2.1 で nana2）
+- `godzieva2-checker.html`（noindex,nofollow。タブ4つ：**入力／示唆／参照／カード**。`checker-data/godzieva2.js?v=20261101-nana2`。v0.2.1 で nana2、v0.2.2 で nana3）
 - `godzieva2-guide.html`（noindex,nofollow）
 
 ## 2. 状態（defaults と mergeKeys）
@@ -156,8 +156,8 @@ engine の置換に任せる（`▶︎`→`→`、異体字セレクタの除去
 
 | セクション名 | 項目名（DETAIL_LABELS） | 表示 |
 |---|---|---|
-| スイカCZ | 通常時・AT中 | `通常時 3/12`（母数0は出さない） |
-| 規定G | AT後100G … AT後850G、AT後以外100G … AT後以外850G | `AT後以外100G 1/4`（母数0は出さない） |
+| スイカCZ | 通常時・AT中 | `通常時 3/12 25%`（v0.2.2：入力画面と同じ ratio() の％、§9-47。母数0は出さない） |
+| 規定G | AT後100G … AT後850G、AT後以外100G … AT後以外850G | `AT後以外100G 1/4 25%`（同上） |
 | 終了画面 | シンジ(奇数)・レイ(偶数)・マリ(高弱)・アスカ(高強)・モスラ・Xレイ・レイ背景・ゴジラ初号機・全員集合・カヲル | `シンジ(奇数) ×3 (25%)`（割合は終了画面の合計に対して） |
 | EDボイス | シンジ・アスカ・ミサト・ゲンドウ・カヲル | `ミサト ×1` |
 

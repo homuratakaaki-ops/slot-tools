@@ -102,12 +102,20 @@ check('詳細カード全項目36行・母数0非表示・終了画面割合',()
   assert.deepEqual(clone(sections[3].items.map(x=>x.label)),['シンジ(奇数)','レイ(偶数)','マリ(高弱)','アスカ(高強)','モスラ','Xレイ','レイ背景','ゴジラ初号機','全員集合','カヲル']);
   assert.equal(sections[3].percent,true);assert.equal(sections[3].denominator,10);assert.ok(!sections[4].percent);assert.ok(!sections[4].denominator);
   for(const sec of c.card.detail(ctx(fresh())).slice(1,3))assert.ok(sec.items.every(x=>x.show===false));
-  S.kitei.after100W=0;assert.equal(c.card.detail(ctx(S))[2].items[0].text,'AT後100G 0/1');assert.equal(c.card.detail(ctx(S))[2].items[0].show,true);
+  S.kitei.after100W=0;assert.equal(c.card.detail(ctx(S))[2].items[0].text,'AT後100G 0/1 0%');
+  // 詳細カードの率の行（スイカCZ・規定G の14行）は入力画面と同じ ratio() の％付き。分母0は％を付けない（§9-47・ネネ検収 11/1）
+  const R=fresh();R.suika.normalD=3;R.suika.normalW=2;R.kitei.other850D=8;R.kitei.other850W=1;
+  const rd=c.card.detail(ctx(R)),inp=c.pages(ctx(R),()=>'')[0]();
+  assert.equal(rd[1].items[0].text,'通常時 2/3 67%');assert.ok(inp.includes('<div class="pct">2/3 67%</div>'),'入力画面と同じ％');
+  assert.equal(rd[2].items[11].text,'AT後以外850G 1/8 13%');assert.ok(inp.includes('<div class="pct">1/8 13%</div>'));
+  for(const it of [...rd[1].items,...rd[2].items])if(it.show)assert.match(it.text,/ \d+\/[1-9]\d* \d+%$/);else assert.ok(!it.text.includes('%'),it.text);
+  assert.equal(rd[1].items[1].text,'AT中 0/0');assert.equal(rd[1].items[1].show,false);
+  for(const sec of rd.slice(3))for(const it of sec.items)assert.ok(!it.text||!it.text.includes('/'),'終了画面・EDは件数のみ');assert.equal(c.card.detail(ctx(S))[2].items[0].show,true);
 });
 check('HTML・ガイド・LF・後読みなし・構文・導線なし',()=>{
   assert.equal(c.storageKey,'godzieva2-checker-v1');assert.equal(c.uiV2,true);assert.equal(c.nanaCollab,true);assert.equal(c.pages(ctx(fresh()),()=>'').length,4);
   const html=read('godzieva2-checker.html'),guide=read('godzieva2-guide.html');assert.deepEqual([...html.matchAll(/<button data-p="\d"[^>]*>(.*?)<\/button>/g)].map(m=>m[1]),['入力','示唆','参照','カード']);
-  for(const text of ['grid-template-columns:repeat(4,1fr)','checker-data/godzieva2.js?v=20261101-nana2','checker-engine.js?v=20260924','← 機種選択','使い方','G-QCKV9H0DT1'])assert.ok(html.includes(text),text);
+  for(const text of ['grid-template-columns:repeat(4,1fr)','checker-data/godzieva2.js?v=20261101-nana3','checker-engine.js?v=20260924','← 機種選択','使い方','G-QCKV9H0DT1'])assert.ok(html.includes(text),text);
   assert.ok(!html.includes('checker-bayes.js'));
   for(const p of ['checkers.html','index.html','sitemap.xml'])assert.ok(!read(p).includes('godzieva2-checker')&&!read(p).includes('godzieva2-guide'));
   for(const text of ['スイカからのCZ','規定ゲーム数','ボーナス・AT終了画面','エンディング中ボイス','カードとテンプレ','テンプレのコピー','2026年11月1日','「入力」「示唆」「参照」「カード」'])assert.ok(guide.includes(text),text);
