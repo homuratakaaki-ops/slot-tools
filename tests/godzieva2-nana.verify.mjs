@@ -110,6 +110,7 @@ check('HTML・ガイド・LF・後読みなし・構文・導線なし',()=>{
   for(const text of ['grid-template-columns:repeat(4,1fr)','checker-data/godzieva2.js?v=20261101-nana2','checker-engine.js?v=20260924','← 機種選択','使い方','G-QCKV9H0DT1'])assert.ok(html.includes(text),text);
   assert.ok(!html.includes('checker-bayes.js'));
   for(const p of ['checkers.html','index.html','sitemap.xml'])assert.ok(!read(p).includes('godzieva2-checker')&&!read(p).includes('godzieva2-guide'));
+  for(const p of ['godzieva2-checker.html','godzieva2-guide.html'])assert.ok(read(p).includes('<meta name="robots" content="noindex,nofollow">'),p+' は noindex のまま（ネネ検収待ち）');
   for(const text of ['スイカからのCZ','規定ゲーム数','ボーナス・AT終了画面','エンディング中ボイス','カードとテンプレ','テンプレのコピー','2026年11月1日','「入力」「示唆」「参照」「カード」'])assert.ok(guide.includes(text),text);
   assert.ok(!guide.includes('設定示唆（終了画面・トロフィーなど）は出典で調査中'));
   const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'godzieva2-syntax-'));
