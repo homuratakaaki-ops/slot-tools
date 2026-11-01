@@ -14,6 +14,8 @@ fs.mkdirSync(artifacts,{recursive:true});
 const chrome=process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe';
 const profile=fs.mkdtempSync(path.join(os.tmpdir(),'slot-1005-profile-'));
 const results=[];
+// 1/x の検出は直前が数字でないときだけ（カードの日付 2026/11/2 の「11/2」を誤検出しない）。後読みは使わない。
+const RATE=/(?:^|\D)1\/\d/;
 const errors=[];
 const canceledRequests=new Map(),failedInterceptions=[],activeInterceptions=new Set();
 const visualFindings=[];
@@ -160,10 +162,10 @@ try{
     assert.equal(await frame(`return d.querySelector(${JSON.stringify(rateSelector)}).textContent.includes('現在');`),false);
     await tab(cardTab);await pause(120);
     let c=await canvas('cardCanvas');assert.ok(c.bright>1000&&c.opaque===c.width*c.height);
-    assert.ok(!c.text.some(t=>/1\/\d/.test(t.text)));
-    assert.ok(!/1\/\d/.test(await copy()));
+    assert.ok(!c.text.some(t=>RATE.test(t.text)));
+    assert.ok(!RATE.test(await copy()));
     saveCanvas(id+'-empty-games-card',c);
-    await click('#detailBtn');c=await canvas('detailCanvas');assert.ok(c.bright>1000);assert.ok(!c.text.some(t=>/1\/\d/.test(t.text)));
+    await click('#detailBtn');c=await canvas('detailCanvas');assert.ok(c.bright>1000);assert.ok(!c.text.some(t=>RATE.test(t.text)));
     pass(id+' blank-games measured-rate absent (input/card/detail/template)');
     await tab(0);await games(1000);await tab(cardTab);
     c=await canvas('cardCanvas');assert.ok(c.text.some(t=>t.text.includes('1/1000.0')));saveCanvas(id+'-card',c);
@@ -225,7 +227,7 @@ try{
     for(const canvasId of ['cardCanvas','detailCanvas']){
       if(canvasId==='detailCanvas')await click('#detailBtn');
       const c=await canvas(canvasId);assert.ok(c.bright>1000&&c.opaque===c.width*c.height);
-      assert.equal(c.text.some(t=>/1\/\d/.test(t.text)),!!rate);
+      assert.equal(c.text.some(t=>RATE.test(t.text)),!!rate);
       if(rate)assert.ok(c.text.some(t=>t.text.includes(rate)));
       assert.ok(c.text.some(t=>t.text.includes(sum+'G')),canvasId+' total games');
       if(count)assert.ok(c.text.some(t=>t.text.includes('AT初当り')&&t.text.includes(count+'回')),canvasId+' count');
@@ -304,7 +306,8 @@ try{
       assert.equal(await frame(`return d.querySelectorAll('a[href="juggler-record.html"],a[href="juggler-guide.html"]').length;`),0);
     }else{
       assert.ok((await frame(`return [...d.querySelectorAll('a[href="checkers.html"]')].map(e=>e.textContent);`)).includes('設定判別カウンター一覧'));
-      assert.equal(await frame(`return d.querySelector('a[href="checkers.html"]').closest('.tool-card').querySelector('h2').textContent;`),'設定判別カウンター（機種を選ぶ）');
+      // NEW欄にも checkers.html へのリンクがある（11/2 の5機種公開）ので、ツールカード内のリンクで見る。
+      assert.equal(await frame(`return d.querySelector('.tool-card a[href="checkers.html"]').closest('.tool-card').querySelector('h2').textContent;`),'設定判別カウンター（機種を選ぶ）');
       assert.equal(await frame(`return d.querySelector('a[href="juggler-record.html"]').closest('.tool-card').querySelector('h2').textContent;`),'ジャグラー実戦記録・設定推測');
       assert.equal(await frame(`return d.querySelectorAll('a[href="juggler-guide.html"]').length;`),1);
     }
@@ -910,8 +913,8 @@ try{
   await frame(`const e=d.querySelector('[data-number-key="gamesMysloStart"]');e.value='1500';e.dispatchEvent(new w.Event('change',{bubbles:true}));`);
   assert.ok(await frame(`return d.querySelector('.hint.warn').textContent.includes('現在が開始を下回っています');`));
   assert.ok(!await frame(`return d.querySelector('[data-c="counts.sc"]').textContent.includes('現在 1/');`));
-  await tab(1);assert.ok(!/1\/\d/.test(await copy()));assert.ok(!(await canvas('cardCanvas')).text.some(t=>/1\/\d/.test(t.text)));
-  await click('#detailBtn');assert.ok(!(await canvas('detailCanvas')).text.some(t=>/1\/\d/.test(t.text)));
+  await tab(1);assert.ok(!RATE.test(await copy()));assert.ok(!(await canvas('cardCanvas')).text.some(t=>RATE.test(t.text)));
+  await click('#detailBtn');assert.ok(!(await canvas('detailCanvas')).text.some(t=>RATE.test(t.text)));
   pass('juuou reversed pair warns and hides measured rates on all outputs');
   await tab(0);
   await frame(`const e=d.querySelector('[data-number-key="gamesMysloStart"]');e.value='1000';e.dispatchEvent(new w.Event('change',{bubbles:true}));`);
