@@ -112,17 +112,23 @@ check('詳細カード全項目36行・母数0非表示・終了画面割合',()
   assert.equal(rd[1].items[1].text,'AT中 0/0');assert.equal(rd[1].items[1].show,false);
   for(const sec of rd.slice(3))for(const it of sec.items)assert.ok(!it.text||!it.text.includes('/'),'終了画面・EDは件数のみ');assert.equal(c.card.detail(ctx(S))[2].items[0].show,true);
 });
-check('HTML・ガイド・LF・後読みなし・構文・導線なし',()=>{
+check('HTML・ガイド・LF・後読みなし・構文・公開（index可・checkers.html／sitemap／NEW欄）',()=>{
   assert.equal(c.storageKey,'godzieva2-checker-v1');assert.equal(c.uiV2,true);assert.equal(c.nanaCollab,true);assert.equal(c.pages(ctx(fresh()),()=>'').length,4);
   const html=read('godzieva2-checker.html'),guide=read('godzieva2-guide.html');assert.deepEqual([...html.matchAll(/<button data-p="\d"[^>]*>(.*?)<\/button>/g)].map(m=>m[1]),['入力','示唆','参照','カード']);
   for(const text of ['grid-template-columns:repeat(4,1fr)','checker-data/godzieva2.js?v=20261101-nana4','checker-engine.js?v=20260924','← 機種選択','使い方','G-QCKV9H0DT1'])assert.ok(html.includes(text),text);
   assert.ok(!html.includes('checker-bayes.js'));
-  for(const p of ['checkers.html','index.html','sitemap.xml'])assert.ok(!read(p).includes('godzieva2-checker')&&!read(p).includes('godzieva2-guide'));
+  // 11/1 公開（ネネ①②③・％再確認合格、360px 夢爽合格）。導線なしの固定を公開状態の検査に置き換えた。
+  const list=read('checkers.html').split('<div class="section-label">スマスロ・AT機</div>')[1];
+  assert.ok(list.includes('<a class="checker-main" href="godzieva2-checker.html">Lパチスロ ゴジラ対エヴァンゲリオン2</a><a class="checker-guide" href="godzieva2-guide.html">使い方</a>'),'checkers.html に掲載');
+  for(const k of ['checker','guide'])assert.ok(read('sitemap.xml').includes(`<loc>https://slot-tools.jp/godzieva2-${k}.html</loc>\n    <lastmod>2026-11-01</lastmod>`),'sitemap '+k);
+  const news=read('index.html').split('<div class="section-label">NEW</div>')[1].split('</section>')[0];
+  assert.ok(news.includes('<p>11/2｜<a href="godzieva2-checker.html">L ゴジラ対エヴァンゲリオン2 設定判別カウンターを公開（テンプレ：鈴白なな様）</a></p>'),'NEW欄');
+  assert.ok((news.match(/<p>/g)||[]).length<=8,'NEW欄は8行上限（§9-92）');
   for(const text of ['スイカからのCZ','規定ゲーム数','ボーナス・AT終了画面','エンディング中ボイス','カードとテンプレ','テンプレのコピー','2026年11月1日','「入力」「示唆」「参照」「カード」'])assert.ok(guide.includes(text),text);
   assert.ok(!guide.includes('設定示唆（終了画面・トロフィーなど）は出典で調査中'));
   const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'godzieva2-syntax-'));
   for(const p of ['godzieva2-checker.html','godzieva2-guide.html']){
-    const src=read(p);assert.ok(src.includes('<meta name="robots" content="noindex,nofollow">'));assert.ok(src.includes(`href="https://slot-tools.jp/${p}"`));assert.ok(!src.includes('\r'));
+    const src=read(p);assert.ok(!src.includes('name="robots"'),p+' robots 指定なし（index可）');assert.ok(src.includes(`href="https://slot-tools.jp/${p}"`));assert.ok(!src.includes('\r'));
     for(const [i,m] of [...src.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)].entries())if(!/\bsrc=/.test(m[1])){const f=path.join(tmp,p+i+'.mjs');fs.writeFileSync(f,m[2]);execFileSync(process.execPath,['--check',f]);}
   }
   const src=read('checker-data/godzieva2.js');assert.ok(!src.includes('\r'));assert.doesNotMatch(src,/\(\?<([=!])/);execFileSync(process.execPath,['--check',path.join(root,'checker-data/godzieva2.js')]);
