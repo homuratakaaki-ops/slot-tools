@@ -12,7 +12,9 @@ const read=p=>fs.readFileSync(path.join(root,p),'utf8'),clone=x=>JSON.parse(JSON
 const git=(...args)=>execFileSync('git',args,{cwd:root,encoding:'utf8'});
 function config(src,key){const box={window:{}};vm.runInNewContext(src,box);return box.window.CheckerConfigs[key];}
 const c=config(read('checker-data/godzieva2-test.js'),'godzieva2-test');
-const production=config(git('show','origin/main:checker-data/godzieva2.js'),'godzieva2');
+// 基点は反映前の main（0c6162e）。origin/main は進むので比較に使わない。
+const BASE='0c6162e';
+const production=config(git('show',BASE+':checker-data/godzieva2.js'),'godzieva2');
 const fresh=()=>c.normalizeState(clone(c.defaults));
 const ctx=S=>({S,mode:1,nanaCreditText:()=> 'ﾃﾝﾌﾟﾚ:鈴白なな様 @nana_szsr',pct:(v,d)=>`${v}/${d}`,crow:(key,label,sub,hot)=>`<div data-c="${key}" data-hot="${!!hot}">${label} ${sub}</div>`});
 let checks=0;function check(name,fn){fn();checks++;console.log('PASS '+name);}
@@ -87,9 +89,9 @@ check('HTML差分限定・本番全追跡ファイル不変・導線なし',()=>
   assert.ok(html.includes(banner));assert.ok(html.includes('<meta name="robots" content="noindex,nofollow">'));
   html=html.replace('<meta name="robots" content="noindex,nofollow">\n','').replaceAll('【テスト版】','').replaceAll('https://slot-tools.jp/godzieva2-test-checker.html','https://slot-tools.jp/godzieva2-checker.html').replace(banner+'\n','').replace('checker-data/godzieva2-test.js?v=20261102-test','checker-data/godzieva2.js?v=20261101-nana4').replace('CheckerConfigs["godzieva2-test"]','CheckerConfigs.godzieva2');assert.equal(html,read('godzieva2-checker.html'));
   assert.equal(c.storageKey,'godzieva2-checker-v1-test');
-  const allowed=new Set(['tests/magireco-remove-estimate.verify.mjs','tests/mhsunbreak-bz-groups.verify.mjs','tests/mhsunbreak-template-v02.verify.mjs','tests/new-1005-public.verify.mjs']);
-  assert.deepEqual(git('diff','--name-only','origin/main','--').trim().split('\n').filter(Boolean).filter(p=>!allowed.has(p)),[]);
-  for(const p of ['godzieva2-checker.html','godzieva2-guide.html','checker-data/godzieva2.js','index.html','sitemap.xml','checker-engine.js'])assert.equal(read(p),git('show','origin/main:'+p));
+  const allowed=new Set(['checker-data/godzieva2-test.js','docs/specs/godzieva2-checker-v03.md','docs/specs/godzieva2-nana-template-v02.txt','godzieva2-test-checker.html','tests/godzieva2-v02-test.browser.mjs','tests/godzieva2-v02-test.verify.mjs','tests/wording-noukou.verify.mjs','tests/magireco-remove-estimate.verify.mjs','tests/mhsunbreak-bz-groups.verify.mjs','tests/mhsunbreak-template-v02.verify.mjs','tests/new-1005-public.verify.mjs']);
+  assert.deepEqual(git('diff','--name-only',BASE,'--').trim().split('\n').filter(Boolean).filter(p=>!allowed.has(p)),[]);
+  for(const p of ['godzieva2-checker.html','godzieva2-guide.html','checker-data/godzieva2.js','index.html','sitemap.xml','checker-engine.js'])assert.equal(read(p),git('show',BASE+':'+p));
   for(const p of ['index.html','checkers.html','sitemap.xml'])assert.ok(!read(p).includes('godzieva2-test'));
 });
 check('構文・LF・後読みなし',()=>{

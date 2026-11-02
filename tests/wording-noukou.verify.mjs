@@ -11,6 +11,8 @@ const files=execFileSync('git',['-c','safe.directory='+root.replace(/[\\/]$/,'')
 const allowed=[
   ['aobuta-guide.html','当選が確定する成立役は判別材料にならないため'],
   ['checker-data/aobuta.js','当選が確定する小役は判別材料にならないため'],
+  // 夢爽指示の hint 原文（2026-11-02、§9-108 テスト版）。当選確定の欄の説明で、設定確定の意味ではない。
+  ['checker-data/godzieva2-test.js','当選が確定する欄は回数だけを数えます'],
   ['juggler-guide.html','設定6であることが確定したという意味ではありません'],
   ['tokyo-ghoul-guide.html','1キャラごとに示唆が確定しています'],
   ['tokyo-ghoul-guide.html','示唆内容が確定していないパターンは収録していません']
