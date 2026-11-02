@@ -106,6 +106,7 @@
       .glog-btn{flex:none;min-height:44px;padding:0 14px;border-radius:9px;border:1px solid var(--line);background:var(--panel2);color:var(--cyan);font-family:var(--body);font-size:12px;font-weight:800}.glog-btn:disabled{opacity:.4}
       .glog-row{display:flex;align-items:center;gap:8px;margin-top:6px}.glog-last{flex:1;font-size:11px;color:var(--muted)}
       .cycle-row .ct{flex:1;min-width:0}
+      .hint.warn{color:#ff9b9b}
       .cycle-row .ct b{font-size:16px}.cycle-row .ct b,.cycle-row .ct small{display:block}.cycle-row .ct small{font-size:13px;color:var(--muted);line-height:1.35}
       .cycle-row .pct{min-width:78px;text-align:right;color:var(--cyan);font-family:var(--seg);font-size:11px;white-space:nowrap}
       .cycle-actions{display:flex;gap:6px;margin-left:4px;flex:none}.cycle-btn{height:44px;min-width:54px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;font-weight:900;font-size:12px;padding:0 8px;white-space:nowrap;writing-mode:horizontal-tb;line-height:1;display:flex;align-items:center;justify-content:center}.cycle-btn.win{color:var(--gold)}.minus .cycle-btn{border-color:rgba(255,91,91,.55);color:#ff9b9b}
@@ -124,8 +125,10 @@
       </div>
     </div>`;
   }
+  // EX の回数は保存値のまま（当選回数に切り詰めない）。当選回数を超えたらセクションに注意文だけ出す（ネネ検収 P2、11/2）。
+  function exOver(S){return ['weak','chance'].some(k=>n(S.access,k+'Ex')>n(S.access,k+'W'));}
   function recordInputs(ctx){
-    return RECORDS.map(([key,title,,rows,hint])=>`<section class="sec"><div class="sec-h">${title}${key==='cycle'?'<span class="sub">Ａ2~6・Ｂ2.3・天国1周期</span>':''}</div><div class="cgrid">${rows.map(([k,label,rate])=>rate?rateRow(ctx,key,k+'D',k+'W',label,'',key==='cont'?'EX昇格':'当選',key==='cont'?'昇格なし':'ハズレ'):ctx.crow(key+'.'+k,label,'',false)).join('')}</div><div class="hint"><details class="hint-fold"><summary>説明を見る</summary><div class="hint-body">${hint}</div></details></div></section>`).join('');
+    return RECORDS.map(([key,title,,rows,hint])=>`<section class="sec"><div class="sec-h">${title}${key==='cycle'?'<span class="sub">Ａ2~6・Ｂ2.3・天国1周期</span>':''}</div><div class="cgrid">${rows.map(([k,label,rate])=>rate?rateRow(ctx,key,k+'D',k+'W',label,'',key==='cont'?'EX昇格':'当選',key==='cont'?'昇格なし':'ハズレ'):ctx.crow(key+'.'+k,label,'',false)).join('')}</div>${key==='access'&&exOver(ctx.S)?'<div class="hint warn" data-fold="no">EXの回数がアクセスチャンス当選の回数を超えています。</div>':''}<div class="hint"><details class="hint-fold"><summary>説明を見る</summary><div class="hint-body">${hint}</div></details></div></section>`).join('');
   }
   function pageCounts(ctx){
     const S=ctx.S,g=freeGames(S),log=gameLog(S);
@@ -161,22 +164,25 @@
       ...RECORDS.map(([key,,title,rows])=>({title,items:rows.map(([k,label,rate])=>{const value=n(S[key],k+(rate?'W':'')),d=n(S[key],k+'D');return {label,value,hot:false,text:label+(rate?' '+ratio(value,d):' ×'+value),show:rate?d>0:value>0};})})),
       ...Object.entries(GROUPS).map(([key,arr])=>({title:DETAIL_TITLES[key],percent:PERCENT_GROUPS.includes(key),denominator:PERCENT_GROUPS.includes(key)?groupTotal(S,key):undefined,items:arr.map(c=>({label:c[1],value:n(S[key],c[0]),hot:c[3]>0}))}))];
   }
-  function normalizeState(out){
+  function normalizeState(out,src){
     const integer=v=>Number.isFinite(Number(v))?Math.max(0,Math.floor(Number(v))):0;
     if(out.schemaVersion===undefined)out.schemaVersion=DEF.schemaVersion;
     out.games=integer(out.games);
     out.gameLog=Array.isArray(out.gameLog)?out.gameLog.map(integer).filter(v=>v>0):[];
     MERGE_KEYS.forEach(key=>{
-      // §9-108-4：知っている項目は検証（非負整数）、知らない項目は捨てずに保持。新しい項目は0で足す。
+      // §9-108-4：知っている項目だけ検証（非負整数）、知らない項目はトップレベル・グループ内とも型ごと一切変えずに保持。新しい項目は0で足す。
       out[key]=Object.assign({},DEF[key],out[key]||{});
-      Object.keys(out[key]).forEach(k=>{out[key][k]=integer(out[key][k]);});
+      Object.keys(DEF[key]).forEach(k=>{out[key][k]=integer(out[key][k]);});
     });
     RECORDS.forEach(([key,,,rows])=>rows.filter(c=>c[2]).forEach(([k])=>{if(out[key][k+'W']>out[key][k+'D'])out[key][k+'D']=out[key][k+'W'];}));
-    ['weak','chance'].forEach(k=>{out.access[k+'Ex']=Math.min(out.access[k+'Ex'],out.access[k+'W']);});
     // 前回555pt選択の 444/555pt は外した（テスト版のみの項目のため移行せず捨てる）。
     delete out.pt555.p444;delete out.pt555.p555;
     if(out.img===undefined)out.img=DEF.img;
     if(out.iconChoice===undefined)out.iconChoice=DEF.iconChoice;
+    // nanaCollab 化する前の保存データ（iconChoice が default／未設定）は、1回だけなな様アイコンにする。以後はユーザーの選択に従う（§9-89、ネネ検収 P3）。
+    const raw=src&&typeof src==='object'?src:out;
+    if(!raw.nanaIconInit&&(raw.iconChoice==='default'||!raw.iconChoice))out.iconChoice='nana';
+    out.nanaIconInit=true;
     return out;
   }
   // 当選G数の追加・最後の1件の取消。入力欄は data-number-key を付けない（blur で再描画されて押下が消えないように）。

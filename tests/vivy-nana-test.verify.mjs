@@ -64,10 +64,10 @@ check('本番保存互換・未知キー・冪等',()=>{
  for(const g of ['cycle','pt','pt555','access','cont']){assert.ok(Object.values(S[g]).every(v=>v===0));S[g].future=9;}
  assert.equal(S.schemaVersion,1);assert.deepEqual(clone(c.normalizeState(clone(S))),clone(S));S.schemaVersion=99;assert.equal(c.normalizeState(S).schemaVersion,99);
 });
-check('W>D・EX>W・不正値補正・冪等',()=>{
+check('W>D・EX保持・不正値補正・冪等',()=>{
  for(const [g,keys] of [['cycle',cycles],['access',['weak','chance']],['cont',['k1','k2']]])for(const k of keys){
  const S=fresh();S[g][k+'D']=2;S[g][k+'W']=5;if(g==='access')S[g][k+'Ex']=9;
- c.normalizeState(S);assert.equal(S[g][k+'D'],5);assert.equal(S[g][k+'W'],5);if(g==='access')assert.equal(S[g][k+'Ex'],5);
+ c.normalizeState(S);assert.equal(S[g][k+'D'],5);assert.equal(S[g][k+'W'],5);if(g==='access')assert.equal(S[g][k+'Ex'],9,'EXは当選回数に切り詰めない（ネネ検収 P2）');
  assert.deepEqual(clone(c.normalizeState(clone(S))),clone(S));}
  for(const g of c.mergeKeys)for(const k of Object.keys(c.defaults[g]))for(const bad of [-1,null,'bad',Infinity]){const S=fresh();S[g][k]=bad;c.normalizeState(S);assert.equal(S[g][k],0);}
 });
@@ -83,7 +83,7 @@ check('詳細カード・率書式・23全角字・確定演出本番一致',()=
 check('HTML差分限定・本番全追跡ファイル不変・導線なし',()=>{
   let html=read('vivy-test-checker.html');const banner=git('show','65de568:ggo-test-checker.html').split('\n').find(l=>l.includes('テスト版です。'));
   assert.ok(html.includes(banner));assert.ok(html.includes('<meta name="robots" content="noindex,nofollow">'));
-  html=html.replace('<meta name="robots" content="noindex,nofollow">\n','').replaceAll('【テスト版】','').replaceAll('https://slot-tools.jp/vivy-test-checker.html','https://slot-tools.jp/vivy-checker.html').replace(banner+'\n','').replace('checker-data/vivy-test.js?v=20261102-nana-test2','checker-data/vivy.js?v=20261102-suggest').replace('CheckerConfigs["vivy-test"]','CheckerConfigs.vivy');assert.equal(html,read('vivy-checker.html'));
+  html=html.replace('<meta name="robots" content="noindex,nofollow">\n','').replaceAll('【テスト版】','').replaceAll('https://slot-tools.jp/vivy-test-checker.html','https://slot-tools.jp/vivy-checker.html').replace(banner+'\n','').replace('checker-data/vivy-test.js?v=20261102-nana-test3','checker-data/vivy.js?v=20261102-suggest').replace('CheckerConfigs["vivy-test"]','CheckerConfigs.vivy');assert.equal(html,read('vivy-checker.html'));
   assert.equal(c.storageKey,'vivy-checker-v1-test');
   const allowed=new Set(['checker-data/vivy-test.js','vivy-test-checker.html','docs/specs/vivy-checker-v03.md','tests/vivy-nana-test.verify.mjs','tests/vivy-nana-test.browser.mjs','docs/specs/vivy-nana-template-v01.txt','tests/ggovivy-suggest.verify.mjs','tests/godzieva2-v02-test.verify.mjs']);
   // PR #85（エンジンの見出し取り残し修正）の engine 本体・IDEAS.md・tests/・各 HTML の engine ?v は対象外。
@@ -105,5 +105,39 @@ check('前回555pt選択は111〜333ptの3行・444/555ptは読み込み時に�
  assert.deepEqual(clone(out.pt555),{p111:1,p222:2,p333:3,future:6});assert.deepEqual(clone(c.normalizeState(clone(out))),clone(out));
  const input=c.pages(ctx(out),()=>'')[0]();for(const p of [111,222,333])assert.ok(input.includes('data-c="pt555.p'+p+'"'));for(const p of [444,555])assert.ok(!input.includes('data-c="pt555.p'+p+'"'));
  const sec=c.card.detail(ctx(out)).find(x=>x.title==='前回555後pt');assert.deepEqual(clone(sec.items.map(i=>i.label)),['111pt','222pt','333pt']);
+});
+// ネネ検収（d279952）P2：EX は再読込で減らさない。当選回数を超えたらセクションに注意文（入力は止めない）。
+check('EX＞当選でも保存値のまま・注意文を表示・入力は止めない',()=>{
+  const warn='EXの回数がアクセスチャンス当選の回数を超えています。';
+  const S=fresh();Object.assign(S.access,{weakD:3,weakW:1,weakEx:4,chanceD:2,chanceW:2,chanceEx:1});
+  const out=c.normalizeState(clone(S),clone(S));assert.equal(out.access.weakEx,4);assert.equal(out.access.chanceEx,1);
+  assert.deepEqual(clone(c.normalizeState(clone(out),clone(out)).access),clone(out.access),'再読込で減らない');
+  const input=c.pages(ctx(out),()=>'')[0]();assert.equal(input.split(warn).length-1,1);
+  const access=input.split('レア役からのアクセスチャンス(EX)')[1].split('</section>')[0];assert.ok(access.includes(warn),'アクセスチャンスのセクションに出る');
+  assert.ok(input.includes('data-c="access.weakEx"'),'入力は止めない');
+  for(const k of ['weak','chance']){const T=fresh();T.access[k+'Ex']=T.access[k+'W']=2;T.access[k+'D']=3;assert.ok(!c.pages(ctx(T),()=>'')[0]().includes(warn),k+' EX=当選なら出ない');}
+  assert.ok(!c.pages(ctx(fresh()),()=>'')[0]().includes(warn));
+});
+// ネネ検収 P2：§9-108-4 どおり、知っている項目だけ検証し、未知キーはトップレベル・グループ内とも型ごと一切変えずに保持（ゴジエヴァ2と同じ観点）。
+check('未知キーをトップレベル・グループ内とも型ごと保持（§9-108-4）',()=>{
+  const unknown={str:'keep',num:2.5,neg:-3,bool:false,nul:null,arr:[1,'a',{x:1}],obj:{deep:{v:'x'}}};
+  const S=clone(c.defaults);
+  Object.assign(S,{futureRoot:clone(unknown),futureStr:'root',futureNum:-1.5});
+  for(const g of c.mergeKeys)Object.assign(S[g],clone(unknown));
+  S.counts.at='4';S.cycle.c1D=-2;S.access.weakD=1.9;
+  const out=c.normalizeState(clone(S),clone(S));
+  assert.deepEqual(clone(out.futureRoot),unknown);assert.equal(out.futureStr,'root');assert.equal(out.futureNum,-1.5);
+  for(const g of c.mergeKeys)for(const [k,v] of Object.entries(unknown))assert.deepEqual(clone(out[g][k]),v,g+'.'+k);
+  assert.equal(out.counts.at,4);assert.equal(out.cycle.c1D,0);assert.equal(out.access.weakD,1);
+  assert.deepEqual(clone(c.normalizeState(clone(out),clone(out))),clone(out),'冪等');
+});
+// ネネ検収 P3：nanaCollab にする前の保存データ（iconChoice が default／未設定、nanaIconInit なし）は1回だけなな様にする。以後はユーザーの選択（§9-89）。
+check('旧データのアイコンは1回だけなな様・以後はユーザーの選択',()=>{
+  for(const iconChoice of ['default',undefined,null,'']){
+    const old=clone(c.defaults);delete old.nanaIconInit;if(iconChoice===undefined)delete old.iconChoice;else old.iconChoice=iconChoice;
+    const out=c.normalizeState(clone(old),clone(old));assert.equal(out.iconChoice,'nana',String(iconChoice));assert.equal(out.nanaIconInit,true);
+    out.iconChoice='default';const again=c.normalizeState(clone(out),clone(out));assert.equal(again.iconChoice,'default','slot-tools を選んだ後は再読込でも slot-tools');
+  }
+  for(const iconChoice of ['nana','upload','custom']){const old=clone(c.defaults);delete old.nanaIconInit;old.iconChoice=iconChoice;assert.equal(c.normalizeState(clone(old),clone(old)).iconChoice,iconChoice);}
 });
 console.log(`vivy-nana-test: ${checks} passed / 0 failed`);

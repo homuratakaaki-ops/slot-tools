@@ -33,8 +33,10 @@ v0.2 と本番 4a5c35a を基礎とする。§9-108 に従い、別URL・別保�
 ## ファイルと保存
 
 - `checker-data/vivy-test.js`：`window.CheckerConfigs["vivy-test"]`、`storageKey:"vivy-checker-v1-test"`、`nanaCollab:true`。既定アイコンはなな様。
-- `vivy-test-checker.html`：入力／示唆／参照／カードの4タブ。title・og:title先頭に【テスト版】、canonical・og:urlはテスト版URL、ヘッダー直後のバナーは65de568のggo-testと同一。データクエリは `?v=20261102-nana-test2`、その他は本番を維持。
+- `vivy-test-checker.html`：入力／示唆／参照／カードの4タブ。title・og:title先頭に【テスト版】、canonical・og:urlはテスト版URL、ヘッダー直後のバナーは65de568のggo-testと同一。データクエリは `?v=20261102-nana-test3`、その他は本番を維持。
 - `schemaVersion:1`。未知の上位版番号は保持。既存のgroups・gameLog・games・img・iconChoiceを維持し、既知カウンターだけを非負整数へ補正する。未知のルートキー・各グループ内キーは型も含め保持する。新グループの既知キーは0補完。
+- EX（weakEx・chanceEx）は保存値のまま保持し、当選回数（weakW・chanceW）に切り詰めない。EX＞当選のときは「レア役からのアクセスチャンス(EX)」のセクションに注意文「EXの回数がアクセスチャンス当選の回数を超えています。」を出す（入力は止めない）。ネネ検収（d279952）P2・夢爽 11/2。
+- 旧データのアイコン：保存データに nanaIconInit が無く、iconChoice が "default" または未設定なら、読み込み時に1回だけ "nana" にして nanaIconInit:true を付ける。以後はユーザーの選択に従う（§9-89）。ネネ検収 P3。
 - rateのW>DはD=W。accessのweakEx>weakWはweakEx=weakW（chanceも同様）。正規化は冪等。本番保存キーは読み書きしない。旧データを上書きしないテスト版のためpre-ext退避は不要。
 
 ### 保存キー一覧
