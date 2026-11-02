@@ -160,6 +160,19 @@ try{
   assert.deepEqual(await run('return window.__errors;'),[]);await unchanged();
   assert.deepEqual(await run('return Object.keys(localStorage).sort();'),['vivy-checker-v1','vivy-checker-v1-test']);
   pass('360x530 four tabs overflow 0 / card pixels and text / default truncation / no console errors');
+  // ネネ検収 P3：nanaCollab 化する前の保存データ（iconChoice:"default"、nanaIconInit なし）→ なな様。slot-tools を選ぶ → 再読込でも slot-tools（§9-89）。
+  {
+    const oldData=await run('return structuredClone(CheckerConfigs["vivy-test"].defaults);');delete oldData.nanaIconInit;oldData.iconChoice='default';oldData.counts.at=3;
+    await seed(oldData);await tab(3);await pause(200);
+    const onChoice=()=>run('return [...d.querySelectorAll(".icon-choice.on")].map(b=>b.dataset.iconChoice);');
+    assert.deepEqual(await onChoice(),['nana']);
+    await click('.icon-choice[data-icon-choice="default"]');await pause(200);
+    assert.equal((await state()).iconChoice,'default');assert.equal((await state()).nanaIconInit,true);
+    await load();await tab(3);await pause(200);
+    assert.deepEqual(await onChoice(),['default'],'再読込でも slot-tools のまま');assert.equal((await state()).counts.at,3);
+    assert.deepEqual(await run('return window.__errors;'),[]);await unchanged();
+    pass('old data icon: nana once, then slot-tools kept after reload / production unchanged');
+  }
   assert.deepEqual(errors,[]);
 }catch(e){failures++;console.error(e.stack);process.exitCode=1;}
 finally{
