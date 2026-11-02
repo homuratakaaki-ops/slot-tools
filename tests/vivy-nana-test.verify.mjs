@@ -85,11 +85,17 @@ check('HTML差分限定・本番全追跡ファイル不変・導線なし',()=>
   assert.ok(html.includes(banner));assert.ok(html.includes('<meta name="robots" content="noindex,nofollow">'));
   html=html.replace('<meta name="robots" content="noindex,nofollow">\n','').replaceAll('【テスト版】','').replaceAll('https://slot-tools.jp/vivy-test-checker.html','https://slot-tools.jp/vivy-checker.html').replace(banner+'\n','').replace('checker-data/vivy-test.js?v=20261102-nana-test2','checker-data/vivy.js?v=20261102-suggest').replace('CheckerConfigs["vivy-test"]','CheckerConfigs.vivy');assert.equal(html,read('vivy-checker.html'));
   assert.equal(c.storageKey,'vivy-checker-v1-test');
-  const allowed=new Set(['checker-data/vivy-test.js','vivy-test-checker.html','docs/specs/vivy-checker-v03.md','tests/vivy-nana-test.verify.mjs','tests/vivy-nana-test.browser.mjs','docs/specs/vivy-nana-template-v01.txt','tests/ggovivy-suggest.verify.mjs','tests/godzieva2-v02-test.verify.mjs']);
+  const allowed=new Set(['checker-data/vivy-test.js','vivy-test-checker.html','docs/specs/vivy-checker-v03.md','tests/vivy-nana-test.verify.mjs','tests/vivy-nana-test.browser.mjs','docs/specs/vivy-nana-template-v01.txt','tests/ggovivy-suggest.verify.mjs','tests/godzieva2-v02.verify.mjs','checker-data/godzieva2.js','checker-data/godzieva2-test.js','godzieva2-checker.html','godzieva2-test-checker.html','godzieva2-guide.html','docs/specs/godzieva2-checker-v03.md','index.html']);
   // PR #85（エンジンの見出し取り残し修正）の engine 本体・IDEAS.md・tests/・各 HTML の engine ?v は対象外。
   const engineQuery=t=>t.replaceAll('checker-engine.js?v=20261102-orphan','checker-engine.js?v=20260924');
   assert.deepEqual(git('diff','--name-only',BASE,'--').trim().split('\n').filter(Boolean).filter(p=>!allowed.has(p)&&!['checker-engine.js','IDEAS.md'].includes(p)&&!p.startsWith('tests/')&&!(p.endsWith('.html')&&engineQuery(read(p))===git('show',BASE+':'+p))),[]);
-  for(const p of ['vivy-checker.html','vivy-guide.html','checker-data/vivy.js','index.html','sitemap.xml'])assert.equal(engineQuery(read(p)),git('show',BASE+':'+p));
+  for(const p of ['vivy-checker.html','vivy-guide.html','checker-data/vivy.js','sitemap.xml'])assert.equal(engineQuery(read(p)),git('show',BASE+':'+p));
+  // ゴジエヴァ2 v02 本番反映のNEW追加・最古行削除だけを許容する。
+  const oldIndex=git('show',BASE+':index.html');
+  const newsLine='    <p>11/2｜<a href="godzieva2-checker.html">ゴジエヴァ2 G侵食役・ボーナス当選率を追加（なな様テンプレ v02 対応）</a></p>\n';
+  const oldest=oldIndex.split('\n').find(l=>l.includes('<p>10/21｜')&&l.includes('tonski-checker.html'));
+  assert.ok(oldest);
+  assert.equal(read('index.html'),oldIndex.replace('    <p>11/2｜<a href="ggo-checker.html">',newsLine+'    <p>11/2｜<a href="ggo-checker.html">').replace(oldest+'\n',''));
   for(const p of ['index.html','checkers.html','sitemap.xml'])assert.ok(!read(p).includes('vivy-test'));
 });
 check('構文・LF・後読みなし',()=>{

@@ -1,16 +1,17 @@
-// node tests/godzieva2-v02-test.browser.mjs — §9-108 本番保存キー分離・実描画検収。
+// node tests/godzieva2-v02.browser.mjs — §9-108 本番保存互換・実描画検収。
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import http from 'node:http';
-import {spawn} from 'node:child_process';
+import vm from 'node:vm';
+import {execFileSync,spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
-const artifacts=fs.mkdtempSync(path.join(process.env.CHECKER_ARTIFACTS||os.tmpdir(),'slot-godzieva2-v02-test-'));
-const profile=fs.mkdtempSync(path.join(os.tmpdir(),'slot-godzieva2-v02-test-profile-'));
+const artifacts=fs.mkdtempSync(path.join(process.env.CHECKER_ARTIFACTS||os.tmpdir(),'slot-godzieva2-v02-'));
+const profile=fs.mkdtempSync(path.join(os.tmpdir(),'slot-godzieva2-v02-profile-'));
 const chrome=process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe';
-let KEY='godzieva2-checker-v1-test',PAGE='/godzieva2-test-checker.html';const errors=[],measures=[];
+let KEY='godzieva2-checker-v1',PAGE='/godzieva2-checker.html';const errors=[],measures=[];
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
 const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.png':'image/png','.jpg':'image/jpeg','.webp':'image/webp'};
 const server=http.createServer((req,res)=>{
@@ -94,16 +95,23 @@ try{
     CanvasRenderingContext2D.prototype.fillText=function(text,x,y,...args){(window.__texts[this.canvas.id]??=[]).push({text:String(text),x,y,w:this.measureText(String(text)).width,font:this.font});return original.call(this,text,x,y,...args);};
   `});
   await load();
-  const old=await run(`return structuredClone(CheckerConfigs['godzieva2-test'].defaults);`);
-  delete old.gRole;delete old.bonusRate;delete old.schemaVersion;
-  old.gameLog=[345,678];old.games=23;old.img=null;old.iconChoice='default';old.futureRoot={keep:'yes'};
-  for(const group of ['counts','suika','kitei','endScreen','edVoice']){for(const key of Object.keys(old[group]))old[group][key]=7;old[group].future={keep:9};}
-  const productionString=JSON.stringify(old,null,2);
-  await run(`localStorage.setItem('godzieva2-checker-v1',${JSON.stringify(productionString)});localStorage.removeItem(${JSON.stringify(KEY)});`);
-  await load();assert.equal(await state(),null);
-  const unchanged=async()=>assert.equal(await run(`return localStorage.getItem('godzieva2-checker-v1');`),productionString);
-  await unchanged();
-  assert.equal(await run(`return d.querySelector('[data-c="counts.first"] .num').textContent;`),'0');
+  const box={window:{}};vm.runInNewContext(execFileSync('git',['show','2dc06d3:checker-data/godzieva2.js'],{cwd:root,encoding:'utf8'}),box);
+  const previous=box.window.CheckerConfigs.godzieva2;
+  let old=structuredClone(previous.defaults);
+  old.gameLog=[345,678];old.games=23;old.img='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aD1sAAAAASUVORK5CYII=';old.iconChoice='custom';old.futureRoot={keep:'yes'};
+  for(const group of previous.mergeKeys){for(const key of Object.keys(old[group]))old[group][key]=7;old[group].future={keep:9};}
+  old=JSON.parse(JSON.stringify(previous.normalizeState(old)));await seed(old);
+  const unchanged=async()=>{const current=await state();for(const k of Object.keys(old))assert.deepEqual(current[k],old[k],k);};
+  for(const key of ['first','at'])assert.equal(await run(`return d.querySelector('[data-c="counts.${key}"] .num').textContent;`),'7');
+  await tab(1);
+  for(const group of ['endScreen','edVoice'])for(const key of Object.keys(previous.defaults[group]))assert.equal(await run(`return d.querySelector('[data-c="${group}.${key}"] .num').textContent;`),'7');
+  await tab(0);
+  for(const group of ['suika','kitei'])for(const key of Object.keys(previous.defaults[group]).filter(k=>k.endsWith('D'))){
+    const win=key.slice(0,-1)+'W';
+    assert.equal(await run(`return d.querySelector('[data-bump-many="${group}.${key},${group}.${win}"]').closest('.crow').querySelector('.pct').textContent;`),'7/7 100%');
+  }
+  assert.ok(await run(`return d.getElementById('main').textContent.includes('1023G');`));
+  for(const group of ['gRole','bonusRate'])assert.ok(Object.values(await run(`return CheckerConfigs.godzieva2.normalizeState(JSON.parse(localStorage.getItem('${KEY}'))).${group};`)).every(v=>v===0));
   const roles=['henyaku','zoushoku','bunretsu','boost','kasseika','gesshoku','gRensa','shouri','kakutei'];
   const rates=['cbNormal','cbHigh','cbSuper','blueNormal','blueHigh','redNormal','redHigh'];
   const counts=['blueSuper','redSuper','rainbowNormal','rainbowHigh','rainbowSuper'];
@@ -118,7 +126,7 @@ try{
     const st=await state();assert.equal(st.bonusRate[key+'D'],2);assert.equal(st.bonusRate[key+'W'],1);
     assert.equal(await run(`return d.querySelector('[data-bump-many="bonusRate.${key}D,bonusRate.${key}W"]').closest('.crow').querySelector('.pct').textContent;`),'1/2 50%');await unchanged();
   }
-  pass('9 mutations / 7 rate pairs / 5 guaranteed counts / undo / production bytes unchanged');
+  pass('9 mutations / 7 rate pairs / 5 guaranteed counts / undo / existing production values unchanged');
   const saved=await state();await load();assert.deepEqual(await state(),saved);
   await click('#modeBtn');
   for(const key of rates){
@@ -129,7 +137,7 @@ try{
   }
   for(const key of [...roles.map(k=>'gRole.'+k),...counts.map(k=>'bonusRate.'+k)]){await plus(key);const [g,k]=key.split('.');assert.equal((await state())[g][k],0);await plus(key);assert.equal((await state())[g][k],0);}
   await unchanged();await click('#modeBtn');
-  pass('minus counts / wins / misses / lower bounds / reload / production isolation');
+  pass('minus counts / wins / misses / lower bounds / reload / existing values preserved');
   for(const [label,S] of [['empty',{}],['filled',saved]]){
     await seed(S);
     for(let p=0;p<4;p++){await tab(p);await layout(360,label,p);await shot('godzieva2-'+label+'-tab'+p,360);}
@@ -139,19 +147,21 @@ try{
       await shot('godzieva2-'+label+'-'+(title==='G侵食役'?'gRole':'bonusRate'),360);
     }
   }
-  await tab(3);await pause(200);
+  const newItems=await run('return structuredClone(CheckerConfigs.godzieva2.defaults);');
+  newItems.gRole=saved.gRole;newItems.bonusRate=saved.bonusRate;
+  await seed(newItems);await tab(3);await pause(200);
   assert.ok((await run(`return d.getElementById('tpl').value;`)).includes('■G侵食役'));
   await canvas('cardCanvas','godzieva2-summary');
   await click('#detailBtn');await pause(300);const detail=await canvas('detailCanvas','godzieva2-detail');
   for(const text of ['G侵食役','ボーナス当選率','弱ﾁｪ/ﾍﾞﾙ3連 通常 1/2 50%','強ﾚｱ/ﾍﾞﾙ4他 超高 ×1'])assert.ok(detail.texts.some(t=>t.text.includes(text)),text);
   for(const t of detail.texts.filter(t=>t.text.startsWith('• ')))assert.ok(t.x+t.w<=1010,JSON.stringify(t));
   // 全項目を埋めた際はエンジン既定の40行上限と省略表記に任せる。
-  const full=await run(`return structuredClone(CheckerConfigs['godzieva2-test'].defaults);`);
+  const full=await run(`return structuredClone(CheckerConfigs.godzieva2.defaults);`);
   for(const group of ['counts','gRole','bonusRate','suika','kitei','endScreen','edVoice'])for(const k of Object.keys(full[group]))full[group][k]=1;
   await seed(full);await tab(3);await click('#detailBtn');await pause(300);
   const crowded=await canvas('detailCanvas','godzieva2-detail-all');assert.ok(crowded.texts.some(t=>/ほか.*項目/.test(t.text)));
-  assert.deepEqual(await run('return window.__errors;'),[]);await unchanged();
-  assert.deepEqual(await run('return Object.keys(localStorage).sort();'),['godzieva2-checker-v1','godzieva2-checker-v1-test']);
+  assert.deepEqual(await run('return window.__errors;'),[]);
+  assert.deepEqual(await run('return Object.keys(localStorage).sort();'),['godzieva2-checker-v1']);
   pass('360x530 four tabs overflow 0 / card pixels and text / default truncation / no console errors');
   assert.deepEqual(errors,[]);
 }catch(e){failures++;console.error(e.stack);process.exitCode=1;}

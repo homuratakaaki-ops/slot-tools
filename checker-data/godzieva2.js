@@ -1,5 +1,5 @@
 // 出典: ちょんぼりすた様 https://chonborista.com/slot/bisty-slot/267113/
-// 2026-11-01 更新分を確認（第三者解析）。数値・文言の正本: docs/specs/godzieva2-checker-v02.md
+// 2026-11-02 更新分を確認（第三者解析）。数値・文言の正本: docs/specs/godzieva2-checker-v03.md（テスト版 4a5c35a をネネ検収合格・夢爽スマホ確認○の後に本番へ反映）
 (function(){
   'use strict';
   window.CheckerConfigs=window.CheckerConfigs||{};
@@ -29,15 +29,23 @@
     ['godzillaShogoki','ゴジラ＆初号機','示唆内容は調査中','ゴジラ初号機'],['allStars','全員集合'],['kaworu','カヲル']
   ].map(c=>[c[0],c[1],c[2]||'示唆内容は調査中',c[3]||c[1]]);
   const ED_VOICE=[['shinji','シンジ'],['asuka','アスカ'],['misato','ミサト'],['gendo','ゲンドウ'],['kaworu','カヲル']];
-  const MERGE_KEYS=['counts','suika','kitei','endScreen','edVoice'];
+  const G_ROLE=[["henyaku","小役変異","成立役がレア役に昇格"],["zoushoku","増殖変異","小役が2連続成立扱い"],["bunretsu","画面分裂","恩恵が2倍"],["boost","ブースト","G因子pt獲得5倍（AT中はレア役で上乗せ）"],["kasseika","活性化","20G＋αのG侵食役・レア小役高確"],["gesshoku","月蝕変異","月蝕ステージへ（通常時のみ）"],["gRensa","Ｇ連鎖","ST7GのG侵食役高確"],["shouri","勝利変異","恩恵は調査中"],["kakutei","確定変異","出典に記載なし"]];
+  const BONUS_GROUPS=[["cb","🍒🔔 弱ﾁｪ/ﾍﾞﾙ3連","弱ﾁｪ/ﾍﾞﾙ3連"],["blue","🟦 強ﾚｱ/ﾍﾞﾙ4/弱ﾚｱ2/強弱ﾚｱ2連","強ﾚｱ/ﾍﾞﾙ4他"],["red","🟥 弱ﾚｱの後強ﾚｱ","弱ﾚｱ→強ﾚｱ"],["rainbow","🌈 ﾘｰﾁ目/ﾍﾞﾙ5/弱3~/強2~","ﾘｰﾁ目/ﾍﾞﾙ5他"]];
+  const BONUS_STATES=[['Normal','通常'],['High','高確'],['Super','超高']];
+  // [key, 状態名, 当選/母数の欄か, 詳細カード短名]
+  const BONUS_ROWS=BONUS_GROUPS.flatMap(([id,,short])=>BONUS_STATES.map(([state,label])=>[id+state,label,id!=='rainbow'&&(id==='cb'||state!=='Super'),short]));
+  const BONUS_RATES=BONUS_ROWS.filter(c=>c[2]);
+  const G_ROLE_HINT='G侵食役の成立後、5G以内に小役が成立すると変異が発生します。発生した変異の回数を数えます。設定差は公表されていないため記録のみです。';
+  const BONUS_HINT='グループの役が成立したとき、ボーナスに当選したら当選、しなかったらハズレを押します。当選率が100%の欄は、回数だけを数えます。設定差は公表されていないため記録のみです。';
+  const MERGE_KEYS=['counts','gRole','bonusRate','suika','kitei','endScreen','edVoice'];
   const zeroCounts=rows=>Object.fromEntries(rows.map(c=>[c[0],0]));
   const zeroRates=rows=>Object.fromEntries(rows.flatMap(c=>[[c[0]+'D',0],[c[0]+'W',0]]));
   const SUIKA_HINT='表はスイカ成立時の当選率です。小役変異の緑アイコンからの当選が表に含まれるかは出典に書かれていません。\nAT中：設定別の数値は出典で確認できていないため、記録のみです。';
   const END_HINT='ATを獲得したボーナスの後は終了画面が出ません。';
   const KITEI_HINT='その規定ゲーム数に到達したとき、当選したら当選、しなかったらハズレを押します。設定差は公表されていないため記録のみです。';
-  // 正本: docs/specs/godzieva2-nana-template-v01.txt。行名だけ出典に合わせて置換。夢爽 2026-11-01 裁定・なな様へ事後報告。
-  const TEMPLATE="ゴジエヴァ2\n\n\n■ボーナス当選率\n\n■スイカからのCZ\n通常 ▶︎ 0/0\nAT中▶︎ 0/0\n\n■規定ゲーム数\nAT後⤵︎             AT後以外⤵︎\n100g▶︎ 0/0   ・100g▶︎ 0/0\n250g▶︎ 0/0   ・250g▶︎ 0/0\n400g▶︎ 0/0   ・400g▶︎0/0\n550g▶︎ 0/0   ・550g▶︎ 0/0\n700g▶︎ 0/0   ・700g▶︎ 0/0\n850g▶︎ 0/0   ・850g▶︎ 0/0\n\n■ボーナス・AT終了画面\nシンジ(奇数)▶︎ \nレイ(偶数)    ▶︎ \nマリ(弱)        ▶︎ \nアスカ(強)    ▶︎ \nモスラ　　　▶︎ \nXレイ　　　▶︎ \nレイ背景       ▶︎ \nｺﾞｼﾞﾗ初号機 ▶︎ \n全員集合       ▶︎ \nカヲル          ▶︎ \n\n■エンディング中ボイス\nシンジ▶︎ \nアスカ▶︎ \nミサト▶︎ \nゲンドウ▶︎ \nカヲル▶︎";
-  const DEF={gameLog:[],games:0,counts:zeroCounts(COUNTS),suika:zeroRates(SUIKA),kitei:zeroRates(KITEI),endScreen:zeroCounts(END_SCREEN),edVoice:zeroCounts(ED_VOICE),img:null,iconChoice:null};
+  // v02正本から承認済み3か所だけを機械置換。空白も保持。
+  const TEMPLATE="ゴジエヴァ2\n\n\n■G侵食役\n小役変異▶︎  0回　増殖変異▶︎ 0回\n画面分裂▶︎  0回　ブースト▶︎ 0回\n活性化　▶︎  0回　月蝕変異▶︎ 0回\nＧ連鎖　▶︎  0回　\n勝利変異▶︎  0回　確定変異▶︎ 0回\n\n■ボーナス当選率\n\n🍒🔔 弱ﾁｪ/ﾍﾞﾙ3連\n通常▶︎ 0/0     | 高確▶︎ 0/0     | 超高▶︎ 0/0\n\n🟦 強ﾚｱ/ﾍﾞﾙ4/弱ﾚｱ2/強弱ﾚｱ2連\n通常▶︎ 0/0     | 高確▶︎ 0/0     | 超高▶︎ 0回\n\n🟥 弱ﾚｱの後強ﾚｱ\n通常▶︎ 0/0     | 高確▶︎ 0/0     | 超高▶︎ 0回\n\n🌈 ﾘｰﾁ目/ﾍﾞﾙ5/弱3~/強2~\n通常▶︎ 0回     | 高確▶︎ 0回     | 超高▶︎ 0回\n\n■スイカからのCZ\n通常 ▶︎ 0/0\nAT中▶︎ 0/0\n\n■規定ゲーム数\nAT後⤵︎             AT後以外⤵︎\n100g▶︎ 0/0   ・100g▶︎ 0/0\n250g▶︎ 0/0   ・250g▶︎ 0/0\n400g▶︎ 0/0   ・400g▶︎0/0\n550g▶︎ 0/0   ・550g▶︎ 0/0\n700g▶︎ 0/0   ・700g▶︎ 0/0\n850g▶︎ 0/0   ・850g▶︎ 0/0\n\n■ボーナス・AT終了画面\nシンジ(奇数)▶︎ \nレイ(偶数)    ▶︎ \nマリ(弱)        ▶︎ \nアスカ(強)    ▶︎ \nモスラ　　　▶︎ \nXレイ　　　▶︎ \nレイ背景       ▶︎ \nｺﾞｼﾞﾗ初号機 ▶︎ \n全員集合       ▶︎ \nカヲル          ▶︎ \n\n■エンディング中ボイス\nシンジ▶︎ \nアスカ▶︎ \nミサト▶︎ \nゲンドウ▶︎ \nカヲル▶︎";
+  const DEF={schemaVersion:1,gRole:zeroCounts(G_ROLE),bonusRate:{...zeroRates(BONUS_RATES),...zeroCounts(BONUS_ROWS.filter(c=>!c[2]))},gameLog:[],games:0,counts:zeroCounts(COUNTS),suika:zeroRates(SUIKA),kitei:zeroRates(KITEI),endScreen:zeroCounts(END_SCREEN),edVoice:zeroCounts(ED_VOICE),img:null,iconChoice:null};
   function n(obj,key){return Number((obj||{})[key])||0;}
   // 分母＝当選ごとのG数の合計（§9-105）。今まわしている未当選区間は含めない。
   function gameLog(S){return Array.isArray(S.gameLog)?S.gameLog:[];}
@@ -58,6 +66,7 @@
       .cycle-actions{display:flex;gap:6px;margin-left:4px;flex:none}.cycle-btn{height:44px;min-width:54px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;font-weight:900;font-size:12px;padding:0 8px;white-space:nowrap;writing-mode:horizontal-tb;line-height:1;display:flex;align-items:center;justify-content:center}.cycle-btn.win{color:var(--gold)}.minus .cycle-btn{border-color:rgba(255,91,91,.55);color:#ff9b9b}
       .hint-paras .hint-body{white-space:pre-line}
       .role-row{flex-wrap:wrap;row-gap:6px}.role-row .ct{flex:1 0 100%}.role-row .ct b,.role-row .ct small{display:inline}.role-row .ct small{margin-left:8px;white-space:nowrap}.role-row .pct{margin-left:auto}
+      .bonus-group-h{font-size:13px;line-height:1.5;color:var(--txt);margin:12px 0 6px;overflow-wrap:anywhere}
     </style>`;
   }
   function ratio(a,b){return b>0?`${a}/${b} ${(100*a/b).toFixed(0)}%`:`${a}/0 -`;}
@@ -83,6 +92,8 @@
       <div class="glog-row"><span class="glog-last">${log.length?'最後に追加：'+log[log.length-1]+'G':'まだ登録がありません'}</span><button type="button" class="glog-btn" data-action="popGameLog" data-label="当選G取消" ${log.length?'':'disabled'}>最後の1件を取り消す</button></div>
       <div class="hint">${HINTS.games}</div>
     </section><section class="sec"><div class="sec-h">カウント系</div><div class="cgrid">${COUNTS.map(c=>ctx.crow('counts.'+c[0],c[1],c[3],0,v=>oneIn(v,g))).join('')}</div><div class="hint">${HINTS.counts}</div></section>
+    <section class="sec"><div class="sec-h">G侵食役</div><div class="cgrid">${G_ROLE.map(c=>ctx.crow('gRole.'+c[0],c[1],c[2],false)).join('')}</div><div class="hint">${G_ROLE_HINT}</div></section>
+    <section class="sec"><div class="sec-h">ボーナス当選率</div>${BONUS_GROUPS.map((group,i)=>`<h3 class="bonus-group-h">${group[1]}</h3><div class="cgrid">${BONUS_ROWS.slice(i*3,i*3+3).map(c=>c[2]?rateRow(ctx,'bonusRate',c[0]+'D',c[0]+'W',c[1],''):ctx.crow('bonusRate.'+c[0],c[1],'当選率100%（回数のみ）',false)).join('')}</div>`).join('')}<div class="hint">${BONUS_HINT}</div></section>
     <section class="sec"><div class="sec-h">スイカからのCZ</div><div class="cgrid">${SUIKA.map(c=>rateRow(ctx,'suika',c[0]+'D',c[0]+'W',c[1],c[2])).join('')}</div><div class="hint hint-paras">${SUIKA_HINT}</div></section>
     <section class="sec"><div class="sec-h">規定ゲーム数</div><div class="cgrid">${KITEI.map(c=>rateRow(ctx,'kitei',c[0]+'D',c[0]+'W',c[1],'')).join('')}</div><div class="hint">${KITEI_HINT}</div></section>`;
   }
@@ -101,20 +112,24 @@
   function tplText(ctx){
     const S=ctx.S,g=freeGames(S);
     const values=[
+      ...G_ROLE.map(c=>n(S.gRole,c[0])+'回'),
+      ...BONUS_ROWS.map(c=>c[2]?n(S.bonusRate,c[0]+'W')+'/'+n(S.bonusRate,c[0]+'D'):n(S.bonusRate,c[0])+'回'),
       ...SUIKA.map(c=>n(S.suika,c[0]+'W')+'/'+n(S.suika,c[0]+'D')),
       ...G_VALUES.flatMap(g=>['after','other'].map(p=>n(S.kitei,p+g+'W')+'/'+n(S.kitei,p+g+'D'))),
       ...END_SCREEN.map(c=>n(S.endScreen,c[0])+'回'),...ED_VOICE.map(c=>n(S.edVoice,c[0])+'回')
     ];
     let i=0;
     const first=n(S.counts,'first'),at=n(S.counts,'at');
-    const text=TEMPLATE.replace(/0\/0|▶︎ *(?=\r?\n|$)/g,m=>{
+    const text=TEMPLATE.replace(/0\/0|0回|▶︎ *(?=\r?\n|$)/g,m=>{
       const value=values[i++];return m.startsWith('0')?value:'▶︎ '+value;
-    }).replace('■ボーナス当選率','■ボーナス当選率\nボーナス▶︎ '+first+'回'+(g>0&&first>0?'（'+oneIn(first,g)+'）':''));
-    return `設定判別メモ｜${TITLE}\n累計通常G ${logText(S)} / AT${at}回${g>0&&at>0?' '+oneIn(at,g):''}\n_______\n\n${text}\n\nby slot-tools.jp\n${ctx.nanaCreditText('text')}\n解析出典:ちょんぼりすた様`;
+    });
+    return `設定判別メモ｜${TITLE}\n累計通常G ${logText(S)} / ボーナス初当り${first}回${g>0&&first>0?' '+oneIn(first,g):''} / AT${at}回${g>0&&at>0?' '+oneIn(at,g):''}\n_______\n\n${text}\n\nby slot-tools.jp\n${ctx.nanaCreditText('text')}\n解析出典:ちょんぼりすた様`;
   }
   function detail(ctx){
     const S=ctx.S,g=freeGames(S);
     return [{title:'カウント系',items:COUNTS.map(c=>({label:c[1],value:n(S.counts,c[0]),hot:false,text:c[1]+' ×'+n(S.counts,c[0])+' '+oneIn(n(S.counts,c[0]),g),show:n(S.counts,c[0])>0}))},
+      {title:'G侵食役',items:G_ROLE.map(c=>({label:c[1],value:n(S.gRole,c[0]),hot:false,text:c[1]+' ×'+n(S.gRole,c[0]),show:n(S.gRole,c[0])>0}))},
+      {title:'ボーナス当選率',items:BONUS_ROWS.map(c=>{const label=c[3]+' '+c[1],d=n(S.bonusRate,c[0]+'D'),value=n(S.bonusRate,c[0]+(c[2]?'W':''));return {label,value,hot:false,text:label+(c[2]?' '+(d>0?ratio(value,d):value+'/0'):' ×'+value),show:c[2]?d>0:value>0};})},
       // 率の行は入力画面と同じ ratio() で「n/d xx%」（§9-47・ネネ検収 11/1）。分母0の行は％を省く（show:false で出さない）。
       ...[['スイカCZ','suika',SUIKA],['規定G','kitei',KITEI]].map(([title,group,rows])=>({title,items:rows.map(c=>({label:c[1].replace(' ',''),value:n(S[group],c[0]+'W'),hot:false,text:c[1].replace(' ','')+' '+(n(S[group],c[0]+'D')>0?ratio(n(S[group],c[0]+'W'),n(S[group],c[0]+'D')):n(S[group],c[0]+'W')+'/0'),show:n(S[group],c[0]+'D')>0}))})),
       {title:'終了画面',items:END_SCREEN.map(c=>({label:c[3],value:n(S.endScreen,c[0]),hot:false})),percent:true,denominator:endTotal(S)},
@@ -123,13 +138,14 @@
   }
   function normalizeState(out){
     const integer=v=>Number.isFinite(Number(v))?Math.max(0,Math.floor(Number(v))):0;
+    if(out.schemaVersion===undefined)out.schemaVersion=DEF.schemaVersion;
     out.games=integer(out.games);
     out.gameLog=Array.isArray(out.gameLog)?out.gameLog.map(integer).filter(v=>v>0):[];
     MERGE_KEYS.forEach(group=>{
       out[group]=Object.assign({},DEF[group],out[group]||{});
       Object.keys(DEF[group]).forEach(k=>{out[group][k]=integer(out[group][k]);});
     });
-    [['suika',SUIKA],['kitei',KITEI]].forEach(([group,rows])=>rows.forEach(c=>{
+    [['bonusRate',BONUS_RATES],['suika',SUIKA],['kitei',KITEI]].forEach(([group,rows])=>rows.forEach(c=>{
       const d=c[0]+'D',w=c[0]+'W';
       if(out[group][w]>out[group][d])out[group][d]=out[group][w];
     }));
