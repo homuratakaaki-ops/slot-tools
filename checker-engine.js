@@ -800,8 +800,6 @@ nav button{min-height:44px}
         const rows=[];
         prepared.forEach(sec=>{
           if(sec.items.length===1){rows.push({type:'inline',title:sec.title,item:sec.items[0],hot:!!sec.items[0].hot,value:sec.items[0]._value});return;}
-          // drawDetailCard の maxRows=20 に対応：左列最終行の見出しを右列へ送る。
-          if(rows.length===19)rows.push({type:'spacer',hot:false,value:0});
           rows.push({type:'section',title:sec.title,hot:false,value:0});
           sec.items.forEach(item=>rows.push({type:'item',item,hot:!!item.hot,value:item._value}));
         });
@@ -821,9 +819,23 @@ nav button{min-height:44px}
         prepared[target.si].items.splice(target.ii,1);
         return true;
       }
+      // drawDetailCard の maxRows=20 に対応：省略を終えた最終の行で、見出しが左の列の最後（index 19）に来たら
+      // spacer を入れて右の列の先頭へ送る。「ほか」行込みで40行を超えたら同じ優先順で1項目だけ追加で省略し、やり直す（最大2回）。
+      function finish(rows,moreCount){
+        for(let retry=0;;retry++){
+          if(rows[19]&&rows[19].type==='section')rows.splice(19,0,{type:'spacer',hot:false,value:0});
+          if(rows.length+(moreCount>0?1:0)<=maxRows||retry>=2)break;
+          if(!removeOne(prepared,false)&&!removeOne(prepared,true))break;
+          moreCount++;
+          prepared=prepared.filter(sec=>sec.items.length>0);
+          rows=build(prepared);
+        }
+        if(moreCount>0)rows.push({type:'more',text:'ほか '+moreCount+'項目',hot:false,value:0});
+        return rows;
+      }
       let prepared=prepare();
       let rows=build(prepared);
-      if(rows.length<=maxRows)return rows;
+      if(rows.length<=maxRows)return finish(rows,0);
       let moreCount=0;
       while(build(prepared).length>maxRows-1&&removeOne(prepared,false))moreCount++;
       prepared=prepared.filter(sec=>sec.items.length>0);
@@ -832,8 +844,7 @@ nav button{min-height:44px}
         prepared=prepared.filter(sec=>sec.items.length>0);
       }
       rows=build(prepared);
-      if(moreCount>0)rows.push({type:'more',text:'ほか '+moreCount+'項目',hot:false,value:0});
-      return rows;
+      return finish(rows,moreCount);
     }
     function fitText(x,text,tx,ty,maxWidth,fontSize,color,weight,minSize,ellipsis){
       const floor=Number(minSize)||18;
