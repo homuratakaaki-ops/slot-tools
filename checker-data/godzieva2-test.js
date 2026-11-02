@@ -94,7 +94,7 @@
       <div class="hint">${HINTS.games}</div>
     </section><section class="sec"><div class="sec-h">カウント系</div><div class="cgrid">${COUNTS.map(c=>ctx.crow('counts.'+c[0],c[1],c[3],0,v=>oneIn(v,g))).join('')}</div><div class="hint">${HINTS.counts}</div></section>
     <section class="sec"><div class="sec-h">G侵食役</div><div class="cgrid">${G_ROLE.map(c=>ctx.crow('gRole.'+c[0],c[1],c[2],false)).join('')}</div><div class="hint">${G_ROLE_HINT}</div></section>
-    <section class="sec"><div class="sec-h">ボーナス当選率</div>${BONUS_GROUPS.map((group,i)=>`<h3 class="bonus-group-h">${group[1]}</h3><div class="cgrid">${BONUS_ROWS.slice(i*3,i*3+3).map(c=>c[2]?rateRow(ctx,'bonusRate',c[0]+'D',c[0]+'W',c[1],''):ctx.crow('bonusRate.'+c[0],c[1],'当選確定（回数のみ）',false)).join('')}</div>`).join('')}<div class="hint">${BONUS_HINT}</div></section>
+    <section class="sec"><div class="sec-h">ボーナス当選率</div>${BONUS_GROUPS.map((group,i)=>`<h3 class="bonus-group-h">${group[1]}</h3><div class="cgrid">${BONUS_ROWS.slice(i*3,i*3+3).map(c=>c[2]?rateRow(ctx,'bonusRate',c[0]+'D',c[0]+'W',c[1],''):ctx.crow('bonusRate.'+c[0],c[1],'当選率100%（回数のみ）',false)).join('')}</div>`).join('')}<div class="hint">${BONUS_HINT}</div></section>
     <section class="sec"><div class="sec-h">スイカからのCZ</div><div class="cgrid">${SUIKA.map(c=>rateRow(ctx,'suika',c[0]+'D',c[0]+'W',c[1],c[2])).join('')}</div><div class="hint hint-paras">${SUIKA_HINT}</div></section>
     <section class="sec"><div class="sec-h">規定ゲーム数</div><div class="cgrid">${KITEI.map(c=>rateRow(ctx,'kitei',c[0]+'D',c[0]+'W',c[1],'')).join('')}</div><div class="hint">${KITEI_HINT}</div></section>`;
   }

@@ -53,7 +53,7 @@
 ## 1. ファイル・公開範囲
 
 - `checker-data/godzieva2-test.js`：`CheckerConfigs["godzieva2-test"]`、`storageKey:"godzieva2-checker-v1-test"`。downloadNameは本番と同じ。
-- `godzieva2-test-checker.html`：noindex,nofollow、title/og:titleに【テスト版】、テスト版URLをcanonical/og:urlに指定。65de568のggo-testと同一バナー。参照クエリ `?v=20261102-test2`。
+- `godzieva2-test-checker.html`：noindex,nofollow、title/og:titleに【テスト版】、テスト版URLをcanonical/og:urlに指定。65de568のggo-testと同一バナー。参照クエリ `?v=20261102-test3`。
 - タブは入力／示唆／参照／カードの4つ。導線・sitemap登録なし。
 - 本番ガイド更新は末尾の案のみ。テスト版の公開・本番反映は今回の作業に含めない。
 
@@ -91,7 +91,7 @@ G侵食役は上表順の9行、ctx.crow、hot:false。共通hint：
 
 ボーナス当選率は1セクション。絵文字付き小見出しは正本通り、その下に通常／高確／超高の3行。
 cbは全状態、blue/redは通常・高確が既存rateRowの当選／ハズレ。分母はそのグループの役がその状態で成立した機会数D、分子はそのうちのボーナス当選数W。表示はratio()に集約し `W/D xx%`、D=0では%なし。
-残り5行は成立＝当選回数のctx.crowで、補足は「当選確定（回数のみ）」。
+残り5行は成立＝当選回数のctx.crowで、補足は「当選率100%（回数のみ）」。
 
 共通hint（指定文そのまま）：
 
