@@ -37,7 +37,7 @@
   const BONUS_ROWS=BONUS_GROUPS.flatMap(([id,,short])=>BONUS_STATES.map(([state,label])=>[id+state,label,id!=='rainbow'&&(id==='cb'||state!=='Super'),short]));
   const BONUS_RATES=BONUS_ROWS.filter(c=>c[2]);
   const G_ROLE_HINT='G侵食役の成立後、5G以内に小役が成立すると変異が発生します。発生した変異の回数を数えます。設定差は公表されていないため記録のみです。';
-  const BONUS_HINT='グループの役が成立したとき、ボーナスに当選したら当選、しなかったらハズレを押します。当選が確定する欄は回数だけを数えます。設定差は公表されていないため記録のみです。';
+  const BONUS_HINT='グループの役が成立したとき、ボーナスに当選したら当選、しなかったらハズレを押します。当選率が100%の欄は、回数だけを数えます。設定差は公表されていないため記録のみです。';
   const MERGE_KEYS=['counts','gRole','bonusRate','suika','kitei','endScreen','edVoice'];
   const zeroCounts=rows=>Object.fromEntries(rows.map(c=>[c[0],0]));
   const zeroRates=rows=>Object.fromEntries(rows.flatMap(c=>[[c[0]+'D',0],[c[0]+'W',0]]));
