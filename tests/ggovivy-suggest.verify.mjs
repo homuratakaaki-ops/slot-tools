@@ -290,8 +290,10 @@ for(const [id,groups] of Object.entries(EXPECTED)){
  });
 }
 check('test version removed (§9-108-2) / NEW欄 2 lines / no links to -test',()=>{
- for(const p of ['ggo-test-checker.html','vivy-test-checker.html','checker-data/ggo-test.js','checker-data/vivy-test.js'])assert.ok(!fs.existsSync(path.join(root,p)),p+' は削除');
- for(const p of fs.readdirSync(root).filter(p=>p.endsWith('.html')))assert.doesNotMatch(read(p),/(?:href|src)=["'][^"']*(?:ggo|vivy)-test/);
+ // 11/2 に Vivy のなな様テンプレ対応で別のテスト版（vivy-test、?v=20261102-nana-test）を作り直した。示唆タブのテスト版（?v=20261102-test）が残っていないことだけを見る。
+ for(const p of ['ggo-test-checker.html','checker-data/ggo-test.js'])assert.ok(!fs.existsSync(path.join(root,p)),p+' は削除');
+ if(fs.existsSync(path.join(root,'vivy-test-checker.html')))assert.ok(!read('vivy-test-checker.html').includes('20261102-test"'),'示唆タブのテスト版は削除');
+ for(const p of fs.readdirSync(root).filter(p=>p.endsWith('.html')&&p!=='vivy-test-checker.html'))assert.doesNotMatch(read(p),/(?:href|src)=["'][^"']*(?:ggo|vivy)-test/);
  const news=read('index.html').split('<div class="section-label">NEW</div>')[1].split('</section>')[0];
  assert.equal((news.match(/<p>/g)||[]).length,8);
  const ps=news.match(/<p>.*<\/p>/g);

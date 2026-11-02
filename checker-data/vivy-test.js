@@ -140,8 +140,8 @@
   function pageReference(){
     return pageStyle()+REF_SECTIONS.map((sec,i)=>`<section class="sec" id="ref${i+1}"><div class="sec-h">${sec[0]}</div><table class="ref-table"><tbody>${sec[1].map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('')}</tbody></table></section>`).join('');
   }
-  // 正本ファイルから機械生成。空白・表記を変更しない。
-  const TEMPLATE="VIVY\n\n\n■規定周期 Ａ2~6・Ｂ2.3・天国1周期\n①周期▶︎ 0/0\n②周期▶︎ 0/0\n③周期▶︎ 0/0\n④周期▶︎ 0/0\n⑤周期▶︎ 0/0\n⑥周期▶︎ 0/0\n\n■規定ポイント(2周期以降)\n111pt▶︎ 0回\n222pt▶︎ 0回\n333pt▶︎ 0回\n444pt▶︎ 0回\n555pt▶︎ 0回\n⚠️555pt選択された次の周期は333ptまで\n\n■レア役からのアクセスチャンス(EX)\n弱ﾁｪ   ▶︎ 0/0\n↪︎EX 0回\nﾁｬﾝｽ目▶︎ 0/0\n↪︎EX 0回\n\n■アクセスチャンスの継続回数\n1回目継続▶︎ 0回\n↪︎EX昇格 0/0回\n2回目継続▶︎ 0回\n↪︎EX昇格 0/0回\n\n■AT終了画面\nｴｽﾃﾗ          ▶︎ 0回\nﾋﾞｰﾁ          ▶︎ 0回\nﾏﾂﾓﾄ人形  ▶︎ 0回\n抱きしめる▶︎ 0回\n見つめる　▶︎ 0回\nｸﾏ               ▶︎ 0回\n手を伸ばす▶︎ 0回\nﾐﾆｷｬﾗ         ▶︎ 0回\n全員集合　▶︎ 0回\n\n■エンディング中のキャラ(複数体確定系)\nｳﾞｨｳﾞｨ(ﾃﾞﾌｫ)▶︎ \nｴﾘｻﾞﾍﾞｽ(2↑)▶︎ \nｴｽﾃﾗ(3↑)      ▶︎ \nｸﾞﾚｲｽ(4↑)    ▶︎ \nｵﾌｨｰﾘｱ(5↑)  ▶︎ \nﾏﾂﾓﾄ(6↑)     ▶︎";
+  // 正本ファイルから機械生成。原文からの変更は「ﾏﾂﾓﾄ人形」→「ﾏﾂﾓﾄ変形」の1か所だけ（夢爽 11/2、なな様へ事後報告）。空白はそのまま。
+  const TEMPLATE="VIVY\n\n\n■規定周期 Ａ2~6・Ｂ2.3・天国1周期\n①周期▶︎ 0/0\n②周期▶︎ 0/0\n③周期▶︎ 0/0\n④周期▶︎ 0/0\n⑤周期▶︎ 0/0\n⑥周期▶︎ 0/0\n\n■規定ポイント(2周期以降)\n111pt▶︎ 0回\n222pt▶︎ 0回\n333pt▶︎ 0回\n444pt▶︎ 0回\n555pt▶︎ 0回\n⚠️555pt選択された次の周期は333ptまで\n\n■レア役からのアクセスチャンス(EX)\n弱ﾁｪ   ▶︎ 0/0\n↪︎EX 0回\nﾁｬﾝｽ目▶︎ 0/0\n↪︎EX 0回\n\n■アクセスチャンスの継続回数\n1回目継続▶︎ 0回\n↪︎EX昇格 0/0回\n2回目継続▶︎ 0回\n↪︎EX昇格 0/0回\n\n■AT終了画面\nｴｽﾃﾗ          ▶︎ 0回\nﾋﾞｰﾁ          ▶︎ 0回\nﾏﾂﾓﾄ変形  ▶︎ 0回\n抱きしめる▶︎ 0回\n見つめる　▶︎ 0回\nｸﾏ               ▶︎ 0回\n手を伸ばす▶︎ 0回\nﾐﾆｷｬﾗ         ▶︎ 0回\n全員集合　▶︎ 0回\n\n■エンディング中のキャラ(複数体確定系)\nｳﾞｨｳﾞｨ(ﾃﾞﾌｫ)▶︎ \nｴﾘｻﾞﾍﾞｽ(2↑)▶︎ \nｴｽﾃﾗ(3↑)      ▶︎ \nｸﾞﾚｲｽ(4↑)    ▶︎ \nｵﾌｨｰﾘｱ(5↑)  ▶︎ \nﾏﾂﾓﾄ(6↑)     ▶︎";
   function tplText(ctx){
     const S=ctx.S,g=freeGames(S),at=n(S.counts,'at');
     const rate=(group,k)=>n(S[group],k+'W')+'/'+n(S[group],k+'D');
@@ -167,7 +167,7 @@
     MERGE_KEYS.forEach(key=>{
       // §9-108-4：知っている項目は検証（非負整数）、知らない項目は捨てずに保持。新しい項目は0で足す。
       out[key]=Object.assign({},DEF[key],out[key]||{});
-      Object.keys(DEF[key]).forEach(k=>{out[key][k]=integer(out[key][k]);});
+      Object.keys(out[key]).forEach(k=>{out[key][k]=integer(out[key][k]);});
     });
     RECORDS.forEach(([key,,,rows])=>rows.filter(c=>c[2]).forEach(([k])=>{if(out[key][k+'W']>out[key][k+'D'])out[key][k+'D']=out[key][k+'W'];}));
     ['weak','chance'].forEach(k=>{out.access[k+'Ex']=Math.min(out.access[k+'Ex'],out.access[k+'W']);});

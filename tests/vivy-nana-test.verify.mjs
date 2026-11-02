@@ -27,14 +27,16 @@ const slots=[...cycles.map(k=>[['cycle',k+'W'],['cycle',k+'D']]),...points.map(k
  [['access','weakW'],['access','weakD']],[['access','weakEx']],[['access','chanceW'],['access','chanceD']],[['access','chanceEx']],
  [['cont','k1D']],[['cont','k1W'],['cont','k1D']],[['cont','k2D']],[['cont','k2W'],['cont','k2D']],
  ...end.map(k=>[['atEnd',k]]),...chars.map(k=>[['ending',k]])];
-const raw=read('docs/specs/vivy-nana-template-v01.txt');
+// 原文からの変更は「ﾏﾂﾓﾄ人形」→「ﾏﾂﾓﾄ変形」の1か所だけ（夢爽 11/2）。それ以外は数値の位置しか違わない。
+const original=read('docs/specs/vivy-nana-template-v01.txt');
+const raw=original.replace('ﾏﾂﾓﾄ人形  ▶︎ 0回','ﾏﾂﾓﾄ変形  ▶︎ 0回');
 function expected(S){let i=0;return raw.split('\n').map(line=>{
  line=line.replace(/0\/0|0回/g,m=>{const fields=slots[i++];return fields.map(([g,k])=>S[g][k]).join('/')+(m==='0回'?'回':'');});
  if(/▶︎ ?$/.test(line)){const [[g,k]]=slots[i++];line=line.replace(/▶︎ ?$/,'▶︎ '+S[g][k]+'回');}return line;
 }).join('\n');}
 const body=S=>c.template(ctx(S)).split('_______\n\n')[1].split('\n\nby slot-tools.jp')[0];
 check('正本SHA256・全0本文完全一致',()=>{
- assert.equal(createHash('sha256').update(raw).digest('hex'),'734200252f8da2c2817c46e8e688d6aab4d8d777b31033e1f3df8e1015620dc1');
+ assert.equal(createHash('sha256').update(original).digest('hex'),'734200252f8da2c2817c46e8e688d6aab4d8d777b31033e1f3df8e1015620dc1');
  assert.equal(body(fresh()),raw.replace(/▶︎ ?(?=\n|$)/g,'▶︎ 0回'));assert.equal(body(fresh()),expected(fresh()));
 });
 check('全項目別値・数値以外完全一致・ヘッダー・フッター',()=>{
@@ -55,9 +57,11 @@ for(const g of c.mergeKeys)for(const k of Object.keys(c.defaults[g]))check('単�
 });
 check('本番保存互換・未知キー・冪等',()=>{
  const old=clone(production.defaults);old.games=89;old.gameLog=[234,567];old.img='data:image/png;base64,future';old.iconChoice='custom';old.futureRoot={keep:[1,2]};
- for(const g of production.mergeKeys){for(const k of Object.keys(old[g]))old[g][k]=7;old[g].future={keep:true};}
+ for(const g of production.mergeKeys){for(const k of Object.keys(old[g]))old[g][k]=7;old[g].future=9;}
+ // 本番の normalizeState はグループ内の知らない項目も非負整数にして保存する。保存済みの形（本番で正規化済み）から読み込む。
+ assert.deepEqual(clone(production.normalizeState(clone(old))),clone(old),'本番が保存する形');
  const S=c.normalizeState(clone(old));for(const k of Object.keys(old))assert.deepEqual(clone(S[k]),old[k],k);
- for(const g of ['cycle','pt','pt555','access','cont']){assert.ok(Object.values(S[g]).every(v=>v===0));S[g].future={keep:['x']};}
+ for(const g of ['cycle','pt','pt555','access','cont']){assert.ok(Object.values(S[g]).every(v=>v===0));S[g].future=9;}
  assert.equal(S.schemaVersion,1);assert.deepEqual(clone(c.normalizeState(clone(S))),clone(S));S.schemaVersion=99;assert.equal(c.normalizeState(S).schemaVersion,99);
 });
 check('W>D・EX>W・不正値補正・冪等',()=>{
