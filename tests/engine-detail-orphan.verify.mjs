@@ -91,7 +91,7 @@ check('all root HTML changes are exactly the engine query',()=>{
   let count=0;
   for(const file of fs.readdirSync(root).filter(f=>f.endsWith('.html'))){
     const now=read(file);if(!now.includes('checker-engine.js?v='))continue;
-    const base=git('show','4a5c35a:'+file);
+    const base=git('show','d279952:'+file);
     assert.equal(now,base.replaceAll('checker-engine.js?v=20260924','checker-engine.js?v=20261102-orphan'),file);count++;
   }
   assert.ok(count>=36,String(count));

@@ -90,9 +90,9 @@ check('HTML差分限定・本番全追跡ファイル不変・導線なし',()=>
   html=html.replace('<meta name="robots" content="noindex,nofollow">\n','').replaceAll('【テスト版】','').replaceAll('https://slot-tools.jp/godzieva2-test-checker.html','https://slot-tools.jp/godzieva2-checker.html').replace(banner+'\n','').replace('checker-data/godzieva2-test.js?v=20261102-test3','checker-data/godzieva2.js?v=20261101-nana4').replace('CheckerConfigs["godzieva2-test"]','CheckerConfigs.godzieva2');assert.equal(html,read('godzieva2-checker.html'));
   assert.equal(c.storageKey,'godzieva2-checker-v1-test');
   const allowed=new Set(['checker-data/godzieva2-test.js','docs/specs/godzieva2-checker-v03.md','docs/specs/godzieva2-nana-template-v02.txt','godzieva2-test-checker.html','tests/godzieva2-v02-test.browser.mjs','tests/godzieva2-v02-test.verify.mjs','tests/magireco-remove-estimate.verify.mjs','tests/mhsunbreak-bz-groups.verify.mjs','tests/mhsunbreak-template-v02.verify.mjs','tests/new-1005-public.verify.mjs']);
-  // PR #85（エンジンの見出し取り残し修正）の engine 本体・IDEAS.md・tests/・各 HTML の engine ?v は対象外。
+  // PR #85（エンジンの見出し取り残し修正）の engine 本体・IDEAS.md・tests/・各 HTML の engine ?v と、11/2 の Vivy なな様テンプレのテスト版（vivy を含むパス）は対象外。
   const engineQuery=t=>t.replaceAll('checker-engine.js?v=20261102-orphan','checker-engine.js?v=20260924');
-  assert.deepEqual(git('diff','--name-only',BASE,'--').trim().split('\n').filter(Boolean).filter(p=>!allowed.has(p)&&!['checker-engine.js','IDEAS.md'].includes(p)&&!p.startsWith('tests/')&&!(p.endsWith('.html')&&engineQuery(read(p))===git('show',BASE+':'+p))),[]);
+  assert.deepEqual(git('diff','--name-only',BASE,'--').trim().split('\n').filter(Boolean).filter(p=>!allowed.has(p)&&!['checker-engine.js','IDEAS.md'].includes(p)&&!p.startsWith('tests/')&&!p.includes('vivy')&&!(p.endsWith('.html')&&engineQuery(read(p))===git('show',BASE+':'+p))),[]);
   for(const p of ['godzieva2-checker.html','godzieva2-guide.html','checker-data/godzieva2.js','index.html','sitemap.xml'])assert.equal(engineQuery(read(p)),git('show',BASE+':'+p));
   for(const p of ['index.html','checkers.html','sitemap.xml'])assert.ok(!read(p).includes('godzieva2-test'));
 });
