@@ -95,6 +95,7 @@ check('all root HTML changes are exactly the engine query',()=>{
     if(file.endsWith('-test-checker.html')){assert.ok(now.includes('checker-engine.js?v=20261102-orphan'),file);count++;continue;}
     let base=git('show','d279952:'+file);
     if(file==='godzieva2-checker.html')base=base.replace('checker-data/godzieva2.js?v=20261101-nana4','checker-data/godzieva2.js?v=20261102-nana5');
+    if(file==='vivy-checker.html')base=base.replace('checker-data/vivy.js?v=20261102-suggest','checker-data/vivy.js?v=20261102-nana');
     assert.equal(now,base.replaceAll('checker-engine.js?v=20260924','checker-engine.js?v=20261102-orphan'),file);count++;
   }
   assert.ok(count>=36,String(count));

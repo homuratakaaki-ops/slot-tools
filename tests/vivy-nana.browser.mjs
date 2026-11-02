@@ -1,17 +1,17 @@
-// node tests/vivy-nana-test.browser.mjs — §9-108 本番保存キー分離・実描画検収。
+// node tests/vivy-nana.browser.mjs — 本番反映後（旧 vivy-nana-test）。0以外の既存本番データの互換・実描画。
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import http from 'node:http';
 import vm from 'node:vm';
-import {spawn} from 'node:child_process';
+import {spawn,execFileSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
-const artifacts=fs.mkdtempSync(path.join(process.env.CHECKER_ARTIFACTS||os.tmpdir(),'slot-vivy-nana-test-'));
-const profile=fs.mkdtempSync(path.join(os.tmpdir(),'slot-vivy-nana-test-profile-'));
+const artifacts=fs.mkdtempSync(path.join(process.env.CHECKER_ARTIFACTS||os.tmpdir(),'slot-vivy-nana-'));
+const profile=fs.mkdtempSync(path.join(os.tmpdir(),'slot-vivy-nana-profile-'));
 const chrome=process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe';
-let KEY='vivy-checker-v1-test',PAGE='/vivy-test-checker.html';const errors=[],measures=[];
+let KEY='vivy-checker-v1',PAGE='/vivy-checker.html';const errors=[],measures=[];
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
 const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.png':'image/png','.jpg':'image/jpeg','.webp':'image/webp'};
 const server=http.createServer((req,res)=>{
@@ -95,16 +95,18 @@ try{
     CanvasRenderingContext2D.prototype.fillText=function(text,x,y,...args){(window.__texts[this.canvas.id]??=[]).push({text:String(text),x,y,w:this.measureText(String(text)).width,font:this.font});return original.call(this,text,x,y,...args);};
   `});
   await load();
-  const box={window:{}};vm.runInNewContext(fs.readFileSync(path.join(root,'checker-data/vivy.js'),'utf8'),box);
-  const old=JSON.parse(JSON.stringify(box.window.CheckerConfigs.vivy.defaults));
-  old.gameLog=[345,678];old.games=23;old.img='data:image/png;base64,existing';old.iconChoice='upload';old.futureRoot={keep:'yes'};
-  for(const group of ['counts','atEnd','trophy','payout','ending']){for(const key of Object.keys(old[group]))old[group][key]=7;old[group].future={keep:9};}
-  const productionString=JSON.stringify(old,null,2);
-  await run(`localStorage.setItem('vivy-checker-v1',${JSON.stringify(productionString)});localStorage.removeItem(${JSON.stringify(KEY)});`);
-  await load();assert.equal(await state(),null);
-  const unchanged=async()=>assert.equal(await run(`return localStorage.getItem('vivy-checker-v1');`),productionString);
+  const box={window:{}};vm.runInNewContext(execFileSync('git',['show','e2e720a:checker-data/vivy.js'],{cwd:root,encoding:'utf8'}),box);
+  const before=box.window.CheckerConfigs.vivy;
+  const raw=JSON.parse(JSON.stringify(before.defaults));
+  raw.gameLog=[345,678];raw.games=23;raw.img='data:image/png;base64,existing';raw.iconChoice='default';raw.futureRoot={keep:'yes'};
+  for(const group of ['counts','atEnd','trophy','payout','ending']){for(const key of Object.keys(raw[group]))raw[group][key]=7;raw[group].future=9;}
+  const old=JSON.parse(JSON.stringify(before.normalizeState(JSON.parse(JSON.stringify(raw)))));
+  await run(`localStorage.setItem(${JSON.stringify(KEY)},${JSON.stringify(JSON.stringify(old))});`);
+  await load();
+  // 既存の値（0以外）はどの操作の後も変わらない。
+  const unchanged=async()=>{const st=await state();for(const g of ['counts','atEnd','trophy','payout','ending'])for(const k of Object.keys(old[g]))assert.equal(st[g][k],old[g][k],g+'.'+k);assert.deepEqual(st.gameLog,old.gameLog);assert.equal(st.img,old.img);assert.deepEqual(st.futureRoot,old.futureRoot);};
   await unchanged();
-  assert.equal(await run(`return d.querySelector('[data-c="counts.at"] .num').textContent;`),'0');
+  assert.equal(await run(`return d.querySelector('[data-c="counts.at"] .num').textContent;`),'7');
 
   const hints=await run('return [...d.querySelectorAll(".sec")].slice(2,7).map(s=>({count:s.querySelectorAll(".hint summary").length,label:s.querySelector("summary")?.textContent}));');
   assert.equal(hints.length,5);for(const h of hints)assert.deepEqual(h,{count:1,label:'説明を見る'});
@@ -123,7 +125,7 @@ try{
     // 別の操作の取消で既存のEX回数や前回555後ptが消えない。
     const saved=await state();await plus('counts.at');await click('#undoBtn');assert.deepEqual(await state(),saved);await unchanged();
   }
-  pass('10 rate pairs / 12 counts / undo / production bytes unchanged');
+  pass('existing production data (non-zero, iconChoice default) / 10 rate pairs / 12 counts / undo / existing values unchanged');
   const saved=await state();await load();assert.deepEqual(await state(),saved);
   await click('#modeBtn');
   for(const key of counts){await plus(key);const [g,k]=key.split('.');assert.equal((await state())[g][k],0);await plus(key);assert.equal((await state())[g][k],0);}
@@ -135,7 +137,7 @@ try{
     await click(win);assert.equal((await state())[g][k+'D'],0);assert.equal((await state())[g][k+'W'],0);
   }
   await unchanged();await click('#modeBtn');
-  pass('minus counts / wins / misses / lower bounds / reload / production isolation');
+  pass('minus counts / wins / misses / lower bounds / reload / existing values unchanged');
   for(const [label,S] of [['empty',{}],['filled',saved]]){
     await seed(S);
     for(let p=0;p<4;p++){await tab(p);await layout(360,label,p);await shot('vivy-'+label+'-tab'+p,360);}
@@ -146,6 +148,8 @@ try{
       await shot('vivy-'+label+'-'+title.replaceAll(/[^a-zA-Z0-9一-龯]/g,''),360);
     }
   }
+  // 既存の0以外のデータが入ったままだと詳細カードが40行を超えて新項目が「ほか」に入るので、新項目の行の確認は既存グループを0にした状態で見る。
+  {const S=JSON.parse(JSON.stringify(saved));for(const g of ['counts','atEnd','trophy','payout','ending'])for(const k of Object.keys(S[g]))S[g][k]=0;await seed(S);}
   await tab(3);await pause(200);
   assert.ok((await run(`return d.getElementById('tpl').value;`)).includes('■規定周期'));
   await canvas('cardCanvas','vivy-summary');
@@ -153,16 +157,16 @@ try{
   for(const text of ['規定周期','規定pt','前回555後pt','AC(EX)','AC継続','①周期 1/2 50%','弱チェリー→EX ×1','1回目継続 1/2 50%'])assert.ok(detail.texts.some(t=>t.text.includes(text)),text);
   for(const t of detail.texts.filter(t=>t.text.startsWith('• ')))assert.ok(t.x+t.w<=1010,JSON.stringify(t));
   // 全項目を埋めた際はエンジン既定の40行上限と省略表記に任せる。
-  const full=await run(`return structuredClone(CheckerConfigs['vivy-test'].defaults);`);
+  const full=await run(`return structuredClone(CheckerConfigs.vivy.defaults);`);
   for(const group of ['counts','cycle','pt','pt555','access','cont','atEnd','trophy','payout','ending'])for(const k of Object.keys(full[group]))full[group][k]=1;
   await seed(full);await tab(3);await click('#detailBtn');await pause(300);
   const crowded=await canvas('detailCanvas','vivy-detail-all');assert.ok(crowded.texts.some(t=>/ほか.*項目/.test(t.text)));
-  assert.deepEqual(await run('return window.__errors;'),[]);await unchanged();
-  assert.deepEqual(await run('return Object.keys(localStorage).sort();'),['vivy-checker-v1','vivy-checker-v1-test']);
+  assert.deepEqual(await run('return window.__errors;'),[]);
+  assert.deepEqual(await run('return Object.keys(localStorage).sort();'),['vivy-checker-v1']);
   pass('360x530 four tabs overflow 0 / card pixels and text / default truncation / no console errors');
   // ネネ検収 P3：nanaCollab 化する前の保存データ（iconChoice:"default"、nanaIconInit なし）→ なな様。slot-tools を選ぶ → 再読込でも slot-tools（§9-89）。
   {
-    const oldData=await run('return structuredClone(CheckerConfigs["vivy-test"].defaults);');delete oldData.nanaIconInit;oldData.iconChoice='default';oldData.counts.at=3;
+    const oldData=await run('return structuredClone(CheckerConfigs.vivy.defaults);');delete oldData.nanaIconInit;oldData.iconChoice='default';oldData.counts.at=3;
     await seed(oldData);await tab(3);await pause(200);
     const onChoice=()=>run('return [...d.querySelectorAll(".icon-choice.on")].map(b=>b.dataset.iconChoice);');
     assert.deepEqual(await onChoice(),['nana']);
@@ -170,8 +174,8 @@ try{
     assert.equal((await state()).iconChoice,'default');assert.equal((await state()).nanaIconInit,true);
     await load();await tab(3);await pause(200);
     assert.deepEqual(await onChoice(),['default'],'再読込でも slot-tools のまま');assert.equal((await state()).counts.at,3);
-    assert.deepEqual(await run('return window.__errors;'),[]);await unchanged();
-    pass('old data icon: nana once, then slot-tools kept after reload / production unchanged');
+    assert.deepEqual(await run('return window.__errors;'),[]);
+    pass('old data icon: nana once, then slot-tools kept after reload');
   }
   assert.deepEqual(errors,[]);
 }catch(e){failures++;console.error(e.stack);process.exitCode=1;}

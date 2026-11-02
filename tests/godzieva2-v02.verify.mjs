@@ -95,7 +95,8 @@ check('本番差分限定・削除・全ページ導線なし・NEW8行',()=>{
   for(const p of fs.readdirSync(root,{recursive:true}).filter(p=>p.endsWith('.html')))assert.doesNotMatch(read(p),/(?:href|src)=["'][^"']*godzieva2-test/);
   const news=read('index.html').split('<div class="section-label">NEW</div>')[1].split('</section>')[0];
   assert.equal((news.match(/<p>/g)||[]).length,8);
-  assert.equal(news.match(/<p>.*?<\/p>/)[0],'<p>11/2｜<a href="godzieva2-checker.html">ゴジエヴァ2 G侵食役・ボーナス当選率を追加（なな様テンプレ v02 対応）</a></p>');
+  // 後の更新（11/2 Vivy）で先頭に行が足されたので、位置ではなく行があることを見る。
+  assert.ok(news.includes('<p>11/2｜<a href="godzieva2-checker.html">ゴジエヴァ2 G侵食役・ボーナス当選率を追加（なな様テンプレ v02 対応）</a></p>'));
   assert.ok(!news.includes('tonski-checker.html'));
   assert.equal(read('docs/specs/godzieva2-nana-template-v02.txt'),git('show',BASE+':docs/specs/godzieva2-nana-template-v02.txt'));
   const guide=read('godzieva2-guide.html');
