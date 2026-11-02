@@ -22,22 +22,31 @@ const G=[100,250,400,550,700,850];
 const END=['shinji','rei','mari','asuka','mothra','xrei','reiBg','godzillaShogoki','allStars','kaworu'];
 const VOICE=['shinji','asuka','misato','gendo','kaworu'];
 const RATES=[['suika','normal'],['suika','at'],...['after','other'].flatMap(p=>G.map(g=>['kitei',p+g]))];
-const GROUPS=['counts','suika','kitei','endScreen','edVoice'];
+const GROUPS=['counts','gRole','bonusRate','suika','kitei','endScreen','edVoice'];
 const COUNT=[['first','ボーナス初当り',[234.2,229.0,221.8,207.0,201.5,195.0]],['at','AT',[460.5,446.5,425.5,390.4,374.2,355.5]]];
 const PAY=[97.7,98.9,101.2,105.8,110.6,114.9],CZ=[21.9,23.4,25.0,28.1,29.7,31.3];
-const raw=read('docs/specs/godzieva2-nana-template-v01.txt');
-// 実装の定数・正規表現を流用せず、原文を行ごとに加工して期待値を作る。
-function expected(S){
-  const g=S.gameLog.reduce((a,v)=>a+v,0),rate=n=>g>0&&n>0?'1/'+(g/n).toFixed(1):'';
-  const fractions=[S.suika.normalW+'/'+S.suika.normalD,S.suika.atW+'/'+S.suika.atD,...G.flatMap(v=>['after','other'].map(p=>S.kitei[p+v+'W']+'/'+S.kitei[p+v+'D']))];
-  const counts=[...END.map(k=>S.endScreen[k]),...VOICE.map(k=>S.edVoice[k])];let fi=0,ci=0;
-  const body=raw.split('\n').flatMap(line=>{
-    for(const [a,b] of [[150,100],[300,250],[450,400],[600,550],[750,700]])line=line.split(a+'g').join(b+'g');
-    line=line.split('0/0').reduce((acc,part,i)=>acc+(i?fractions[fi++]: '')+part,'');
-    if(line.trimEnd().endsWith('▶︎'))line=line.trimEnd()+' '+counts[ci++]+'回';
-    return line==='■ボーナス当選率'?[line,'ボーナス▶︎ '+S.counts.first+'回'+(rate(S.counts.first)?'（'+rate(S.counts.first)+'）':'')]:[line];
+const raw=read('docs/specs/godzieva2-nana-template-v02.txt');
+const roles=['henyaku','zoushoku','bunretsu','boost','kasseika','gesshoku','gRensa','shouri','kakutei'];
+const bonus=[['cbNormal',true],['cbHigh',true],['cbSuper',true],['blueNormal',true],['blueHigh',true],['blueSuper',false],['redNormal',true],['redHigh',true],['redSuper',false],['rainbowNormal',false],['rainbowHigh',false],['rainbowSuper',false]];
+const entries=[...roles.map(k=>['gRole',k,false]),...bonus.map(([k,r])=>['bonusRate',k,r]),...['normal','at'].map(k=>['suika',k,true]),...G.flatMap(g=>['after','other'].map(p=>['kitei',p+g,true])),...END.map(k=>['endScreen',k,false]),...VOICE.map(k=>['edVoice',k,false])];
+// 行ごとに承認差分を適用。実装のTEMPLATEや定義は参照しない。
+let group='';const approved=raw.split('\n').map(line=>{
+  if(line.startsWith('🍒🔔'))group='cb';if(line.startsWith('🌈'))group='rainbow';
+  if(line.startsWith('🟦')||line.startsWith('🟥')||line.startsWith('■'))group='';
+  if(line.startsWith('150g'))line=line.replaceAll('150g','100g');
+  if(group==='cb')line=line.replace('超高▶︎ 0回','超高▶︎ 0/0');
+  if(group==='rainbow')line=line.replace('通常▶︎ 0/0','通常▶︎ 0回').replace('高確▶︎ 0/0','高確▶︎ 0回');
+  return line;
+}).join('\n');
+function expectedBody(S){
+  let i=0;return approved.split('\n').map(line=>{
+    line=line.replace(/0\/0|0回/g,()=>{const [g,k,r]=entries[i++];return r?`${S[g][k+'W']}/${S[g][k+'D']}`:`${S[g][k]}回`;});
+    if(line.endsWith('▶︎ ')||line.endsWith('▶︎')){const [g,k]=entries[i++];line=line.replace(/▶︎ ?$/,'▶︎ '+S[g][k]+'回');}return line;
   }).join('\n');
-  return `設定判別メモ｜Lパチスロ ゴジラ対エヴァンゲリオン2\n累計通常G ${g}G（${S.gameLog.length}件） / AT${S.counts.at}回${rate(S.counts.at)?' '+rate(S.counts.at):''}\n_______\n\n${body}\n\nby slot-tools.jp\n${CREDIT}\n解析出典:ちょんぼりすた様`;
+}
+function expected(S){
+  const g=S.gameLog.reduce((a,v)=>a+v,0),rate=n=>g>0&&n>0?' 1/'+(g/n).toFixed(1):'';
+  return `設定判別メモ｜Lパチスロ ゴジラ対エヴァンゲリオン2\n累計通常G ${g}G（${S.gameLog.length}件） / ボーナス初当り${S.counts.first}回${rate(S.counts.first)} / AT${S.counts.at}回${rate(S.counts.at)}\n_______\n\n${expectedBody(S)}\n\nby slot-tools.jp\n${CREDIT}\n解析出典:ちょんぼりすた様`;
 }
 check('目安値・仕様書§3・入力・参照',()=>{
   const S=fresh(),pages=c.pages(ctx(S),()=>''),input=pages[0](),ref=pages[2]();
@@ -76,12 +85,12 @@ check('当選Gの追加取消・空入力・小数',()=>{
   doc.value='312';assert.equal(c.actions.addGameLog(cx),'当選G 312G を追加');doc.value='88.9';assert.equal(c.actions.addGameLog(cx),'当選G 88G を追加');assert.deepEqual(clone(S.gameLog),[312,88]);assert.equal(c.card.blocks(cx).at(-1)[1],'400G');
   assert.equal(c.actions.popGameLog(cx),'当選G 88G を取り消し');assert.deepEqual(clone(S.gameLog),[312]);
 });
-check('テンプレ全0・原文から独立構築した全体と完全一致',()=>{assert.equal(Buffer.byteLength(raw),800);assert.ok(!raw.endsWith('\n'));assert.equal(c.template(ctx(fresh())),expected(fresh()));});
+check('テンプレ全0・原文から独立構築した全体と完全一致',()=>{assert.equal(Buffer.byteLength(raw),1465);assert.ok(!raw.endsWith('\n'));assert.equal(c.template(ctx(fresh())),expected(fresh()));});
 for(const [group,key] of [...RATES.flatMap(([g,k])=>[[g,k+'D'],[g,k+'W']]),...END.map(k=>['endScreen',k]),...VOICE.map(k=>['edVoice',k]),['counts','first'],['counts','at']]){
   check('テンプレ単項目 '+group+'.'+key,()=>{
     const S=fresh(),base=c.template(ctx(S)).split('\n');S[group][key]=1;c.normalizeState(S);
     const text=c.template(ctx(S));assert.equal(text,expected(S));const changed=text.split('\n').filter((line,i)=>line!==base[i]);assert.equal(changed.length,1);
-    if(group==='counts')assert.ok(key==='first'?changed[0].startsWith('ボーナス▶︎ 1回'):changed[0].startsWith('累計通常G '));
+    if(group==='counts')assert.ok(changed[0].startsWith('累計通常G '));
     else if(key.endsWith('W'))assert.ok(changed[0].includes('1/1'));else if(key.endsWith('D'))assert.ok(changed[0].includes('0/1'));
   });
 }
@@ -90,22 +99,22 @@ check('全項目異なる値・テンプレ順序・分母ありのボーナス�
   assert.equal(c.template(ctx(S)),expected(S));assert.equal(c.compactTemplate(ctx(S)),c.template(ctx(S)));
 });
 check('入力順・減算境界・終了画面の割合・ED割合なし',()=>{
-  const S=fresh(),html=c.pages(ctx(S,-1),()=>'')[0]();assert.equal((html.match(/disabled aria-disabled="true"/g)||[]).length,14);
-  const names=[...html.matchAll(/class="ct"><b>(.*?)<\/b>/g)].map(m=>m[1]);assert.deepEqual(names,['通常時','AT中',...['AT後 ','AT後以外 '].flatMap(p=>G.map(g=>p+g+'G'))]);
+  const S=fresh(),html=c.pages(ctx(S,-1),()=>'')[0]();assert.equal((html.match(/disabled aria-disabled="true"/g)||[]).length,21);
+  const names=[...html.matchAll(/class="ct"><b>(.*?)<\/b>/g)].map(m=>m[1]);assert.deepEqual(names,['通常','高確','超高','通常','高確','通常','高確','通常時','AT中',...['AT後 ','AT後以外 '].flatMap(p=>G.map(g=>p+g+'G'))]);
   S.suika.normalD=2;S.suika.normalW=1;assert.ok(c.pages(ctx(S,-1),()=>'')[0]().includes('data-bump="suika.normalD"'));
   S.endScreen.shinji=3;S.endScreen.rei=1;S.edVoice.misato=1;const shisa=c.pages(ctx(S),()=>'')[1]();assert.ok(shisa.includes('計4回'));assert.ok(shisa.split('エンディング中ボイス')[0].includes('<div class="hint">ATを獲得したボーナスの後は終了画面が出ません。</div>'),'終了画面の説明（v0.2.1）');assert.equal((html.match(/class="crow cycle-row role-row"/g)||[]).length,2,'補足のある2行だけ role-row（v0.2.1）');assert.ok(shisa.includes('3/4 75%'));assert.ok(!shisa.includes('data-hot="true"'));assert.ok(shisa.split('data-c="edVoice.misato"')[1].startsWith(' data-hot="false"><b>ミサト</b><small>示唆内容は調査中</small><span class="pct"></span>'));
 });
-check('詳細カード全項目36行・母数0非表示・終了画面割合',()=>{
+check('詳細カード既存項目36行・母数0非表示・終了画面割合',()=>{
   const S=fresh();for(const group of GROUPS)for(const key of Object.keys(S[group]))S[group][key]=1;
-  const sections=c.card.detail(ctx(S)),rows=sections.reduce((sum,sec)=>{const items=sec.items.filter(item=>item&&item.show!==false&&((item.value||0)>0||item.text));return sum+items.length+(items.length>1?1:0);},0);
+  const sections=c.card.detail(ctx(S)).filter(sec=>!['G侵食役','ボーナス当選率'].includes(sec.title)),rows=sections.reduce((sum,sec)=>{const items=sec.items.filter(item=>item&&item.show!==false&&((item.value||0)>0||item.text));return sum+items.length+(items.length>1?1:0);},0);
   assert.equal(rows,36);assert.ok(rows<=40);assert.deepEqual(clone(sections.map(s=>s.title)),['カウント系','スイカCZ','規定G','終了画面','EDボイス']);
   assert.deepEqual(clone(sections[3].items.map(x=>x.label)),['シンジ(奇数)','レイ(偶数)','マリ(高弱)','アスカ(高強)','モスラ','Xレイ','レイ背景','ゴジラ初号機','全員集合','カヲル']);
   assert.equal(sections[3].percent,true);assert.equal(sections[3].denominator,10);assert.ok(!sections[4].percent);assert.ok(!sections[4].denominator);
-  for(const sec of c.card.detail(ctx(fresh())).slice(1,3))assert.ok(sec.items.every(x=>x.show===false));
-  S.kitei.after100W=0;assert.equal(c.card.detail(ctx(S))[2].items[0].text,'AT後100G 0/1 0%');
+  for(const sec of c.card.detail(ctx(fresh())).filter(sec=>['スイカCZ','規定G'].includes(sec.title)))assert.ok(sec.items.every(x=>x.show===false));
+  S.kitei.after100W=0;assert.equal(c.card.detail(ctx(S)).find(sec=>sec.title==='規定G').items[0].text,'AT後100G 0/1 0%');
   // 詳細カードの率の行（スイカCZ・規定G の14行）は入力画面と同じ ratio() の％付き。分母0は％を付けない（§9-47・ネネ検収 11/1）
   const R=fresh();R.suika.normalD=3;R.suika.normalW=2;R.kitei.other850D=8;R.kitei.other850W=1;
-  const rd=c.card.detail(ctx(R)),inp=c.pages(ctx(R),()=>'')[0]();
+  const rd=c.card.detail(ctx(R)).filter(sec=>!['G侵食役','ボーナス当選率'].includes(sec.title)),inp=c.pages(ctx(R),()=>'')[0]();
   assert.equal(rd[1].items[0].text,'通常時 2/3 67%');assert.ok(inp.includes('<div class="pct">2/3 67%</div>'),'入力画面と同じ％');
   assert.equal(rd[2].items[11].text,'AT後以外850G 1/8 13%');assert.ok(inp.includes('<div class="pct">1/8 13%</div>'));
   for(const it of [...rd[1].items,...rd[2].items])if(it.show)assert.match(it.text,/ \d+\/[1-9]\d* \d+%$/);else assert.ok(!it.text.includes('%'),it.text);
@@ -115,7 +124,7 @@ check('詳細カード全項目36行・母数0非表示・終了画面割合',()
 check('HTML・ガイド・LF・後読みなし・構文・公開（index可・checkers.html／sitemap／NEW欄）',()=>{
   assert.equal(c.storageKey,'godzieva2-checker-v1');assert.equal(c.uiV2,true);assert.equal(c.nanaCollab,true);assert.equal(c.pages(ctx(fresh()),()=>'').length,4);
   const html=read('godzieva2-checker.html'),guide=read('godzieva2-guide.html');assert.deepEqual([...html.matchAll(/<button data-p="\d"[^>]*>(.*?)<\/button>/g)].map(m=>m[1]),['入力','示唆','参照','カード']);
-  for(const text of ['grid-template-columns:repeat(4,1fr)','checker-data/godzieva2.js?v=20261101-nana4','checker-engine.js?v=20261102-orphan','← 機種選択','使い方','G-QCKV9H0DT1'])assert.ok(html.includes(text),text);
+  for(const text of ['grid-template-columns:repeat(4,1fr)','checker-data/godzieva2.js?v=20261102-nana5','checker-engine.js?v=20261102-orphan','← 機種選択','使い方','G-QCKV9H0DT1'])assert.ok(html.includes(text),text);
   assert.ok(!html.includes('checker-bayes.js'));
   // 11/1 公開（ネネ①②③・％再確認合格、360px 夢爽合格）。導線なしの固定を公開状態の検査に置き換えた。
   const list=read('checkers.html').split('<div class="section-label">スマスロ・AT機</div>')[1];
@@ -124,7 +133,7 @@ check('HTML・ガイド・LF・後読みなし・構文・公開（index可・ch
   const news=read('index.html').split('<div class="section-label">NEW</div>')[1].split('</section>')[0];
   assert.ok(news.includes('<p>11/2｜<a href="godzieva2-checker.html">L ゴジラ対エヴァンゲリオン2 設定判別カウンターを公開（テンプレ：鈴白なな様）</a></p>'),'NEW欄');
   assert.ok((news.match(/<p>/g)||[]).length<=8,'NEW欄は8行上限（§9-92）');
-  for(const text of ['スイカからのCZ','規定ゲーム数','ボーナス・AT終了画面','エンディング中ボイス','カードとテンプレ','テンプレのコピー','2026年11月1日','「入力」「示唆」「参照」「カード」'])assert.ok(guide.includes(text),text);
+  for(const text of ['スイカからのCZ','規定ゲーム数','ボーナス・AT終了画面','エンディング中ボイス','カードとテンプレ','テンプレのコピー','2026年11月2日','「入力」「示唆」「参照」「カード」'])assert.ok(guide.includes(text),text);
   assert.ok(!guide.includes('設定示唆（終了画面・トロフィーなど）は出典で調査中'));
   const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'godzieva2-syntax-'));
   for(const p of ['godzieva2-checker.html','godzieva2-guide.html']){
@@ -141,7 +150,7 @@ check('名称「ボーナス初当り」（夢爽 11/1）・保存キーは coun
   assert.equal(c.card.blocks(cx)[0][0],'ボーナス初当り');assert.equal(c.card.chart(cx).items[0].label,'ボーナス初当り');
   assert.ok(c.card.detail(cx)[0].items[0].text.startsWith('ボーナス初当り ×3'));assert.ok(c.card.bottom(cx).columns[0].items[0].text.startsWith('ボーナス初当り 3回'));
   assert.ok(ref.includes('ボーナス初当り・AT・出玉率')&&ref.includes('ボーナス初当り 1/234.2'));
-  assert.ok(tpl.includes('■ボーナス当選率\nボーナス▶︎ 3回\n'));assert.ok(!tpl.includes('初当り'),'テンプレ本文は「ボーナス▶︎ N回」のまま');
+  assert.ok(tpl.split('\n')[1].includes('ボーナス初当り3回'));assert.ok(!tpl.includes('ボーナス▶︎'),'暫定行は削除');
   // 「ボーナス」の付かない「初当り」が画面・ガイド・HTMLに残っていない
   for(const [name,s] of [['input',input],['ref',ref],['detail',JSON.stringify(c.card.detail(cx))],['js',read('checker-data/godzieva2.js')],['html',read('godzieva2-checker.html')],['guide',read('godzieva2-guide.html')]])
     assert.ok(!s.split('ボーナス初当り').join('').includes('初当り'),name);

@@ -298,7 +298,7 @@ check('test version removed (§9-108-2) / NEW欄 2 lines / no links to -test',()
  const news=read('index.html').split('<div class="section-label">NEW</div>')[1].split('</section>')[0];
  assert.equal((news.match(/<p>/g)||[]).length,8);
  const ps=news.match(/<p>.*<\/p>/g);
- assert.equal(ps[0],'<p>11/2｜<a href="ggo-checker.html">GGO ボーナス終了画面のカードの記録を追加</a></p>');
- assert.equal(ps[1],'<p>11/2｜<a href="vivy-checker.html">Vivy コパンダトロフィー・獲得枚数表示・エンディング中キャラ・AT終了画面を追加</a></p>');
+ assert.equal(ps[1],'<p>11/2｜<a href="ggo-checker.html">GGO ボーナス終了画面のカードの記録を追加</a></p>');
+ assert.equal(ps[2],'<p>11/2｜<a href="vivy-checker.html">Vivy コパンダトロフィー・獲得枚数表示・エンディング中キャラ・AT終了画面を追加</a></p>');
 });
 console.log('ggovivy-suggest: '+checks+' passed / 0 failed');

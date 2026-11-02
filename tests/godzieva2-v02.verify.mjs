@@ -1,4 +1,4 @@
-// node tests/godzieva2-v02-test.verify.mjs — 正本と独立した項目順による検査。
+// node tests/godzieva2-v02.verify.mjs — 正本と独立した項目順による検査。
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
@@ -11,9 +11,9 @@ const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const read=p=>fs.readFileSync(path.join(root,p),'utf8'),clone=x=>JSON.parse(JSON.stringify(x));
 const git=(...args)=>execFileSync('git',args,{cwd:root,encoding:'utf8'});
 function config(src,key){const box={window:{}};vm.runInNewContext(src,box);return box.window.CheckerConfigs[key];}
-const c=config(read('checker-data/godzieva2-test.js'),'godzieva2-test');
-// 基点は反映前の main（0c6162e）。origin/main は進むので比較に使わない。
-const BASE='0c6162e';
+const c=config(read('checker-data/godzieva2.js'),'godzieva2');
+// 基点は反映前の main（2dc06d3）。origin/main は進むので比較に使わない。
+const BASE='2dc06d3';
 const production=config(git('show',BASE+':checker-data/godzieva2.js'),'godzieva2');
 const fresh=()=>c.normalizeState(clone(c.defaults));
 const ctx=S=>({S,mode:1,nanaCreditText:()=> 'ﾃﾝﾌﾟﾚ:鈴白なな様 @nana_szsr',pct:(v,d)=>`${v}/${d}`,crow:(key,label,sub,hot)=>`<div data-c="${key}" data-hot="${!!hot}">${label} ${sub}</div>`});
@@ -62,8 +62,10 @@ for(const k of ['first','at'])check('ヘッダー単項目 counts.'+k,()=>{
   assert.ok(after.split('\n')[1].includes((k==='first'?'ボーナス初当り':'AT')+'1回'));
 });
 check('main保存互換・未知キー・冪等・新規0・schemaVersion',()=>{
-  const old=clone(production.defaults);old.gameLog=[234,567];old.games=89;old.img='data:image/png;base64,future';old.iconChoice='custom';old.futureRoot={keep:[1,2]};
+  let old=clone(production.defaults);old.gameLog=[234,567];old.games=89;old.img='data:image/png;base64,future';old.iconChoice='custom';old.futureRoot={keep:[1,2]};
   for(const g of production.mergeKeys){for(const k of Object.keys(old[g]))old[g][k]=7;old[g].future={keep:true};}
+  old=clone(production.normalizeState(old));
+  assert.equal(c.storageKey,production.storageKey);
   const S=c.normalizeState(clone(old));for(const k of Object.keys(old))assert.deepEqual(clone(S[k]),old[k],k);
   for(const g of ['gRole','bonusRate'])assert.ok(Object.values(S[g]).every(v=>v===0));
   S.gRole.future={x:1};S.bonusRate.future=[9];assert.deepEqual(clone(c.normalizeState(clone(S))),clone(S));
@@ -84,23 +86,41 @@ check('詳細カード・率・非表示・23全角字幅・記録のみ',()=>{
   assert.deepEqual(clone(c.card.blocks(ctx(S))),clone(production.card.blocks(ctx(S))));
   const input=c.pages(ctx(S),()=>'')[0]();assert.equal((input.match(/bonus-group-h">/g)||[]).length,4);assert.ok(!/14\.1%|18\.7%|38\.2%|44\.9%/.test(input));assert.equal(c.pages(ctx(S),()=>'').length,4);
 });
-check('HTML差分限定・本番全追跡ファイル不変・導線なし',()=>{
-  let html=read('godzieva2-test-checker.html');const banner=git('show','65de568:ggo-test-checker.html').split('\n').find(l=>l.includes('テスト版です。'));
-  assert.ok(html.includes(banner));assert.ok(html.includes('<meta name="robots" content="noindex,nofollow">'));
-  html=html.replace('<meta name="robots" content="noindex,nofollow">\n','').replaceAll('【テスト版】','').replaceAll('https://slot-tools.jp/godzieva2-test-checker.html','https://slot-tools.jp/godzieva2-checker.html').replace(banner+'\n','').replace('checker-data/godzieva2-test.js?v=20261102-test3','checker-data/godzieva2.js?v=20261101-nana4').replace('CheckerConfigs["godzieva2-test"]','CheckerConfigs.godzieva2');assert.equal(html,read('godzieva2-checker.html'));
-  assert.equal(c.storageKey,'godzieva2-checker-v1-test');
-  const allowed=new Set(['checker-data/godzieva2-test.js','docs/specs/godzieva2-checker-v03.md','docs/specs/godzieva2-nana-template-v02.txt','godzieva2-test-checker.html','tests/godzieva2-v02-test.browser.mjs','tests/godzieva2-v02-test.verify.mjs','tests/magireco-remove-estimate.verify.mjs','tests/mhsunbreak-bz-groups.verify.mjs','tests/mhsunbreak-template-v02.verify.mjs','tests/new-1005-public.verify.mjs']);
-  // PR #85（エンジンの見出し取り残し修正）の engine 本体・IDEAS.md・tests/・各 HTML の engine ?v と、11/2 の Vivy なな様テンプレのテスト版（vivy を含むパス）は対象外。
-  const engineQuery=t=>t.replaceAll('checker-engine.js?v=20261102-orphan','checker-engine.js?v=20260924');
-  assert.deepEqual(git('diff','--name-only',BASE,'--').trim().split('\n').filter(Boolean).filter(p=>!allowed.has(p)&&!['checker-engine.js','IDEAS.md'].includes(p)&&!p.startsWith('tests/')&&!p.includes('vivy')&&!(p.endsWith('.html')&&engineQuery(read(p))===git('show',BASE+':'+p))),[]);
-  for(const p of ['godzieva2-checker.html','godzieva2-guide.html','checker-data/godzieva2.js','index.html','sitemap.xml'])assert.equal(engineQuery(read(p)),git('show',BASE+':'+p));
-  for(const p of ['index.html','checkers.html','sitemap.xml'])assert.ok(!read(p).includes('godzieva2-test'));
+check('本番差分限定・削除・全ページ導線なし・NEW8行',()=>{
+  assert.equal(read('godzieva2-checker.html'),git('show',BASE+':godzieva2-checker.html').replace('checker-data/godzieva2.js?v=20261101-nana4','checker-data/godzieva2.js?v=20261102-nana5'));
+  const tested=git('show','4a5c35a:checker-data/godzieva2-test.js');
+  const released=tested.split('\n').slice(1).join('\n').replace(/^\/\/ 2026-11-01.*$/m,"// 2026-11-02 更新分を確認（第三者解析）。数値・文言の正本: docs/specs/godzieva2-checker-v03.md（テスト版 4a5c35a をネネ検収合格・夢爽スマホ確認○の後に本番へ反映）").replace('window.CheckerConfigs["godzieva2-test"]','window.CheckerConfigs.godzieva2').replace('storageKey:"godzieva2-checker-v1-test"','storageKey:"godzieva2-checker-v1"');
+  assert.equal(read('checker-data/godzieva2.js'),released);assert.equal(c.storageKey,'godzieva2-checker-v1');
+  for(const p of ['checker-data/godzieva2-test.js','godzieva2-test-checker.html'])assert.ok(!fs.existsSync(path.join(root,p)));
+  for(const p of fs.readdirSync(root,{recursive:true}).filter(p=>p.endsWith('.html')))assert.doesNotMatch(read(p),/(?:href|src)=["'][^"']*godzieva2-test/);
+  const news=read('index.html').split('<div class="section-label">NEW</div>')[1].split('</section>')[0];
+  assert.equal((news.match(/<p>/g)||[]).length,8);
+  assert.equal(news.match(/<p>.*?<\/p>/)[0],'<p>11/2｜<a href="godzieva2-checker.html">ゴジエヴァ2 G侵食役・ボーナス当選率を追加（なな様テンプレ v02 対応）</a></p>');
+  assert.ok(!news.includes('tonski-checker.html'));
+  assert.equal(read('docs/specs/godzieva2-nana-template-v02.txt'),git('show',BASE+':docs/specs/godzieva2-nana-template-v02.txt'));
+  const guide=read('godzieva2-guide.html');
+  const proposals=git('show',BASE+':docs/specs/godzieva2-checker-v03.md').split('## 本番ガイドの反映案')[1].split('### ').slice(1);
+  for(const proposal of proposals){const [title,...body]=proposal.split('\n');assert.ok(guide.includes('<h3>'+title+'</h3>'));assert.ok(guide.includes('<p>'+body.join('\n').trim()+'</p>'));}
+  assert.ok(guide.includes('2026年11月2日確認'));assert.ok(!guide.includes('ボーナス▶︎'));
 });
 check('構文・LF・後読みなし',()=>{
   const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'gz2-v02-syntax-'));
-  for(const p of ['checker-data/godzieva2-test.js','godzieva2-test-checker.html','docs/specs/godzieva2-checker-v03.md','tests/godzieva2-v02-test.verify.mjs','tests/godzieva2-v02-test.browser.mjs'])assert.ok(!read(p).includes('\r'),p);
-  for(const p of ['checker-data/godzieva2-test.js','tests/godzieva2-v02-test.verify.mjs','tests/godzieva2-v02-test.browser.mjs'])execFileSync(process.execPath,['--check',path.join(root,p)]);
-  assert.doesNotMatch(read('checker-data/godzieva2-test.js'),/\(\?<([=!])/);
-  for(const [i,m] of [...read('godzieva2-test-checker.html').matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)].entries())if(!/\bsrc=/.test(m[1])){const f=path.join(tmp,i+'.mjs');fs.writeFileSync(f,m[2]);execFileSync(process.execPath,['--check',f]);}
+  for(const p of ['checker-data/godzieva2.js','godzieva2-checker.html','docs/specs/godzieva2-checker-v03.md','tests/godzieva2-v02.verify.mjs','tests/godzieva2-v02.browser.mjs'])assert.ok(!read(p).includes('\r'),p);
+  for(const p of ['checker-data/godzieva2.js','tests/godzieva2-v02.verify.mjs','tests/godzieva2-v02.browser.mjs'])execFileSync(process.execPath,['--check',path.join(root,p)]);
+  assert.doesNotMatch(read('checker-data/godzieva2.js'),/\(\?<([=!])/);
+  for(const [i,m] of [...read('godzieva2-checker.html').matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)].entries())if(!/\bsrc=/.test(m[1])){const f=path.join(tmp,i+'.mjs');fs.writeFileSync(f,m[2]);execFileSync(process.execPath,['--check',f]);}
 });
-console.log(`godzieva2-v02-test: ${checks} passed / 0 failed`);
+// §9-108-4：知らない項目は、トップレベル・グループ内とも型ごと保持する（数値に変換しない・捨てない）。知っている項目だけ非負整数に検証する。
+check('未知キーをトップレベル・グループ内とも型ごと保持（§9-108-4）',()=>{
+  const unknown={str:'keep',num:2.5,neg:-3,bool:false,nul:null,arr:[1,'a',{x:1}],obj:{deep:{v:'x'}}};
+  const S=clone(c.defaults);
+  Object.assign(S,{futureRoot:clone(unknown),futureStr:'root',futureNum:-1.5});
+  for(const g of c.mergeKeys)Object.assign(S[g],clone(unknown));
+  S.counts.first='4';S.gRole.henyaku=-2;S.bonusRate.cbNormalD=1.9;
+  const out=c.normalizeState(clone(S));
+  assert.deepEqual(clone(out.futureRoot),unknown);assert.equal(out.futureStr,'root');assert.equal(out.futureNum,-1.5);
+  for(const g of c.mergeKeys)for(const [k,v] of Object.entries(unknown))assert.deepEqual(clone(out[g][k]),v,g+'.'+k);
+  assert.equal(out.counts.first,4);assert.equal(out.gRole.henyaku,0);assert.equal(out.bonusRate.cbNormalD,1);
+  assert.deepEqual(clone(c.normalizeState(clone(out))),clone(out),'冪等');
+});
+console.log(`godzieva2-v02: ${checks} passed / 0 failed`);

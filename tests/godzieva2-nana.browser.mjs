@@ -114,7 +114,7 @@ try{
     await load();assert.equal(await sumText(),'1000G/2');
     pass(id+' 当選ごとのG 追加・最後の1件の取消・↩取消・保存');
     const rates=await run(`return [...d.querySelectorAll('[data-bump-many]')].map(b=>({paths:b.dataset.bumpMany,label:b.dataset.label}));`);
-    assert.equal(rates.length,14);
+    assert.equal(rates.length,21);
     for(const {paths,label} of rates){
       const [den,win]=paths.split(','),[group,dk]=den.split('.'),wk=win.split('.')[1];
       const winSelector=`[data-bump-many="${paths}"]`,missSelector=`[data-bump="${den}"]`;
@@ -133,7 +133,7 @@ try{
       await run(`d.querySelector(${JSON.stringify(winSelector)}).closest('.crow').click();`);assert.equal((await state())[group][dk],2);
     }
     const rateSaved=await state();await load();assert.deepEqual(await state(),rateSaved);
-    pass('14 rate rows: both buttons / visible / undo / subtract boundaries / no row tap / save / reload');
+    pass('21 rate rows: both buttons / visible / undo / subtract boundaries / no row tap / save / reload');
     await tab(1);const suggestionKeys=await run('return [...d.querySelectorAll("[data-c]")].map(e=>e.dataset.c);');assert.equal(suggestionKeys.length,15);
     for(const key of suggestionKeys){await plus(key);const [group,k]=key.split('.');assert.equal((await state())[group][k],1);await plus(key);await click('#undoBtn');assert.equal((await state())[group][k],1);}
     const allSaved=await state();await load();assert.deepEqual(await state(),allSaved);await tab(1);
@@ -150,7 +150,7 @@ try{
       await seed(S);
       for(let p=0;p<4;p++){await tab(p);await layout(360,label,p);await shot(id+'-'+['input','suggest','reference','card'][p]+'-360-'+label,360);}
     }
-    await tab(0);assert.equal(await run(`return d.querySelector('[data-c="${keys[0]}"] .pct').textContent;`),'1/190.5');
+    await tab(0);for(const title of ['G侵食役','ボーナス当選率'])assert.ok(await run(`return [...d.querySelectorAll('.sec-h')].some(e=>e.textContent===${JSON.stringify(title)});`));assert.equal(await run(`return d.querySelector('[data-c="${keys[0]}"] .pct').textContent;`),'1/190.5');
     await tab(3);await pause(150);
     assert.equal(await run(`return d.getElementById('tpl').value;`),await run(`return CheckerConfigs.godzieva2.template({S:JSON.parse(localStorage.getItem(${JSON.stringify(KEY)})),nanaCreditText:()=> 'ﾃﾝﾌﾟﾚ:鈴白なな様 @nana_szsr'});`));
     const card=await canvas('cardCanvas',id+'-summary-card');
