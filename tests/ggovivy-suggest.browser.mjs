@@ -103,7 +103,9 @@ try{
     assert.deepEqual(await state(),old,'開いただけでは本番データを書き換えない');
     await tab(1);const firstKey=await run('return d.querySelector("[data-c]").dataset.c;');await plus(firstKey);
     {const st=await state(),[g0,k0]=firstKey.split('.');
-     for(const [k,v] of Object.entries(old))if(k!=='counts')assert.deepEqual(st[k],v,k);
+     // Vivy は 11/2 のなな様テンプレ対応で、旧データのアイコンを1回だけなな様にする（nanaIconInit、§9-89）。
+     for(const [k,v] of Object.entries(old))if(k!=='counts')assert.deepEqual(st[k],id==='vivy'&&k==='iconChoice'?'nana':v,k);
+     if(id==='vivy')assert.equal(st.nanaIconInit,true);
      assert.deepEqual(st.counts,old.counts,'counts は値も知らない項目もそのまま');
      const defs=await run('return CheckerConfigs['+JSON.stringify(id)+'].defaults;');
      for(const g of Object.keys(defs).filter(g=>defs[g]&&typeof defs[g]==='object'&&!Array.isArray(defs[g])&&g!=='counts'))for(const k of Object.keys(defs[g]))assert.equal(st[g][k],g===g0&&k===k0?1:0,g+'.'+k);}
@@ -154,7 +156,8 @@ try{
     }
     await tab(0);assert.equal(await run(`return d.querySelector('[data-c="${keys[0]}"] .pct').textContent;`),'1/190.5');
     await tab(3);await pause(150);
-    assert.equal(await run(`return d.getElementById('tpl').value;`),await run(`return CheckerConfigs["${id}"].template({S:JSON.parse(localStorage.getItem(${JSON.stringify(KEY)}))});`));
+    // Vivy はなな様テンプレ（11/2）でクレジットを engine の context から取るので、engine 経由（__checkerApp.tplText）で比べる。
+    assert.equal(await run(`return d.getElementById('tpl').value;`),await run(id==='vivy'?'return w.__checkerApp.tplText();':`return CheckerConfigs["${id}"].template({S:JSON.parse(localStorage.getItem(${JSON.stringify(KEY)}))});`));
     const card=await canvas('cardCanvas',id+'-summary-card');
     for(const text of ['1/190.5','通常G','4000G'])assert.ok(card.texts.some(t=>t.text.includes(text)),id+' '+text);
     if(id==='vivy')for(const text of ['計10回','確定演出 619(6濃厚) ×1'])assert.ok(card.texts.some(t=>t.text.includes(text)),text);

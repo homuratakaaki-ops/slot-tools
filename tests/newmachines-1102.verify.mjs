@@ -32,12 +32,12 @@ const EXPECTED={
     target:{at:'設1:1/276.5⇔設6:1/210.3（設定順に並びません。参照タブ参照）'},
     // 見出しは英字部分が単語途中で折れないよう nowrap（ネネ再検収 2026-10-28）。
     header:"スロット Vivy <span style=\"white-space:nowrap\">-Fluorite Eye's Song-</span>",
-    hint:'引戻しは数えない。アクセスチャンス（ポイント獲得）はCZではない。アクセスチャンスの継続回数は内部値と一致しないため記録しない。'}
+    hint:'引戻しは数えない。アクセスチャンス（ポイント獲得）はCZではない。アクセスチャンスの継続回数は記録のみ。レア役による昇格があるため、規定回数とは一致しないことがあります。'}
 };
 // 追加ボタンは入力欄 #gameLogIn の値を読む。テストでは document.getElementById だけを差し替える。
 const doc={value:'',getElementById:id=>id==='gameLogIn'?{value:doc.value}:null};
 function load(id){const box={window:{},document:doc};vm.createContext(box);vm.runInContext(read('checker-data/'+id+'.js'),box);return box.window.CheckerConfigs[id];}
-function ctx(S){return {S,pct:(v,d)=>d>0?`${v}/${d} ${(100*v/d).toFixed(0)}%`:`${v}/0 —`,crow:(key,label,sub,hot,pct)=>{
+function ctx(S){return {S,nanaCreditText:()=>'ﾃﾝﾌﾟﾚ:鈴白なな様 @nana_szsr',pct:(v,d)=>d>0?`${v}/${d} ${(100*v/d).toFixed(0)}%`:`${v}/0 —`,crow:(key,label,sub,hot,pct)=>{
   const [group,id]=key.split('.');return `<div data-c="${key}"><b>${label}</b><small>${sub}</small><span class="pct">${pct?pct(S[group][id]):''}</span></div>`;
 }};}
 // 仕様書「## 3.」の表を読む（列：設定 / 各カウント / 出玉率）。
@@ -82,7 +82,8 @@ for(const [id,E] of Object.entries(EXPECTED)){
     E.counts.forEach(([key,label],i)=>{
       const v=[12,7][i],x='1/'+(3000/v).toFixed(1);
       assert.ok(input.split(`data-c="counts.${key}"`)[1].includes(`<span class="pct">${x}</span>`),key);
-      assert.ok(c.template(ctx(S)).includes(`${label}▶${v}回（${x}）`));
+      // Vivy はなな様テンプレ（11/2）。初当りはヘッダー行に出る（vivy-nana.verify で本文を検査）。
+      assert.ok(c.template(ctx(S)).includes(id==='vivy'?`${label}${v}回 ${x}`:`${label}▶${v}回（${x}）`));
       assert.equal(c.card.blocks(ctx(S))[i][1],x);
       assert.equal(c.card.detail(ctx(S))[0].items[i].text,`${label} ×${v} ${x}`);
       assert.equal(c.card.bottom(ctx(S)).columns[0].items[i+(id==='garo'?2:['ragnador','vivy'].includes(id)?1:0)].text,`${label} ${v}回 ${x}`);
@@ -90,8 +91,8 @@ for(const [id,E] of Object.entries(EXPECTED)){
     const blocks=c.card.blocks(ctx(S));assert.deepEqual(clone(blocks[blocks.length-1]),['通常G','3000G']);assert.ok(blocks.length<=4);
     for(const b of blocks)assert.ok([...b[0]].length<=8,b[0]);
     assert.equal(c.card.chart(ctx(S)).items.length,E.counts.length);
-    const t=c.template(ctx(S));assert.ok(t.startsWith(`設定判別メモ｜${E.title}\n累計通常G 3000G（3件）`));assert.ok(t.endsWith('by slot-tools.jp\n解析出典:ちょんぼりすた様'));
-    assert.equal(c.compactTemplate(ctx(S)),t);assert.ok(!c.template(ctx(fresh())).includes('■'));
+    const t=c.template(ctx(S));assert.ok(t.startsWith(`設定判別メモ｜${E.title}\n累計通常G 3000G（3件）`));assert.ok(t.endsWith(id==='vivy'?'by slot-tools.jp\nﾃﾝﾌﾟﾚ:鈴白なな様 @nana_szsr\n解析出典:ちょんぼりすた様':'by slot-tools.jp\n解析出典:ちょんぼりすた様'));
+    assert.equal(c.compactTemplate(ctx(S)),t);assert.equal(c.template(ctx(fresh())).includes('■'),id==='vivy');
     assert.ok(input.includes('累計通常G <b style="color:#6fd8ff" data-glog-sum>3000G</b> ／ <span data-glog-count>3</span>件'));
     assert.ok(input.includes('最後に追加：1000G'));assert.equal(c.card.metaText(ctx(S),'2026/10/28'),'2026/10/28  累計通常G 3000G（3件）');
     assert.equal(c.card.bottom(ctx(S)).columns[1].items[0].text,'累計通常G 3000G（3件）');
@@ -119,21 +120,22 @@ for(const [id,E] of Object.entries(EXPECTED)){
     const first=E.counts[0][0];
     const old={currentGames:'800.7',startGames:-3,gameLog:['800.7',-3,'x',0,250],counts:{[first]:'4.9',future:3.2},futureRoot:'keep'};
     const a=c.normalizeState(clone(old)),b=c.normalizeState(clone(a));
-    assert.deepEqual(clone(a),clone(b));assert.equal(a.counts[first],4);assert.equal(a.counts.future,['ragnador','garo'].includes(id)?undefined:3/* ggo・vivy は公開後の反映なので §9-108-4（知らない項目は保持） */);assert.equal(a.futureRoot,'keep');
+    assert.deepEqual(clone(a),clone(b));assert.equal(a.counts[first],4);assert.equal(a.counts.future,['ragnador','garo'].includes(id)?undefined:id==='vivy'?3.2:3/* ggo・vivy は公開後の反映なので §9-108-4（知らない項目は保持）。vivy は 11/2 のなな様テンプレ反映で型ごと保持、ggo は次の更新で直す（IDEAS.md 保留） */);assert.equal(a.futureRoot,'keep');
     assert.deepEqual(clone(a.gameLog),[800,250]);
     assert.deepEqual(clone(c.normalizeState({counts:{}}).gameLog),[]);assert.deepEqual(clone(c.normalizeState({gameLog:'500'}).gameLog),[]);
     for(const [key] of E.counts)assert.ok(Number.isInteger(a.counts[key])&&a.counts[key]>=0);
-    assert.deepEqual(clone(c.normalizeState({})),clone(c.defaults));
+    // Vivy は空データでもアイコンを1回だけなな様にして nanaIconInit を付ける（§9-89・11/2）。
+    assert.deepEqual(clone(c.normalizeState({})),id==='vivy'?{...clone(c.defaults),iconChoice:'nana',nanaIconInit:true}:clone(c.defaults));
     assert.equal(c.normalizeState({counts:{[first]:NaN}}).counts[first],0);
   });
   check(id+': HTML（公開：index可・checkers.html／sitemap 掲載・機種別タブ数・LF・構文）',()=>{
-    assert.equal(c.storageKey,id+'-checker-v1');assert.equal(c.uiV2,true);assert.equal(c.nanaCollab,false);assert.equal(c.sourceUrl,E.url);
-    assert.deepEqual(clone(c.mergeKeys),id==='garo'?['counts','bonusEnd','rushEnd','trophy','payout','lamp','stepup','item']:id==='ragnador'?['counts','edVoice','atVoice','czVoice']:id==='ggo'?['counts','bonusCard']:id==='vivy'?['counts','atEnd','trophy','payout','ending']:['counts']);assert.equal(c.pages(ctx(c.defaults),()=>'').length,['ragnador','garo','ggo','vivy'].includes(id)?4:3);
+    assert.equal(c.storageKey,id+'-checker-v1');assert.equal(c.uiV2,true);assert.equal(c.nanaCollab,id==='vivy');assert.equal(c.sourceUrl,E.url);
+    assert.deepEqual(clone(c.mergeKeys),id==='garo'?['counts','bonusEnd','rushEnd','trophy','payout','lamp','stepup','item']:id==='ragnador'?['counts','edVoice','atVoice','czVoice']:id==='ggo'?['counts','bonusCard']:id==='vivy'?['counts','cycle','pt','pt555','access','cont','atEnd','trophy','payout','ending']:['counts']);assert.equal(c.pages(ctx(c.defaults),()=>'').length,['ragnador','garo','ggo','vivy'].includes(id)?4:3);
     assert.equal(c.card.title,E.title);assert.ok(c.card.footerTags.endsWith(' #設定判別'));
     const html=read(id+'-checker.html');
     assert.deepEqual([...html.matchAll(/<button data-p="\d"[^>]*>(.*?)<\/button>/g)].map(m=>m[1]),['ragnador','garo','ggo','vivy'].includes(id)?['入力','示唆','参照','カード']:['入力','参照','カード']);
     assert.ok(html.includes('grid-template-columns:repeat('+(['ragnador','garo','ggo','vivy'].includes(id)?4:3)+',1fr)'));assert.ok(!html.includes('checker-bayes.js'));
-    for(const s of ['checker-engine.js?v=20261102-orphan',`checker-data/${id}.js?v=${id==='garo'?'20261102-garo':id==='ragnador'?'20261101-voice':['ggo','vivy'].includes(id)?'20261102-suggest':'20261028-glog'}`,`CheckerEngine.mount(CheckerConfigs.${id});`,`${id}-guide.html`,`<div class="hd-title">${E.header||E.title}<small>`])assert.ok(html.includes(s),s);
+    for(const s of ['checker-engine.js?v=20261102-orphan',`checker-data/${id}.js?v=${id==='garo'?'20261102-garo':id==='ragnador'?'20261101-voice':id==='vivy'?'20261102-nana':id==='ggo'?'20261102-suggest':'20261028-glog'}`,`CheckerEngine.mount(CheckerConfigs.${id});`,`${id}-guide.html`,`<div class="hd-title">${E.header||E.title}<small>`])assert.ok(html.includes(s),s);
     // 11/2 に5機種を公開（PR #83）。牙狼は示唆追加後にネネ検収合格（11/2）で戻した。
     const pub=true;
     if(!pub)for(const p of ['checkers.html','index.html','sitemap.xml'])assert.ok(!read(p).includes(id+'-checker')&&!read(p).includes(id+'-guide'),p+' に導線なし');

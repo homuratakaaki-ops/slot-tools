@@ -225,7 +225,9 @@ const EXPECTED={
 const TITLES={"bonusCard":"ボーナス終了画面のカード","atEnd":"AT終了画面","trophy":"コパンダトロフィー","payout":"獲得枚数表示","ending":"エンディング中のキャラ"},SHORT={"bonusCard":"終了画面カード","atEnd":"AT終了画面","trophy":"トロフィー","payout":"枚数表示","ending":"ED中キャラ"},HINTS={"bonusCard":"ボーナス終了画面で出現したカードを記録します。示唆内容は調査中です。出現したカードの履歴はメニュー画面で確認できます。","atEnd":"AT終了画面は全9種類です。示唆内容は調査中のため、記録のみです。","trophy":"AT終了時に出現することがあります。出現率はホールが調整できるため、出ないことは設定の根拠になりません。示唆内容は出典で推測とされているため、確定演出には数えません。","payout":"AT中の獲得枚数表示が特定の数字になると設定を示唆します。","ending":"エンディング中にレア役・共通ベルが成立したときPUSHボタンを押すとキャラが出現します。1体ならキャラの種類、2体以上なら体数で示唆します。"};
 let checks=0;
 function check(name,fn){fn();checks++;console.log('PASS '+name);}
-function load(id,inspect=false){const box={window:{}};vm.createContext(box);let src=read('checker-data/'+id+'.js');if(inspect)src=src.replace('  const DEF=','  window.__groups=GROUPS;\n  const DEF=');vm.runInContext(src,box);return box.window;}
+const FROZEN={vivy:'e2e720a'};
+const readId=(id,p)=>FROZEN[id]?execFileSync('git',['show',FROZEN[id]+':'+p],{cwd:root,encoding:'utf8'}):read(p);
+function load(id,inspect=false,current=false){const box={window:{}};vm.createContext(box);let src=current?read('checker-data/'+id+'.js'):readId(id,'checker-data/'+id+'.js');if(inspect)src=src.replace('  const DEF=','  window.__groups=GROUPS;\n  const DEF=');vm.runInContext(src,box);return box.window;}
 // 反映前の本番（テスト版 65de568 の時点の main）。GGO のカード本体と既存データの互換を比べる。
 const BEFORE=p=>execFileSync('git',['show','65de568:'+p],{cwd:root,encoding:'utf8'});
 function loadSrc(src){const box={window:{}};vm.createContext(box);vm.runInContext(src,box);return box.window;}
@@ -276,7 +278,7 @@ for(const [id,groups] of Object.entries(EXPECTED)){
  });
  check(id+' production HTML / guide / syntax / LF',()=>{
    assert.equal(c.storageKey,id+'-checker-v1');assert.equal(c.pages(ctx(fresh()),()=>'').length,4);assert.ok(!c.pages(ctx(fresh()),()=>'')[0]().includes('調査中'));
-   const html=read(id+'-checker.html'),old=BEFORE(id+'-checker.html');
+   const html=readId(id,id+'-checker.html'),old=BEFORE(id+'-checker.html');
    assert.deepEqual([...html.matchAll(/<button data-p="\d"[^>]*>(.*?)<\/button>/g)].map(m=>m[1]),['入力','示唆','参照','カード']);
    for(const t of ['repeat(4,1fr)','checker-data/'+id+'.js?v=20261102-suggest','CheckerEngine.mount(CheckerConfigs.'+id+');'])assert.ok(html.includes(t),t);
    assert.ok(!html.includes('name="robots"')&&!html.includes('テスト版'));
@@ -290,6 +292,7 @@ for(const [id,groups] of Object.entries(EXPECTED)){
    for(const p of [id+'-checker.html',id+'-guide.html','checker-data/'+id+'.js']){const src=read(p);assert.ok(!src.includes('\r'));assert.doesNotMatch(src,/\(\?<([=!])/);assert.doesNotMatch(src,/濃厚示唆|最強|設定差なし/);if(p.endsWith('.js'))execFileSync(process.execPath,['--check',path.join(root,p)]);else for(const [i,m] of [...src.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)].entries())if(!/\bsrc=/.test(m[1])){const f=path.join(tmp,id+i+'.mjs');fs.writeFileSync(f,m[2]);execFileSync(process.execPath,['--check',f]);}}
  });
 }
+check('vivy: current vivy.js (なな様テンプレ対応後) keeps the same suggest-tab master',()=>{const w=load('vivy',true,true);assert.deepEqual(clone(w.__groups),EXPECTED.vivy);for(const g of Object.keys(EXPECTED.vivy))assert.ok(w.CheckerConfigs.vivy.mergeKeys.includes(g));});
 check('test version removed (§9-108-2) / NEW欄 2 lines / no links to -test',()=>{
  // 11/2 に Vivy のなな様テンプレ対応で別のテスト版（vivy-test、?v=20261102-nana-test）を作り直した。示唆タブのテスト版（?v=20261102-test）が残っていないことだけを見る。
  for(const p of ['ggo-test-checker.html','checker-data/ggo-test.js'])assert.ok(!fs.existsSync(path.join(root,p)),p+' は削除');
@@ -298,7 +301,7 @@ check('test version removed (§9-108-2) / NEW欄 2 lines / no links to -test',()
  const news=read('index.html').split('<div class="section-label">NEW</div>')[1].split('</section>')[0];
  assert.equal((news.match(/<p>/g)||[]).length,8);
  const ps=news.match(/<p>.*<\/p>/g);
- assert.equal(ps[1],'<p>11/2｜<a href="ggo-checker.html">GGO ボーナス終了画面のカードの記録を追加</a></p>');
- assert.equal(ps[2],'<p>11/2｜<a href="vivy-checker.html">Vivy コパンダトロフィー・獲得枚数表示・エンディング中キャラ・AT終了画面を追加</a></p>');
+ // 後の更新で先頭に行が足されるので、位置ではなく行が残っていることを見る（8行上限で消えたら見ない）。
+ for(const line of ['<p>11/2｜<a href="ggo-checker.html">GGO ボーナス終了画面のカードの記録を追加</a></p>',/* Vivy は 11/2 のなな様テンプレ対応と1行に統合（§9-92） */'<p>11/2｜<a href="vivy-checker.html">Vivy 示唆（トロフィー・獲得枚数・ED・AT終了画面）と規定周期・規定ポイント・アクセスチャンスを追加（なな様テンプレ対応）</a></p>'])assert.ok(ps.includes(line),line);
 });
 console.log('ggovivy-suggest: '+checks+' passed / 0 failed');

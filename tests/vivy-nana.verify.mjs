@@ -1,4 +1,4 @@
-// node tests/vivy-nana-test.verify.mjs — 正本と独立した項目順による検査。
+// node tests/vivy-nana.verify.mjs（本番反映後。旧 vivy-nana-test） — 正本と独立した項目順による検査。
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
@@ -11,9 +11,10 @@ const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const read=p=>fs.readFileSync(path.join(root,p),'utf8'),clone=x=>JSON.parse(JSON.stringify(x));
 const git=(...args)=>execFileSync('git',['-c','safe.directory=*',...args],{cwd:root,encoding:'utf8'});
 function config(src,key){const box={window:{}};vm.runInNewContext(src,box);return box.window.CheckerConfigs[key];}
-const c=config(read('checker-data/vivy-test.js'),'vivy-test');
+const c=config(read('checker-data/vivy.js'),'vivy');
 // 基点は反映前の main（4a5c35a）。origin/main は進むので比較に使わない。
-const BASE='4a5c35a';
+// 基点は反映直前の main（e2e720a）。反映前の本番 js・テスト版 js・HTML をここから読む。origin/main は使わない。
+const BASE='e2e720a';
 const production=config(git('show',BASE+':checker-data/vivy.js'),'vivy');
 const fresh=()=>c.normalizeState(clone(c.defaults));
 const ctx=S=>({S,mode:1,nanaCreditText:()=> 'ﾃﾝﾌﾟﾚ:鈴白なな様 @nana_szsr',pct:(v,d)=>`${v}/${d}`,crow:(key,label,sub,hot)=>`<div data-c="${key}" data-hot="${!!hot}">${label} ${sub}</div>`});
@@ -80,30 +81,42 @@ check('詳細カード・率書式・23全角字・確定演出本番一致',()=
  assert.equal(c.pages(ctx(S),()=>'').length,4);
  const input=c.pages(ctx(S),()=>'')[0]();assert.ok(input.includes('Ａ2~6・Ｂ2.3・天国1周期'));assert.ok(input.includes('>EX昇格</button>'));assert.ok(input.includes('>昇格なし</button>'));
 });
-check('HTML差分限定・本番全追跡ファイル不変・導線なし',()=>{
-  let html=read('vivy-test-checker.html');const banner=git('show','65de568:ggo-test-checker.html').split('\n').find(l=>l.includes('テスト版です。'));
-  assert.ok(html.includes(banner));assert.ok(html.includes('<meta name="robots" content="noindex,nofollow">'));
-  html=html.replace('<meta name="robots" content="noindex,nofollow">\n','').replaceAll('【テスト版】','').replaceAll('https://slot-tools.jp/vivy-test-checker.html','https://slot-tools.jp/vivy-checker.html').replace(banner+'\n','').replace('checker-data/vivy-test.js?v=20261102-nana-test3','checker-data/vivy.js?v=20261102-suggest').replace('CheckerConfigs["vivy-test"]','CheckerConfigs.vivy');assert.equal(html,read('vivy-checker.html'));
-  assert.equal(c.storageKey,'vivy-checker-v1-test');
-  const allowed=new Set(['checker-data/vivy-test.js','vivy-test-checker.html','docs/specs/vivy-checker-v03.md','tests/vivy-nana-test.verify.mjs','tests/vivy-nana-test.browser.mjs','docs/specs/vivy-nana-template-v01.txt','tests/ggovivy-suggest.verify.mjs','tests/godzieva2-v02.verify.mjs','checker-data/godzieva2.js','checker-data/godzieva2-test.js','godzieva2-checker.html','godzieva2-test-checker.html','godzieva2-guide.html','docs/specs/godzieva2-checker-v03.md','index.html']);
-  // PR #85（エンジンの見出し取り残し修正）の engine 本体・IDEAS.md・tests/・各 HTML の engine ?v は対象外。
-  const engineQuery=t=>t.replaceAll('checker-engine.js?v=20261102-orphan','checker-engine.js?v=20260924');
-  assert.deepEqual(git('diff','--name-only',BASE,'--').trim().split('\n').filter(Boolean).filter(p=>!allowed.has(p)&&!['checker-engine.js','IDEAS.md'].includes(p)&&!p.startsWith('tests/')&&!(p.endsWith('.html')&&engineQuery(read(p))===git('show',BASE+':'+p))),[]);
-  for(const p of ['vivy-checker.html','vivy-guide.html','checker-data/vivy.js','sitemap.xml'])assert.equal(engineQuery(read(p)),git('show',BASE+':'+p));
-  // ゴジエヴァ2 v02 本番反映のNEW追加・最古行削除だけを許容する。
-  const oldIndex=git('show',BASE+':index.html');
-  const newsLine='    <p>11/2｜<a href="godzieva2-checker.html">ゴジエヴァ2 G侵食役・ボーナス当選率を追加（なな様テンプレ v02 対応）</a></p>\n';
-  const oldest=oldIndex.split('\n').find(l=>l.includes('<p>10/21｜')&&l.includes('tonski-checker.html'));
-  assert.ok(oldest);
-  assert.equal(read('index.html'),oldIndex.replace('    <p>11/2｜<a href="ggo-checker.html">',newsLine+'    <p>11/2｜<a href="ggo-checker.html">').replace(oldest+'\n',''));
-  for(const p of ['index.html','checkers.html','sitemap.xml'])assert.ok(!read(p).includes('vivy-test'));
+check('本番 js はテスト版との差が3か所だけ・HTML は ?v だけ・テスト版削除・NEW欄・導線なし',()=>{
+  const testJs=git('show',BASE+':checker-data/vivy-test.js');
+  const reverted=read('checker-data/vivy.js').replace(/^\/\/ 出典: [^\n]*\n\/\/ [^\n]*\n/,'').replace('window.CheckerConfigs.vivy={','window.CheckerConfigs["vivy-test"]={').replace('storageKey:"vivy-checker-v1"','storageKey:"vivy-checker-v1-test"');
+  assert.equal(reverted,testJs.replace(/^(\/\/ [^\n]*\n){3}/,''),'先頭コメント・設定名・保存キー以外はテスト版と同じ');
+  assert.equal(c.storageKey,'vivy-checker-v1');assert.equal(c.nanaCollab,true);
+  assert.equal(read('vivy-checker.html'),git('show',BASE+':vivy-checker.html').replace('checker-data/vivy.js?v=20261102-suggest"','checker-data/vivy.js?v=20261102-nana"'));
+  for(const p of ['vivy-test-checker.html','checker-data/vivy-test.js'])assert.ok(!fs.existsSync(path.join(root,p)),p+' は削除');
+  for(const p of fs.readdirSync(root).filter(p=>p.endsWith('.html')))assert.doesNotMatch(read(p),/(?:href|src)=["'][^"']*vivy-test/,p);
+  const allowed=new Set(['checker-data/vivy.js','checker-data/vivy-test.js','vivy-checker.html','vivy-test-checker.html','vivy-guide.html','index.html','docs/specs/vivy-checker-v03.md']);
+  assert.deepEqual(git('diff','--name-only',BASE,'--').trim().split('\n').filter(Boolean).filter(p=>!allowed.has(p)&&!p.startsWith('tests/')),[]);
+  const news=read('index.html').split('<div class="section-label">NEW</div>')[1].split('</section>')[0];
+  assert.equal((news.match(/<p>/g)||[]).length,8);
+  // §9-92：同日・同機種は1行に統合（Vivy・ゴジエヴァ2 の 11/2 の2行ずつ）。空いた2行に 10/21 の2行を戻して8行（夢爽 11/2）。
+  const expectedNews=[
+    '<p>11/2｜<a href="vivy-checker.html">Vivy 示唆（トロフィー・獲得枚数・ED・AT終了画面）と規定周期・規定ポイント・アクセスチャンスを追加（なな様テンプレ対応）</a></p>',
+    '<p>11/2｜<a href="godzieva2-checker.html">L ゴジラ対エヴァンゲリオン2 設定判別カウンターを公開（なな様テンプレ v02：G侵食役・ボーナス当選率に対応）</a></p>',
+    '<p>11/2｜<a href="ggo-checker.html">GGO ボーナス終了画面のカードの記録を追加</a></p>',
+    '<p>11/2｜<a href="checkers.html">11/2導入の新台5機種（聖闘士星矢 黄金十二宮・ラグナドール・牙狼 闇を照らす者・GGO・Vivy）の設定判別カウンターを公開</a></p>',
+    '<p>10/27｜<a href="paripi-checker.html">パリピ孔明 イイネ下3桁の示唆・士気高揚ゾーン小役別ボーナス率を追加</a></p>',
+    '<p>10/22｜<a href="mhsunbreak-checker.html">モンハンサンブレイク 設定差（一撃）を反映・規定周期を3ボタン化・CZ種別を契機別に</a></p>',
+    '<p>10/21｜<a href="mogumogu-checker.html">モグモグ風林火山 ED中の巻物示唆・CZ種別の内訳を追加</a></p>',
+    '<p>10/21｜<a href="tonski-checker.html">とんスキ 333G到達時の女神の舞移行率を追加</a></p>'];
+  assert.deepEqual(news.match(/<p>.*<\/p>/g),expectedNews);
+  const oldIndex=git('show',BASE+':index.html'),oldNews=oldIndex.split('<div class="section-label">NEW</div>')[1].split('</section>')[0];
+  assert.equal(read('index.html'),oldIndex.replace(oldNews,'\n  <section class="info-block">\n'+expectedNews.map(l=>'    '+l+'\n').join('')+'  '),'NEW欄以外は変えない');
+  for(const l of expectedNews.slice(4))assert.ok(oldIndex.includes(l)||git('show','2dc06d3:index.html').includes(l),'戻した行は元の文言のまま: '+l);
+  const guide=read('vivy-guide.html');
+  for(const t of ['アクセスチャンスの継続回数は記録のみ。レア役による昇格があるため、規定回数とは一致しないことがあります。','<h3>規定周期・規定ポイント</h3>','<h3>レア役からのアクセスチャンス</h3>','<h3>アクセスチャンスの継続回数</h3>','<h2>テンプレのコピー</h2>'])assert.ok(guide.includes(t),t);
+  assert.ok(!guide.includes('内部値と一致しないため記録しない'));
 });
 check('構文・LF・後読みなし',()=>{
   const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'gz2-v02-syntax-'));
-  for(const p of ['checker-data/vivy-test.js','vivy-test-checker.html','docs/specs/vivy-checker-v03.md','tests/vivy-nana-test.verify.mjs','tests/vivy-nana-test.browser.mjs'])assert.ok(!read(p).includes('\r'),p);
-  for(const p of ['checker-data/vivy-test.js','tests/vivy-nana-test.verify.mjs','tests/vivy-nana-test.browser.mjs'])execFileSync(process.execPath,['--check',path.join(root,p)]);
-  assert.doesNotMatch(read('checker-data/vivy-test.js'),/\(\?<([=!])/);
-  for(const [i,m] of [...read('vivy-test-checker.html').matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)].entries())if(!/\bsrc=/.test(m[1])){const f=path.join(tmp,i+'.mjs');fs.writeFileSync(f,m[2]);execFileSync(process.execPath,['--check',f]);}
+  for(const p of ['checker-data/vivy.js','vivy-checker.html','vivy-guide.html','docs/specs/vivy-checker-v03.md','tests/vivy-nana.verify.mjs','tests/vivy-nana.browser.mjs'])assert.ok(!read(p).includes('\r'),p);
+  for(const p of ['checker-data/vivy.js','tests/vivy-nana.verify.mjs','tests/vivy-nana.browser.mjs'])execFileSync(process.execPath,['--check',path.join(root,p)]);
+  assert.doesNotMatch(read('checker-data/vivy.js'),/\(\?<([=!])/);
+  for(const [i,m] of [...read('vivy-checker.html').matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)].entries())if(!/\bsrc=/.test(m[1])){const f=path.join(tmp,i+'.mjs');fs.writeFileSync(f,m[2]);execFileSync(process.execPath,['--check',f]);}
 });
 check('前回555pt選択は111〜333ptの3行・444/555ptは読み込み時に捨てる（夢爽 11/2）',()=>{
  assert.deepEqual(clone(Object.keys(c.defaults.pt555)),['p111','p222','p333']);
@@ -146,4 +159,16 @@ check('旧データのアイコンは1回だけなな様・以後はユーザー
   }
   for(const iconChoice of ['nana','upload','custom']){const old=clone(c.defaults);delete old.nanaIconInit;old.iconChoice=iconChoice;assert.equal(c.normalizeState(clone(old),clone(old)).iconChoice,iconChoice);}
 });
-console.log(`vivy-nana-test: ${checks} passed / 0 failed`);
+// 0以外の既存本番データ（反映前の本番 js が保存する形、iconChoice:"default" 入り）を読み込む。既存値は不変・新項目は0・アイコンは1回だけなな様。
+check('0以外の既存本番データ（iconChoice:"default"）の読み込み',()=>{
+  const raw=clone(production.defaults);raw.games=12;raw.gameLog=[321,654];raw.img='data:image/png;base64,AAAA';raw.iconChoice='default';
+  for(const g of production.mergeKeys)Object.keys(raw[g]).forEach((k,i)=>{raw[g][k]=i+2;});
+  const saved=clone(production.normalizeState(clone(raw)));assert.equal(saved.iconChoice,'default');
+  const out=c.normalizeState(clone(saved),clone(saved));
+  for(const [k,v] of Object.entries(saved))if(k!=='iconChoice')assert.deepEqual(clone(out[k]),v,k+' は変わらない');
+  assert.equal(out.iconChoice,'nana');assert.equal(out.nanaIconInit,true);
+  for(const g of ['cycle','pt','pt555','access','cont'])assert.deepEqual(clone(out[g]),clone(c.defaults[g]),g+' は0で追加');
+  assert.equal(c.storageKey,production.storageKey,'保存キーは本番のまま');
+  out.iconChoice='default';assert.equal(c.normalizeState(clone(out),clone(out)).iconChoice,'default','以後はユーザーの選択');
+});
+console.log(`vivy-nana: ${checks} passed / 0 failed`);
