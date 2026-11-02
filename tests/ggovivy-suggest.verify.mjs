@@ -281,7 +281,8 @@ for(const [id,groups] of Object.entries(EXPECTED)){
    for(const t of ['repeat(4,1fr)','checker-data/'+id+'.js?v=20261102-suggest','CheckerEngine.mount(CheckerConfigs.'+id+');'])assert.ok(html.includes(t),t);
    assert.ok(!html.includes('name="robots"')&&!html.includes('テスト版'));
    // 反映前の本番 HTML との差は、タブ4つ・grid・?v の3か所だけ。
-   const reverted=html.replace('repeat(4,1fr)','repeat(3,1fr)').replace('<button data-p="1">示唆</button><button data-p="2">参照</button><button data-p="3">カード</button>','<button data-p="1">参照</button><button data-p="2">カード</button>').replace('checker-data/'+id+'.js?v=20261102-suggest',old.match(new RegExp('checker-data/'+id+'\\.js\\?v=[^" ]+'))[0]);assert.equal(reverted,old);
+   // PR #85（エンジンの見出し取り残し修正）で engine の ?v だけ変わる。
+   const reverted=html.replace('checker-engine.js?v=20261102-orphan','checker-engine.js?v=20260924').replace('repeat(4,1fr)','repeat(3,1fr)').replace('<button data-p="1">示唆</button><button data-p="2">参照</button><button data-p="3">カード</button>','<button data-p="1">参照</button><button data-p="2">カード</button>').replace('checker-data/'+id+'.js?v=20261102-suggest',old.match(new RegExp('checker-data/'+id+'\\.js\\?v=[^" ]+'))[0]);assert.equal(reverted,old);
    const guide=read(id+'-guide.html');
    assert.ok(guide.includes('<h2>示唆タブ</h2>')&&guide.includes('「入力」「示唆」「参照」「カード」')&&guide.includes('2026年11月2日確認'));assert.ok(!guide.includes('設定示唆（終了画面・トロフィーなど）は出典で調査中'));
    for(const h of Object.values(HINTS).filter((h,i)=>Object.keys(HINTS)[i] in groups))assert.ok(guide.includes(h),h);
