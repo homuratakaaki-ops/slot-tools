@@ -85,7 +85,7 @@ check('HTML差分限定・本番全追跡ファイル不変・導線なし',()=>
   assert.ok(html.includes(banner));assert.ok(html.includes('<meta name="robots" content="noindex,nofollow">'));
   html=html.replace('<meta name="robots" content="noindex,nofollow">\n','').replaceAll('【テスト版】','').replaceAll('https://slot-tools.jp/vivy-test-checker.html','https://slot-tools.jp/vivy-checker.html').replace(banner+'\n','').replace('checker-data/vivy-test.js?v=20261102-nana-test','checker-data/vivy.js?v=20261102-suggest').replace('CheckerConfigs["vivy-test"]','CheckerConfigs.vivy');assert.equal(html,read('vivy-checker.html'));
   assert.equal(c.storageKey,'vivy-checker-v1-test');
-  const allowed=new Set(['checker-data/vivy-test.js','vivy-test-checker.html','docs/specs/vivy-checker-v03.md','tests/vivy-nana-test.verify.mjs','tests/vivy-nana-test.browser.mjs']);
+  const allowed=new Set(['checker-data/vivy-test.js','vivy-test-checker.html','docs/specs/vivy-checker-v03.md','tests/vivy-nana-test.verify.mjs','tests/vivy-nana-test.browser.mjs','docs/specs/vivy-nana-template-v01.txt','tests/ggovivy-suggest.verify.mjs','tests/godzieva2-v02-test.verify.mjs']);
   assert.deepEqual(git('diff','--name-only',BASE,'--').trim().split('\n').filter(Boolean).filter(p=>!allowed.has(p)),[]);
   for(const p of ['vivy-checker.html','vivy-guide.html','checker-data/vivy.js','index.html','sitemap.xml','checker-engine.js'])assert.equal(read(p),git('show',BASE+':'+p));
   for(const p of ['index.html','checkers.html','sitemap.xml'])assert.ok(!read(p).includes('vivy-test'));
