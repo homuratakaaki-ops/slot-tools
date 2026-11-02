@@ -134,7 +134,7 @@ test('template buffers equal 006e842 for zero and all table rows',()=>{
   }
 });
 test('all 36 checker headers omit UI version labels and use the ・ separator',()=>{
-  const files=fs.readdirSync(root).filter(p=>p.endsWith('-checker.html'));
+  const files=fs.readdirSync(root).filter(p=>p.endsWith('-checker.html')&&!p.endsWith('-test-checker.html'));
   assert.equal(files.length,36);
   for(const file of files){
     const headers=[...read(file).matchAll(/<header\b[^>]*>([\s\S]*?)<\/header>/g)];
