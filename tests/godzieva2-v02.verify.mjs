@@ -110,4 +110,17 @@ check('構文・LF・後読みなし',()=>{
   assert.doesNotMatch(read('checker-data/godzieva2.js'),/\(\?<([=!])/);
   for(const [i,m] of [...read('godzieva2-checker.html').matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)].entries())if(!/\bsrc=/.test(m[1])){const f=path.join(tmp,i+'.mjs');fs.writeFileSync(f,m[2]);execFileSync(process.execPath,['--check',f]);}
 });
+// §9-108-4：知らない項目は、トップレベル・グループ内とも型ごと保持する（数値に変換しない・捨てない）。知っている項目だけ非負整数に検証する。
+check('未知キーをトップレベル・グループ内とも型ごと保持（§9-108-4）',()=>{
+  const unknown={str:'keep',num:2.5,neg:-3,bool:false,nul:null,arr:[1,'a',{x:1}],obj:{deep:{v:'x'}}};
+  const S=clone(c.defaults);
+  Object.assign(S,{futureRoot:clone(unknown),futureStr:'root',futureNum:-1.5});
+  for(const g of c.mergeKeys)Object.assign(S[g],clone(unknown));
+  S.counts.first='4';S.gRole.henyaku=-2;S.bonusRate.cbNormalD=1.9;
+  const out=c.normalizeState(clone(S));
+  assert.deepEqual(clone(out.futureRoot),unknown);assert.equal(out.futureStr,'root');assert.equal(out.futureNum,-1.5);
+  for(const g of c.mergeKeys)for(const [k,v] of Object.entries(unknown))assert.deepEqual(clone(out[g][k]),v,g+'.'+k);
+  assert.equal(out.counts.first,4);assert.equal(out.gRole.henyaku,0);assert.equal(out.bonusRate.cbNormalD,1);
+  assert.deepEqual(clone(c.normalizeState(clone(out))),clone(out),'冪等');
+});
 console.log(`godzieva2-v02: ${checks} passed / 0 failed`);
