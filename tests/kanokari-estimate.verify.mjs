@@ -7,6 +7,8 @@ import vm from 'node:vm';
 import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
 
+// 2026-11-02: allow only the specified orphan spacer insertion and engine cache query.
+const beforeOrphan=s=>s.replace("      // drawDetailCard の maxRows=20 に対応：省略を終えた最終の行で、見出しが左の列の最後（index 19）に来たら\n      // spacer を入れて右の列の先頭へ送る。「ほか」行込みで40行を超えたら同じ優先順で1項目だけ追加で省略し、やり直す（最大2回）。\n      function finish(rows,moreCount){\n        for(let retry=0;;retry++){\n          if(rows[19]&&rows[19].type==='section')rows.splice(19,0,{type:'spacer',hot:false,value:0});\n          if(rows.length+(moreCount>0?1:0)<=maxRows||retry>=2)break;\n          if(!removeOne(prepared,false)&&!removeOne(prepared,true))break;\n          moreCount++;\n          prepared=prepared.filter(sec=>sec.items.length>0);\n          rows=build(prepared);\n        }\n        if(moreCount>0)rows.push({type:'more',text:'ほか '+moreCount+'項目',hot:false,value:0});\n        return rows;\n      }\n","").replace("if(rows.length<=maxRows)return finish(rows,0);","if(rows.length<=maxRows)return rows;").replace("      return finish(rows,moreCount);\n","      if(moreCount>0)rows.push({type:'more',text:'ほか '+moreCount+'項目',hot:false,value:0});\n      return rows;\n").replace("        if(row.type==='spacer')return;\n","").replaceAll('checker-engine.js?v=20261102-orphan','checker-engine.js?v=20260924');
 const root=new URL('..',import.meta.url);
 const read=p=>fs.readFileSync(new URL(p,root),'utf8');
 // 比較の基準は本件の直前の main（23109d6）。マージ後に main が新版になっても意味が変わらないよう固定する。
@@ -252,7 +254,7 @@ ok();
   assert.equal(c.storageKey,'kanokari-checker-v1');
   assert.deepEqual(clone(c.mergeKeys),[...old.mergeKeys,'edStrong']);
   // 共通ファイルは不変
-  for(const f of ['checker-engine.js','checker-bayes.js'])assert.equal(read(f),gitShow(f),f+' 不変');
+  for(const f of ['checker-engine.js','checker-bayes.js'])assert.equal(beforeOrphan(read(f)),gitShow(f),f+' 不変');
   // ?v=（§9-107）と checker-bayes の読み込み
   const html=read('kanokari-checker.html');
   assert.match(html,/<script src="checker-bayes\.js\?v=20260827-2"><\/script>\s*<script src="checker-data\/kanokari\.js\?v=20261014"><\/script>/);

@@ -6,6 +6,8 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import {execFileSync} from 'node:child_process';
 
+// 2026-11-02: allow only the specified orphan spacer insertion and engine cache query.
+const beforeOrphan=s=>s.replace("      // drawDetailCard の maxRows=20 に対応：省略を終えた最終の行で、見出しが左の列の最後（index 19）に来たら\n      // spacer を入れて右の列の先頭へ送る。「ほか」行込みで40行を超えたら同じ優先順で1項目だけ追加で省略し、やり直す（最大2回）。\n      function finish(rows,moreCount){\n        for(let retry=0;;retry++){\n          if(rows[19]&&rows[19].type==='section')rows.splice(19,0,{type:'spacer',hot:false,value:0});\n          if(rows.length+(moreCount>0?1:0)<=maxRows||retry>=2)break;\n          if(!removeOne(prepared,false)&&!removeOne(prepared,true))break;\n          moreCount++;\n          prepared=prepared.filter(sec=>sec.items.length>0);\n          rows=build(prepared);\n        }\n        if(moreCount>0)rows.push({type:'more',text:'ほか '+moreCount+'項目',hot:false,value:0});\n        return rows;\n      }\n","").replace("if(rows.length<=maxRows)return finish(rows,0);","if(rows.length<=maxRows)return rows;").replace("      return finish(rows,moreCount);\n","      if(moreCount>0)rows.push({type:'more',text:'ほか '+moreCount+'項目',hot:false,value:0});\n      return rows;\n").replace("        if(row.type==='spacer')return;\n","").replaceAll('checker-engine.js?v=20261102-orphan','checker-engine.js?v=20260924');
 const root=new URL('../',import.meta.url);
 const clone=v=>JSON.parse(JSON.stringify(v));
 const BASE='3fd3f65';   // 改修前の main（PR #78 のマージ）
@@ -195,7 +197,7 @@ test('猛焔一閃直撃のhint・参照クエリ',()=>{
 });
 
 test('共通ファイルは変更しない',()=>{
-  assert.equal(fs.readFileSync(new URL('checker-engine.js',root),'utf8'),show(BASE+':checker-engine.js'));
+  assert.equal(beforeOrphan(fs.readFileSync(new URL('checker-engine.js',root),'utf8')),show(BASE+':checker-engine.js'));
 });
 
 console.log(`PASS mhsunbreak setting diff: ${checks} checks`);

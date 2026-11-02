@@ -819,9 +819,23 @@ nav button{min-height:44px}
         prepared[target.si].items.splice(target.ii,1);
         return true;
       }
+      // drawDetailCard の maxRows=20 に対応：省略を終えた最終の行で、見出しが左の列の最後（index 19）に来たら
+      // spacer を入れて右の列の先頭へ送る。「ほか」行込みで40行を超えたら同じ優先順で1項目だけ追加で省略し、やり直す（最大2回）。
+      function finish(rows,moreCount){
+        for(let retry=0;;retry++){
+          if(rows[19]&&rows[19].type==='section')rows.splice(19,0,{type:'spacer',hot:false,value:0});
+          if(rows.length+(moreCount>0?1:0)<=maxRows||retry>=2)break;
+          if(!removeOne(prepared,false)&&!removeOne(prepared,true))break;
+          moreCount++;
+          prepared=prepared.filter(sec=>sec.items.length>0);
+          rows=build(prepared);
+        }
+        if(moreCount>0)rows.push({type:'more',text:'ほか '+moreCount+'項目',hot:false,value:0});
+        return rows;
+      }
       let prepared=prepare();
       let rows=build(prepared);
-      if(rows.length<=maxRows)return rows;
+      if(rows.length<=maxRows)return finish(rows,0);
       let moreCount=0;
       while(build(prepared).length>maxRows-1&&removeOne(prepared,false))moreCount++;
       prepared=prepared.filter(sec=>sec.items.length>0);
@@ -830,8 +844,7 @@ nav button{min-height:44px}
         prepared=prepared.filter(sec=>sec.items.length>0);
       }
       rows=build(prepared);
-      if(moreCount>0)rows.push({type:'more',text:'ほか '+moreCount+'項目',hot:false,value:0});
-      return rows;
+      return finish(rows,moreCount);
     }
     function fitText(x,text,tx,ty,maxWidth,fontSize,color,weight,minSize,ellipsis){
       const floor=Number(minSize)||18;
@@ -861,6 +874,7 @@ nav button{min-height:44px}
       x.strokeStyle='#2c2340';x.lineWidth=2;x.beginPath();x.moveTo(70,306+extra);x.lineTo(1010,306+extra);x.stroke();
       const colX=[70,560],maxRows=20,rowGap=30,startY=338+extra;
       rows.forEach((row,i)=>{
+        if(row.type==='spacer')return;
         const col=Math.floor(i/maxRows),slot=i%maxRows,x0=colX[col]||colX[1],y=startY+slot*rowGap;
         if(row.type==='section'){
           x.fillStyle='#ff3d8f';x.font="800 22px 'M PLUS 1p'";x.fillText(row.title,x0,y);return;

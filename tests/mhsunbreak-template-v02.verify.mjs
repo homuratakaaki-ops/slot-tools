@@ -6,6 +6,8 @@ import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
+// 2026-11-02: allow only the specified orphan spacer insertion and engine cache query.
+const beforeOrphan=s=>s.replace("      // drawDetailCard の maxRows=20 に対応：省略を終えた最終の行で、見出しが左の列の最後（index 19）に来たら\n      // spacer を入れて右の列の先頭へ送る。「ほか」行込みで40行を超えたら同じ優先順で1項目だけ追加で省略し、やり直す（最大2回）。\n      function finish(rows,moreCount){\n        for(let retry=0;;retry++){\n          if(rows[19]&&rows[19].type==='section')rows.splice(19,0,{type:'spacer',hot:false,value:0});\n          if(rows.length+(moreCount>0?1:0)<=maxRows||retry>=2)break;\n          if(!removeOne(prepared,false)&&!removeOne(prepared,true))break;\n          moreCount++;\n          prepared=prepared.filter(sec=>sec.items.length>0);\n          rows=build(prepared);\n        }\n        if(moreCount>0)rows.push({type:'more',text:'ほか '+moreCount+'項目',hot:false,value:0});\n        return rows;\n      }\n","").replace("if(rows.length<=maxRows)return finish(rows,0);","if(rows.length<=maxRows)return rows;").replace("      return finish(rows,moreCount);\n","      if(moreCount>0)rows.push({type:'more',text:'ほか '+moreCount+'項目',hot:false,value:0});\n      return rows;\n").replace("        if(row.type==='spacer')return;\n","").replaceAll('checker-engine.js?v=20261102-orphan','checker-engine.js?v=20260924');
 const root=fileURLToPath(new URL('../',import.meta.url));
 const read=p=>fs.readFileSync(new URL(p,new URL('../',import.meta.url)),'utf8');
 const before=p=>execFileSync('git',['-c','safe.directory='+root.replace(/[\\/]$/,''),'show','3be5e98:'+p],{encoding:'utf8'});
@@ -88,5 +90,5 @@ console.log('PASS ricorico/toaru2 templates: six exact outputs vs 3be5e98');
 // kanokari.js は設定推測タブ追加（docs/specs/kanokari-estimate-v01.md）のため除外。
 // ricorico.js は 10/14 の解析更新のため除外（テンプレは上で新規1行以外を比較済み）。
 // garei_zero_re.js は 10/14 の解析更新のため除外（tests/garei-1014.verify.mjs で検証）。
-for(const file of ['checker-engine.js','checker-bayes.js',...fs.readdirSync(new URL('../checker-data/',import.meta.url)).filter(f=>f.endsWith('.js')&&!f.endsWith('-test.js')&&!['mhsunbreak.js','tenten.js','takoslot.js','paripi.js','toaru2.js','kanokari.js','ricorico.js','garei_zero_re.js','mahoako.js','mogumogu.js','tonski.js','seiya12.js','ragnador.js','garo.js','ggo.js','godzieva2.js','vivy.js','vvv2.js'].includes(f)).map(f=>'checker-data/'+f)])bytes(read(file),before(file));
+for(const file of ['checker-engine.js','checker-bayes.js',...fs.readdirSync(new URL('../checker-data/',import.meta.url)).filter(f=>f.endsWith('.js')&&!f.endsWith('-test.js')&&!['mhsunbreak.js','tenten.js','takoslot.js','paripi.js','toaru2.js','kanokari.js','ricorico.js','garei_zero_re.js','mahoako.js','mogumogu.js','tonski.js','seiya12.js','ragnador.js','garo.js','ggo.js','godzieva2.js','vivy.js','vvv2.js'].includes(f)).map(f=>'checker-data/'+f)])bytes(beforeOrphan(read(file)),before(file));
 console.log('PASS both common files and all other machine definitions byte-identical vs 3be5e98');

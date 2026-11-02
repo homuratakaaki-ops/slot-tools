@@ -4,6 +4,8 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import {execFileSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
+// 2026-11-02: allow only the specified orphan spacer insertion and engine cache query.
+const beforeOrphan=s=>s.replace("      // drawDetailCard の maxRows=20 に対応：省略を終えた最終の行で、見出しが左の列の最後（index 19）に来たら\n      // spacer を入れて右の列の先頭へ送る。「ほか」行込みで40行を超えたら同じ優先順で1項目だけ追加で省略し、やり直す（最大2回）。\n      function finish(rows,moreCount){\n        for(let retry=0;;retry++){\n          if(rows[19]&&rows[19].type==='section')rows.splice(19,0,{type:'spacer',hot:false,value:0});\n          if(rows.length+(moreCount>0?1:0)<=maxRows||retry>=2)break;\n          if(!removeOne(prepared,false)&&!removeOne(prepared,true))break;\n          moreCount++;\n          prepared=prepared.filter(sec=>sec.items.length>0);\n          rows=build(prepared);\n        }\n        if(moreCount>0)rows.push({type:'more',text:'ほか '+moreCount+'項目',hot:false,value:0});\n        return rows;\n      }\n","").replace("if(rows.length<=maxRows)return finish(rows,0);","if(rows.length<=maxRows)return rows;").replace("      return finish(rows,moreCount);\n","      if(moreCount>0)rows.push({type:'more',text:'ほか '+moreCount+'項目',hot:false,value:0});\n      return rows;\n").replace("        if(row.type==='spacer')return;\n","").replaceAll('checker-engine.js?v=20261102-orphan','checker-engine.js?v=20260924');
 const root=fileURLToPath(new URL('../',import.meta.url));
 const baseline=file=>execFileSync('git',['-c','safe.directory='+root.replace(/[\\/]$/,''),'show','6d1f3e0:'+file],{cwd:root,encoding:'utf8'});
 const read=file=>fs.readFileSync(new URL('../'+file,import.meta.url),'utf8');
@@ -70,7 +72,7 @@ const changed=['mogumogu-checker.html','checker-data/mogumogu.js','mogumogu-guid
   'checker-data/vvv2.js','vvv2-checker.html',
   'enen2-checker.html','kabaneri2-checker.html','karakuri2-checker.html','otome5-checker.html',
   'sao2-checker.html','taktop-checker.html','yajikita-checker.html','yoshimune-checker.html'];
-for(const file of tracked.filter(f=>!changed.includes(f)))assert.deepEqual(Buffer.from(read(file)),Buffer.from(baseline(file)),file);
+for(const file of tracked.filter(f=>!changed.includes(f)))assert.deepEqual(Buffer.from(beforeOrphan(read(file))),Buffer.from(baseline(file)),file);
 const news=s=>s.split('<div class="section-label">NEW</div>')[1].split('</section>')[0].match(/<p>.*?<\/p>/g);
 const b=news(read('index.html'));
 // §9-92 で NEW欄は公開のたびに更新され行がずれるため、基準との行単位の差分は固定しない。

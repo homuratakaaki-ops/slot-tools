@@ -22,6 +22,13 @@ const server=http.createServer((req,res)=>{
     res.setHeader('Content-Type','text/html; charset=utf-8');
     return res.end('<!doctype html><html><body style="margin:0"><iframe id="frame" style="border:0;width:390px;height:740px"></iframe></body></html>');
   }
+  // Apply only the approved orphan spacing to the old engine so pixel equality still guards all other drawing.
+  if(req.url.split('?')[0]==='/baseline/checker-engine.js'){
+    const old=execFileSync('git',['-c','safe.directory='+root,'show','6d1f3e0:checker-engine.js'],{encoding:'utf8'});
+    const expected=old.replace("          rows.push({type:'section',title:sec.title,hot:false,value:0});","          if(rows.length===19)rows.push({type:'spacer',hot:false,value:0});\n          rows.push({type:'section',title:sec.title,hot:false,value:0});")
+      .replace('      rows.forEach((row,i)=>{',"      rows.forEach((row,i)=>{\n        if(row.type==='spacer')return;");
+    res.setHeader('Content-Type','text/javascript; charset=utf-8');return res.end(expected);
+  }
   if(req.url.startsWith('/baseline/')){const file=req.url.slice('/baseline/'.length).split('?')[0];res.setHeader('Content-Type',file.endsWith('.html')?'text/html; charset=utf-8':'text/javascript; charset=utf-8');return res.end(execFileSync('git',['-c','safe.directory='+root,'show','6d1f3e0:'+file]));}
   const file=path.resolve(root,'.'+decodeURIComponent(req.url.split('?')[0]));
   if(!file.startsWith(root+path.sep)){res.writeHead(403);return res.end();}
