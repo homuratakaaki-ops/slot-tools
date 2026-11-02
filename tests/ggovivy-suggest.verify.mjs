@@ -302,6 +302,6 @@ check('test version removed (§9-108-2) / NEW欄 2 lines / no links to -test',()
  assert.equal((news.match(/<p>/g)||[]).length,8);
  const ps=news.match(/<p>.*<\/p>/g);
  // 後の更新で先頭に行が足されるので、位置ではなく行が残っていることを見る（8行上限で消えたら見ない）。
- for(const line of ['<p>11/2｜<a href="ggo-checker.html">GGO ボーナス終了画面のカードの記録を追加</a></p>','<p>11/2｜<a href="vivy-checker.html">Vivy コパンダトロフィー・獲得枚数表示・エンディング中キャラ・AT終了画面を追加</a></p>'])assert.ok(ps.includes(line),line);
+ for(const line of ['<p>11/2｜<a href="ggo-checker.html">GGO ボーナス終了画面のカードの記録を追加</a></p>',/* Vivy は 11/2 のなな様テンプレ対応と1行に統合（§9-92） */'<p>11/2｜<a href="vivy-checker.html">Vivy 示唆（トロフィー・獲得枚数・ED・AT終了画面）と規定周期・規定ポイント・アクセスチャンスを追加（なな様テンプレ対応）</a></p>'])assert.ok(ps.includes(line),line);
 });
 console.log('ggovivy-suggest: '+checks+' passed / 0 failed');

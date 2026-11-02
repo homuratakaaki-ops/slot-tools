@@ -131,7 +131,7 @@ check('HTML・ガイド・LF・後読みなし・構文・公開（index可・ch
   assert.ok(list.includes('<a class="checker-main" href="godzieva2-checker.html">Lパチスロ ゴジラ対エヴァンゲリオン2</a><a class="checker-guide" href="godzieva2-guide.html">使い方</a>'),'checkers.html に掲載');
   for(const k of ['checker','guide'])assert.ok(read('sitemap.xml').includes(`<loc>https://slot-tools.jp/godzieva2-${k}.html</loc>\n    <lastmod>2026-11-01</lastmod>`),'sitemap '+k);
   const news=read('index.html').split('<div class="section-label">NEW</div>')[1].split('</section>')[0];
-  assert.ok(news.includes('<p>11/2｜<a href="godzieva2-checker.html">L ゴジラ対エヴァンゲリオン2 設定判別カウンターを公開（テンプレ：鈴白なな様）</a></p>'),'NEW欄');
+  /* 11/2 に同日・同機種の v02 対応と1行に統合（§9-92） */assert.ok(news.includes('<p>11/2｜<a href="godzieva2-checker.html">L ゴジラ対エヴァンゲリオン2 設定判別カウンターを公開（なな様テンプレ v02：G侵食役・ボーナス当選率に対応）</a></p>'),'NEW欄');
   assert.ok((news.match(/<p>/g)||[]).length<=8,'NEW欄は8行上限（§9-92）');
   for(const text of ['スイカからのCZ','規定ゲーム数','ボーナス・AT終了画面','エンディング中ボイス','カードとテンプレ','テンプレのコピー','2026年11月2日','「入力」「示唆」「参照」「カード」'])assert.ok(guide.includes(text),text);
   assert.ok(!guide.includes('設定示唆（終了画面・トロフィーなど）は出典で調査中'));

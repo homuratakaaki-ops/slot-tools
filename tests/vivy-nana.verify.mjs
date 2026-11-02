@@ -93,11 +93,20 @@ check('本番 js はテスト版との差が3か所だけ・HTML は ?v だけ�
   assert.deepEqual(git('diff','--name-only',BASE,'--').trim().split('\n').filter(Boolean).filter(p=>!allowed.has(p)&&!p.startsWith('tests/')),[]);
   const news=read('index.html').split('<div class="section-label">NEW</div>')[1].split('</section>')[0];
   assert.equal((news.match(/<p>/g)||[]).length,8);
-  const line='<p>11/2｜<a href="vivy-checker.html">Vivy 規定周期・規定ポイント・アクセスチャンスを追加（なな様テンプレ対応）</a></p>';
-  assert.equal(news.match(/<p>.*<\/p>/)[0],line);
-  const oldIndex=git('show',BASE+':index.html'),oldest=oldIndex.split('\n').find(l=>l.includes('<p>10/21｜')&&l.includes('mogumogu-checker.html'));
-  assert.ok(oldest);
-  assert.equal(read('index.html'),oldIndex.replace('NEW</div>\n  <section class="info-block">\n','NEW</div>\n  <section class="info-block">\n    '+line+'\n').replace(oldest+'\n',''));
+  // §9-92：同日・同機種は1行に統合（Vivy・ゴジエヴァ2 の 11/2 の2行ずつ）。空いた2行に 10/21 の2行を戻して8行（夢爽 11/2）。
+  const expectedNews=[
+    '<p>11/2｜<a href="vivy-checker.html">Vivy 示唆（トロフィー・獲得枚数・ED・AT終了画面）と規定周期・規定ポイント・アクセスチャンスを追加（なな様テンプレ対応）</a></p>',
+    '<p>11/2｜<a href="godzieva2-checker.html">L ゴジラ対エヴァンゲリオン2 設定判別カウンターを公開（なな様テンプレ v02：G侵食役・ボーナス当選率に対応）</a></p>',
+    '<p>11/2｜<a href="ggo-checker.html">GGO ボーナス終了画面のカードの記録を追加</a></p>',
+    '<p>11/2｜<a href="checkers.html">11/2導入の新台5機種（聖闘士星矢 黄金十二宮・ラグナドール・牙狼 闇を照らす者・GGO・Vivy）の設定判別カウンターを公開</a></p>',
+    '<p>10/27｜<a href="paripi-checker.html">パリピ孔明 イイネ下3桁の示唆・士気高揚ゾーン小役別ボーナス率を追加</a></p>',
+    '<p>10/22｜<a href="mhsunbreak-checker.html">モンハンサンブレイク 設定差（一撃）を反映・規定周期を3ボタン化・CZ種別を契機別に</a></p>',
+    '<p>10/21｜<a href="mogumogu-checker.html">モグモグ風林火山 ED中の巻物示唆・CZ種別の内訳を追加</a></p>',
+    '<p>10/21｜<a href="tonski-checker.html">とんスキ 333G到達時の女神の舞移行率を追加</a></p>'];
+  assert.deepEqual(news.match(/<p>.*<\/p>/g),expectedNews);
+  const oldIndex=git('show',BASE+':index.html'),oldNews=oldIndex.split('<div class="section-label">NEW</div>')[1].split('</section>')[0];
+  assert.equal(read('index.html'),oldIndex.replace(oldNews,'\n  <section class="info-block">\n'+expectedNews.map(l=>'    '+l+'\n').join('')+'  '),'NEW欄以外は変えない');
+  for(const l of expectedNews.slice(4))assert.ok(oldIndex.includes(l)||git('show','2dc06d3:index.html').includes(l),'戻した行は元の文言のまま: '+l);
   const guide=read('vivy-guide.html');
   for(const t of ['アクセスチャンスの継続回数は記録のみ。レア役による昇格があるため、規定回数とは一致しないことがあります。','<h3>規定周期・規定ポイント</h3>','<h3>レア役からのアクセスチャンス</h3>','<h3>アクセスチャンスの継続回数</h3>','<h2>テンプレのコピー</h2>'])assert.ok(guide.includes(t),t);
   assert.ok(!guide.includes('内部値と一致しないため記録しない'));
