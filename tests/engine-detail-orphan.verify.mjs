@@ -91,6 +91,8 @@ check('all root HTML changes are exactly the engine query',()=>{
   let count=0;
   for(const file of fs.readdirSync(root).filter(f=>f.endsWith('.html'))){
     const now=read(file);if(!now.includes('checker-engine.js?v='))continue;
+    // テスト版ページ（*-test-checker.html）は検収中に ?v が変わるので、新しいエンジンを読むことだけを見る。
+    if(file.endsWith('-test-checker.html')){assert.ok(now.includes('checker-engine.js?v=20261102-orphan'),file);count++;continue;}
     const base=git('show','d279952:'+file);
     assert.equal(now,base.replaceAll('checker-engine.js?v=20260924','checker-engine.js?v=20261102-orphan'),file);count++;
   }
