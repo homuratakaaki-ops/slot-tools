@@ -33,7 +33,7 @@ v0.2 と本番 4a5c35a を基礎とする。§9-108 に従い、別URL・別保�
 ## ファイルと保存
 
 - `checker-data/vivy-test.js`：`window.CheckerConfigs["vivy-test"]`、`storageKey:"vivy-checker-v1-test"`、`nanaCollab:true`。既定アイコンはなな様。
-- `vivy-test-checker.html`：入力／示唆／参照／カードの4タブ。title・og:title先頭に【テスト版】、canonical・og:urlはテスト版URL、ヘッダー直後のバナーは65de568のggo-testと同一。データクエリは `?v=20261102-nana-test`、その他は本番を維持。
+- `vivy-test-checker.html`：入力／示唆／参照／カードの4タブ。title・og:title先頭に【テスト版】、canonical・og:urlはテスト版URL、ヘッダー直後のバナーは65de568のggo-testと同一。データクエリは `?v=20261102-nana-test2`、その他は本番を維持。
 - `schemaVersion:1`。未知の上位版番号は保持。既存のgroups・gameLog・games・img・iconChoiceを維持し、既知カウンターだけを非負整数へ補正する。未知のルートキー・各グループ内キーは型も含め保持する。新グループの既知キーは0補完。
 - rateのW>DはD=W。accessのweakEx>weakWはweakEx=weakW（chanceも同様）。正規化は冪等。本番保存キーは読み書きしない。旧データを上書きしないテスト版のためpre-ext退避は不要。
 
@@ -43,7 +43,7 @@ v0.2 と本番 4a5c35a を基礎とする。§9-108 に従い、別URL・別保�
 |---|---|---|
 | cycle | c1D/c1W〜c6D/c6W | 当該周期への到達／AT当選 |
 | pt | p111,p222,p333,p444,p555 | 2周期以降の規定ptの回数 |
-| pt555 | p111,p222,p333,p444,p555 | 前回555pt選択後の規定ptの回数（コピー対象外） |
+| pt555 | p111,p222,p333 | 前回555pt選択後の規定ptの回数（コピー対象外）。次の周期は最大333ptのため444/555ptは持たない。保存データに p444/p555 が残っていても読み込み時に捨てる（テスト版のみの項目のため移行不要。夢爽 11/2） |
 | access | weakD,weakW,chanceD,chanceW | 弱チェリー・チャンス目成立／AC当選 |
 | access | weakEx,chanceEx | 上記AC当選のうちEXだった回数 |
 | cont | k1D,k1W,k2D,k2W | その回数目の継続到達／そこでEX昇格 |
@@ -64,7 +64,7 @@ v0.2 と本番 4a5c35a を基礎とする。§9-108 に従い、別URL・別保�
 |---|---|---|
 | A | 規定周期（sub：Ａ2~6・Ｂ2.3・天国1周期） | ①周期〜⑥周期。当選／ハズレ |
 | B | 規定ポイント(2周期以降) | 111pt〜555pt、回数 |
-| C | 規定ポイント(前回555pt選択) | 111pt〜555pt、回数。コピー対象外 |
+| C | 規定ポイント(前回555pt選択) | 111pt〜333pt、回数。コピー対象外（出典「555pt選択時：次回の最大が333pt」により444/555ptは無し。夢爽 11/2） |
 | D | レア役からのアクセスチャンス(EX) | 弱チェリー、チャンス目、弱チェリー→EX、チャンス目→EX。最初の2行は当選／ハズレ、→EXは回数 |
 | E | アクセスチャンスの継続回数 | 1回目継続、2回目継続。「EX昇格」／「昇格なし」 |
 

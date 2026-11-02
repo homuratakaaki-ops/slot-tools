@@ -109,7 +109,7 @@ try{
   const hints=await run('return [...d.querySelectorAll(".sec")].slice(2,7).map(s=>({count:s.querySelectorAll(".hint summary").length,label:s.querySelector("summary")?.textContent}));');
   assert.equal(hints.length,5);for(const h of hints)assert.deepEqual(h,{count:1,label:'説明を見る'});
   const rates=[...['c1','c2','c3','c4','c5','c6'].map(k=>['cycle',k]),...['weak','chance'].map(k=>['access',k]),...['k1','k2'].map(k=>['cont',k])];
-  const counts=[...['pt','pt555'].flatMap(g=>[111,222,333,444,555].map(p=>g+'.p'+p)),'access.weakEx','access.chanceEx'];
+  const counts=[...[111,222,333,444,555].map(p=>'pt.p'+p),...[111,222,333].map(p=>'pt555.p'+p),'access.weakEx','access.chanceEx'];
   for(const [g,k] of rates){
     const win='[data-bump-many="'+g+'.'+k+'D,'+g+'.'+k+'W"]',miss='[data-bump="'+g+'.'+k+'D"]';
     await click(win);await click(miss);

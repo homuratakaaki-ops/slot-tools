@@ -83,7 +83,7 @@ check('詳細カード・率書式・23全角字・確定演出本番一致',()=
 check('HTML差分限定・本番全追跡ファイル不変・導線なし',()=>{
   let html=read('vivy-test-checker.html');const banner=git('show','65de568:ggo-test-checker.html').split('\n').find(l=>l.includes('テスト版です。'));
   assert.ok(html.includes(banner));assert.ok(html.includes('<meta name="robots" content="noindex,nofollow">'));
-  html=html.replace('<meta name="robots" content="noindex,nofollow">\n','').replaceAll('【テスト版】','').replaceAll('https://slot-tools.jp/vivy-test-checker.html','https://slot-tools.jp/vivy-checker.html').replace(banner+'\n','').replace('checker-data/vivy-test.js?v=20261102-nana-test','checker-data/vivy.js?v=20261102-suggest').replace('CheckerConfigs["vivy-test"]','CheckerConfigs.vivy');assert.equal(html,read('vivy-checker.html'));
+  html=html.replace('<meta name="robots" content="noindex,nofollow">\n','').replaceAll('【テスト版】','').replaceAll('https://slot-tools.jp/vivy-test-checker.html','https://slot-tools.jp/vivy-checker.html').replace(banner+'\n','').replace('checker-data/vivy-test.js?v=20261102-nana-test2','checker-data/vivy.js?v=20261102-suggest').replace('CheckerConfigs["vivy-test"]','CheckerConfigs.vivy');assert.equal(html,read('vivy-checker.html'));
   assert.equal(c.storageKey,'vivy-checker-v1-test');
   const allowed=new Set(['checker-data/vivy-test.js','vivy-test-checker.html','docs/specs/vivy-checker-v03.md','tests/vivy-nana-test.verify.mjs','tests/vivy-nana-test.browser.mjs','docs/specs/vivy-nana-template-v01.txt','tests/ggovivy-suggest.verify.mjs','tests/godzieva2-v02-test.verify.mjs']);
   assert.deepEqual(git('diff','--name-only',BASE,'--').trim().split('\n').filter(Boolean).filter(p=>!allowed.has(p)),[]);
@@ -96,5 +96,12 @@ check('構文・LF・後読みなし',()=>{
   for(const p of ['checker-data/vivy-test.js','tests/vivy-nana-test.verify.mjs','tests/vivy-nana-test.browser.mjs'])execFileSync(process.execPath,['--check',path.join(root,p)]);
   assert.doesNotMatch(read('checker-data/vivy-test.js'),/\(\?<([=!])/);
   for(const [i,m] of [...read('vivy-test-checker.html').matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)].entries())if(!/\bsrc=/.test(m[1])){const f=path.join(tmp,i+'.mjs');fs.writeFileSync(f,m[2]);execFileSync(process.execPath,['--check',f]);}
+});
+check('前回555pt選択は111〜333ptの3行・444/555ptは読み込み時に捨てる（夢爽 11/2）',()=>{
+ assert.deepEqual(clone(Object.keys(c.defaults.pt555)),['p111','p222','p333']);
+ const S=fresh();Object.assign(S.pt555,{p111:1,p222:2,p333:3,p444:4,p555:5,future:6});const out=c.normalizeState(clone(S));
+ assert.deepEqual(clone(out.pt555),{p111:1,p222:2,p333:3,future:6});assert.deepEqual(clone(c.normalizeState(clone(out))),clone(out));
+ const input=c.pages(ctx(out),()=>'')[0]();for(const p of [111,222,333])assert.ok(input.includes('data-c="pt555.p'+p+'"'));for(const p of [444,555])assert.ok(!input.includes('data-c="pt555.p'+p+'"'));
+ const sec=c.card.detail(ctx(out)).find(x=>x.title==='前回555後pt');assert.deepEqual(clone(sec.items.map(i=>i.label)),['111pt','222pt','333pt']);
 });
 console.log(`vivy-nana-test: ${checks} passed / 0 failed`);

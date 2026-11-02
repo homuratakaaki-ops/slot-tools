@@ -63,12 +63,14 @@
   const PERCENT_GROUPS=["atEnd"];
   const CYCLE=Array.from({length:6},(_,i)=>['c'+(i+1),'①②③④⑤⑥'[i]+'周期',true]);
   const POINTS=[111,222,333,444,555].map(v=>['p'+v,v+'pt',false]);
+  // 前回555pt選択の次の周期は最大333pt（出典「555pt選択時：次回の最大が333pt」、夢爽 11/2）。
+  const POINTS555=POINTS.slice(0,3);
   const ACCESS=[['weak','弱チェリー',true],['chance','チャンス目',true],['weakEx','弱チェリー→EX',false],['chanceEx','チャンス目→EX',false]];
   const CONT=[['k1','1回目継続',true],['k2','2回目継続',true]];
   const RECORDS=[
     ['cycle','規定周期','規定周期',CYCLE,'その周期に到達したとき、ATに当選したら当選、しなかったらハズレを押します。通常Aは2〜6周期、通常Bは2・3周期、天国は1周期が規定周期です。設定差は公表されていないため記録のみです。'],
     ['pt','規定ポイント(2周期以降)','規定pt',POINTS,'2周期目以降に選ばれた規定ポイントを数えます。555ptが選ばれた次の周期は333ptまでです。設定差は公表されていないため記録のみです。'],
-    ['pt555','規定ポイント(前回555pt選択)','前回555後pt',POINTS,'前回555ptが選ばれた次の周期は333ptまでになるため、別に数えます。'],
+    ['pt555','規定ポイント(前回555pt選択)','前回555後pt',POINTS555,'前回555ptが選ばれた次の周期は333ptまでになるため、別に数えます。'],
     ['access','レア役からのアクセスチャンス(EX)','AC(EX)',ACCESS,'弱チェリー・チャンス目が成立したとき、アクセスチャンスに当選したら当選、しなかったらハズレを押します。そのうちアクセスチャンスEXだった回数を「→EX」で数えます。設定差は公表されていないため記録のみです。'],
     ['cont','アクセスチャンスの継続回数','AC継続',CONT,'アクセスチャンスが1回目（2回目）の継続をしたとき、そこでアクセスチャンスEXに昇格したら「EX昇格」、しなかったら「昇格なし」を押します。記録のみ。レア役による昇格があるため、規定回数とは一致しないことがあります。']
   ];
@@ -171,6 +173,8 @@
     });
     RECORDS.forEach(([key,,,rows])=>rows.filter(c=>c[2]).forEach(([k])=>{if(out[key][k+'W']>out[key][k+'D'])out[key][k+'D']=out[key][k+'W'];}));
     ['weak','chance'].forEach(k=>{out.access[k+'Ex']=Math.min(out.access[k+'Ex'],out.access[k+'W']);});
+    // 前回555pt選択の 444/555pt は外した（テスト版のみの項目のため移行せず捨てる）。
+    delete out.pt555.p444;delete out.pt555.p555;
     if(out.img===undefined)out.img=DEF.img;
     if(out.iconChoice===undefined)out.iconChoice=DEF.iconChoice;
     return out;
