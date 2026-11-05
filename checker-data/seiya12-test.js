@@ -167,9 +167,9 @@
     out.games=integer(out.games);
     out.gameLog=Array.isArray(out.gameLog)?out.gameLog.map(integer).filter(v=>v>0):[];
     ['counts',...Object.keys(GROUPS)].forEach(key=>{
-      // 11/1・11/2 に削除した行の旧データの値・未知キーは、DEF のキーだけにそろえて捨てる。
-      out[key]=Object.fromEntries(Object.keys(DEF[key]).map(k=>[k,(out[key]||{})[k]??DEF[key][k]]));
-      Object.keys(out[key]).forEach(k=>{out[key][k]=integer(out[key][k]);});
+      // §9-108-4：知っている項目は検証（非負整数）、知らない項目は捨てずに型ごと保持。新しい項目は0で足す。
+      out[key]=Object.assign({},DEF[key],out[key]||{});
+      Object.keys(DEF[key]).forEach(k=>{out[key][k]=integer(out[key][k]);});
     });
     if(out.img===undefined)out.img=DEF.img;
     if(out.iconChoice===undefined)out.iconChoice=DEF.iconChoice;

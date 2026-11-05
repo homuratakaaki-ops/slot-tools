@@ -21,7 +21,7 @@ for(const id of ['seiya12','ragnador','ggo']){
   assert.equal(c.storageKey,id+'-checker-v1-test');
   for(const f of [`checker-data/${id}.js`,`${id}-checker.html`,`${id}-guide.html`])assert.equal(read(f),git('show','HEAD:'+f));
   const banner=git('show','65de568:ggo-test-checker.html').split('</header>')[1].split('<main')[0];
-  const expected=git('show',`HEAD:${id}-checker.html`).replace('<head>','<head>\n<meta name="robots" content="noindex,nofollow">').replace('<title>','<title>【テスト版】').replace('property="og:title" content="','property="og:title" content="【テスト版】').replaceAll(`https://slot-tools.jp/${id}-checker.html`,`https://slot-tools.jp/${id}-test-checker.html`).replace('</header>\n','</header>'+banner).replace(new RegExp('checker-data/'+id+'\\.js\\?v=[^"\\s]+'),`checker-data/${id}-test.js?v=20261106-test`).replace(`CheckerConfigs["${id}"]`,`CheckerConfigs["${id}-test"]`);
+  const expected=git('show',`HEAD:${id}-checker.html`).replace('<head>','<head>\n<meta name="robots" content="noindex,nofollow">').replace('<title>','<title>【テスト版】').replace('property="og:title" content="','property="og:title" content="【テスト版】').replaceAll(`https://slot-tools.jp/${id}-checker.html`,`https://slot-tools.jp/${id}-test-checker.html`).replace('</header>\n','</header>'+banner).replace(new RegExp('checker-data/'+id+'\\.js\\?v=[^"\\s]+'),`checker-data/${id}-test.js?v=20261106-test2`).replace(`CheckerConfigs["${id}"]`,`CheckerConfigs["${id}-test"]`);
   assert.equal(read(id+'-test-checker.html'),expected.replace(`CheckerConfigs.${id}`,`CheckerConfigs["${id}-test"]`));
   assert.ok(read(id+'-test-checker.html').includes(`CheckerEngine.mount(CheckerConfigs["${id}-test"])`));
   const defaults=clone(c.defaults);if(id==='seiya12')delete defaults.gfLamp;if(id==='ragnador')delete defaults.counts.czKakutei;
@@ -32,7 +32,6 @@ for(const id of ['seiya12','ragnador','ggo']){
    else if(k==='actions')for(const a of Object.keys(b[k]))assert.equal(String(c[k][a]),String(b[k][a]));
    else assert.deepEqual(clone(c[k]),clone(b[k]));
   }
-  if(id!=='ggo')assert.equal(String(c.normalizeState),String(b.normalizeState));
   for(const k of Object.keys(b.card).filter(k=>!['detail','bottom','blocks'].includes(k)))assert.equal(typeof c.card[k]==='function'?String(c.card[k]):JSON.stringify(c.card[k]),typeof b.card[k]==='function'?String(b.card[k]):JSON.stringify(b.card[k]));
   assert.equal(String(c.card.blocks),String(b.card.blocks));assert.equal(String(c.card.bottom),String(b.card.bottom));
  });
@@ -42,12 +41,16 @@ for(const id of ['seiya12','ragnador','ggo']){
   const out=clone(c.normalizeState(clone(S))),expected=clone(b.normalizeState(clone(S)));
   if(id==='seiya12'){assert.ok(Object.values(out.gfLamp).every(v=>v===0));delete out.gfLamp;}
   if(id==='ragnador'){assert.equal(out.counts.czKakutei,0);delete out.counts.czKakutei;}
-  if(id==='ggo'){
-   for(const [k,v] of Object.entries(unknown)){assert.deepEqual(out[k],v);for(const g of c.mergeKeys)assert.deepEqual(out[g][k],v);}
-   for(const g of b.mergeKeys)for(const k of Object.keys(b.defaults[g]))assert.equal(out[g][k],7);
-   const invalid=clone(S);invalid.counts.bonus='4.9';invalid.counts.sj=-2;invalid.bonusCard.ren='bad';
-   const fixed=c.normalizeState(invalid);assert.equal(fixed.counts.bonus,4);assert.equal(fixed.counts.sj,0);assert.equal(fixed.bonusCard.ren,0);
-  }else assert.deepEqual(out,expected);
+  // 3機種とも §9-108-4：未知キーはトップレベル・グループ内とも型ごと保持（文字列・数値・負数・真偽・null・配列・オブジェクト）。
+  for(const [k,v] of Object.entries(unknown)){assert.deepEqual(out[k],v,k);for(const g of b.mergeKeys)assert.deepEqual(out[g][k],v,g+'.'+k);}
+  for(const g of b.mergeKeys){assert.equal(typeof out[g].str,'string');assert.ok(Array.isArray(out[g].arr));assert.equal(typeof out[g].obj,'object');}
+  for(const g of b.mergeKeys)for(const k of Object.keys(b.defaults[g]))assert.equal(out[g][k],7,g+'.'+k);
+  // 既知キーの値は本番の正規化と同じ（未知キーの扱いだけが違う）。
+  for(const g of b.mergeKeys)for(const k of Object.keys(b.defaults[g]))assert.equal(out[g][k],expected[g][k]);
+  for(const g of b.mergeKeys){
+   const [k1,k2]=Object.keys(b.defaults[g]),invalid=clone(S);invalid[g][k1]='4.9';if(k2)invalid[g][k2]=-2;
+   const fixed=c.normalizeState(invalid);assert.equal(fixed[g][k1],4);if(k2)assert.equal(fixed[g][k2],0);
+  }
   const normalized=c.normalizeState(clone(S));assert.deepEqual(clone(c.normalizeState(clone(normalized))),clone(normalized));
  });
 }

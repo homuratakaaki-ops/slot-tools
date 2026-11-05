@@ -23,7 +23,7 @@
 
 - URL：https://slot-tools.jp/ggo-test-checker.html（公開予定。今回はcommit・pushしない）
 - 保存キー：ggo-checker-v1-test
-- 機種JS：checker-data/ggo-test.js?v=20261106-test
+- 機種JS：checker-data/ggo-test.js?v=20261106-test2（初版 20261106-test）
 - 共通エンジンの?vは本番を維持。noindex,nofollow・テスト版帯・導線なし・sitemap未登録。
 - 新項目は0。既存の本番保存データを非ゼロ・未知項目入りで置き、操作後の文字列一致を検証します。
 - 本番ガイド・共通エンジン・台帳は変更しません。長押し入力は既存エンジンに実装がなく、追加は本指示の範囲外です。

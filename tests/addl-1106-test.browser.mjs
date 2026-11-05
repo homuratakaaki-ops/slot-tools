@@ -120,7 +120,8 @@ try{
     const target=id==='seiya12'?'gfLamp.rainbow':suggestion[0];
     await plus(target);const before=await state();await plus(target);await click('#undoBtn');assert.deepEqual(await state(),before);
     for(const [k,v] of Object.entries(old.counts))if(k in defaults.counts)assert.equal((await state()).counts[k],v);
-    if(id==='ggo')for(const [k,v] of Object.entries(unknown))assert.deepEqual((await state()).counts[k],v);
+    // 3機種とも未知キーはトップレベル・グループ内とも型ごと保持（§9-108-4）。
+    {const cur=await state();assert.deepEqual(cur.futureRoot,unknown);for(const g of Object.keys(old).filter(k=>old[k]&&typeof old[k]==='object'&&!Array.isArray(old[k])&&k!=='futureRoot'))for(const [k,v] of Object.entries(unknown))assert.deepEqual(cur[g][k],v,id+' '+g+'.'+k);}
     if(id==='ragnador')assert.equal((await state()).counts.czKakutei,0);
     pass(id+' old data / new zero / suggestions / undo');
     await tab(0);await plus(keys[0]);await click('#undoBtn');assert.deepEqual(await state(),before);
