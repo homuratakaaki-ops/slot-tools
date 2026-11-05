@@ -162,6 +162,31 @@
     const hits=GROUPS[key].filter(c=>(!predicate||predicate(c))&&n(S[key],c[0])>0);
     return row(label+' '+(hits.map(c=>shortLabel(key,c)+'×'+n(S[key],c[0])).join('・')||'−'),hits.reduce((a,c)=>a+n(S[key],c[0]),0));
   }
+  // カードのサマリー（§9-102：左右とも5行以内）。幅を超える行は、5行に収まる範囲で長い順に「・」の後ろで2行に折る。
+  // 折っても収まらない行は engine が文字を縮めて描く。幅は engine と同じ書体で測る（canvas が無い環境では文字数で見積もる）。
+  const SUMMARY_FONT=22,SUMMARY_GAP=44,SUMMARY_MAX_ROWS=5;
+  let measureCtx=null;
+  function textWidth(text){
+    try{
+      measureCtx=measureCtx||document.createElement('canvas').getContext('2d');
+      measureCtx.font="800 "+SUMMARY_FONT+"px 'M PLUS 1p'";
+      return measureCtx.measureText(text).width;
+    }catch(e){return Array.from(text).reduce((a,ch)=>a+(ch.charCodeAt(0)<0x2000?0.6:1)*SUMMARY_FONT,0);}
+  }
+  function wrapRows(items,width){
+    const out=items.slice();
+    while(out.length<SUMMARY_MAX_ROWS){
+      let at=-1,widest=width;
+      out.forEach((r,i)=>{const w=textWidth(r.text);if(w>widest&&r.text.includes('・')){at=i;widest=w;}});
+      if(at<0)break;
+      const r=out[at],parts=r.text.split('・');
+      let k=1;
+      while(k<parts.length-1&&textWidth(parts.slice(0,k+1).join('・')+'・')<=width)k++;
+      // 続きの行は全角1字下げ。色・強調は元の行と同じ。
+      out.splice(at,1,Object.assign({},r,{text:parts.slice(0,k).join('・')+'・'}),Object.assign({},r,{text:'　'+parts.slice(k).join('・')}));
+    }
+    return out;
+  }
   function normalizeState(out){
     const integer=v=>Number.isFinite(Number(v))?Math.max(0,Math.floor(Number(v))):0;
     out.games=integer(out.games);
@@ -205,9 +230,12 @@
       chart:ctx=>({title:'CZ種別',x:130,step:200,width:80,items:[
         {label:'フーアーユー',value:n(ctx.S.counts,'czWho')},{label:'影ノ襲来',value:n(ctx.S.counts,'czKage')}
       ]}),
-      bottom:ctx=>{const S=ctx.S,g=freeGames(S);return {title:'サマリー',startY:760,rowGap:44,fontSize:22,columns:[
-        {x:70,items:[row(bestStrong(S),strongCount(S),undefined,'#ffc94d'),summary(S,'trophy','トロフィー'),summary(S,'atEnd','終了画面',c=>c[3]>0),summary(S,'card','星座')]},
-        {x:560,items:[summary(S,'erFirst','ER1人目'),summary(S,'erSecond','ER2人目'),summary(S,'gfLamp','GFランプ',c=>c[3]>0),row('AT初当り '+n(S.counts,'at')+'回 '+oneIn(n(S.counts,'at'),g),n(S.counts,'at'))]}
+      bottom:ctx=>{const S=ctx.S,g=freeGames(S),gf=summary(S,'gfLamp','GFランプ');return {title:'サマリー',startY:760,rowGap:SUMMARY_GAP,fontSize:SUMMARY_FONT,columns:[
+        {x:70,items:wrapRows([row(bestStrong(S),strongCount(S),undefined,'#ffc94d'),summary(S,'trophy','トロフィー'),summary(S,'atEnd','終了画面',c=>c[3]>0),summary(S,'card','星座')],540-70)},
+        // 空の列：engine は各行を右隣の列の x まで縮めて描くので、左列の行が右列に接しないよう 20px の間をあける。
+        {x:540,items:[]},
+        // GFランプは記録のある色をすべて出す（白・青・黄も）。記録0件なら行を出さない。
+        {x:560,items:wrapRows([summary(S,'erFirst','ER1人目'),summary(S,'erSecond','ER2人目'),...(gf.value>0?[gf]:[]),row('AT初当り '+n(S.counts,'at')+'回 '+oneIn(n(S.counts,'at'),g),n(S.counts,'at'))],1010-560)}
       ]};}
     }
   };

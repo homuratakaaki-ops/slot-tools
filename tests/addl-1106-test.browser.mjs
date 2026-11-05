@@ -150,6 +150,21 @@ try{
     if(id==='seiya12')assert.ok(!(await run('return d.getElementById("tpl").value;')).includes('グランドフィナーレ'));
     if(id==='ragnador')assert.ok(!(await run('return d.getElementById("tpl").value;')).includes('確定CZ▶'));
     pass(id+' empty 4 tabs / zero output hidden');
+    if(id==='seiya12'){
+      // カードのサマリー：長い記録でも左列が右列に重ならない（左列は x=540 まで、右列はカード右端 1010 まで）・各列5行以内（夢爽 11/6）。
+      for(const [label,v] of [['4',4],['12',12],['blue',0]]){
+        const S=structuredClone(defaults);S.gameLog=[1000];S.counts.at=4;
+        if(v)for(const g of ['trophy','atEnd','erFirst','erSecond','card','gfLamp'])for(const k of Object.keys(S[g]))S[g][k]=v;else S.gfLamp.blue=1;
+        await seed(S);await tab(3);await pause(400);
+        const data=await canvas('cardCanvas','seiya12-summary-'+label);
+        const rows=data.texts.filter(t=>t.y>=760&&t.y<=760+44*4);
+        for(const t of rows){const limit=t.x<540?540:1010;assert.ok(t.x+t.w<=limit+0.5,label+' '+t.text+' '+(t.x+t.w));}
+        for(const x0 of [70,560])assert.ok(new Set(rows.filter(t=>t.x===x0).map(t=>t.y)).size<=5);
+        if(label==='blue')assert.ok(rows.some(t=>t.text==='GFランプ 青×1'),JSON.stringify(rows.map(t=>t.text)));
+        else assert.ok(rows.some(t=>t.text.startsWith('GFランプ 白×'+v)),JSON.stringify(rows.map(t=>t.text)));
+      }
+      pass('seiya12 card summary no overlap / GF lamp all colors');
+    }
   }
   assert.deepEqual(errors,[]);
 }catch(e){failures++;console.error(e.stack);process.exitCode=1;}

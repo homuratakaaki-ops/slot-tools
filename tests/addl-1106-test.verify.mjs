@@ -21,7 +21,7 @@ for(const id of ['seiya12','ragnador','ggo']){
   assert.equal(c.storageKey,id+'-checker-v1-test');
   for(const f of [`checker-data/${id}.js`,`${id}-checker.html`,`${id}-guide.html`])assert.equal(read(f),git('show','HEAD:'+f));
   const banner=git('show','65de568:ggo-test-checker.html').split('</header>')[1].split('<main')[0];
-  const expected=git('show',`HEAD:${id}-checker.html`).replace('<head>','<head>\n<meta name="robots" content="noindex,nofollow">').replace('<title>','<title>【テスト版】').replace('property="og:title" content="','property="og:title" content="【テスト版】').replaceAll(`https://slot-tools.jp/${id}-checker.html`,`https://slot-tools.jp/${id}-test-checker.html`).replace('</header>\n','</header>'+banner).replace(new RegExp('checker-data/'+id+'\\.js\\?v=[^"\\s]+'),`checker-data/${id}-test.js?v=20261106-test3`).replace(`CheckerConfigs["${id}"]`,`CheckerConfigs["${id}-test"]`);
+  const expected=git('show',`HEAD:${id}-checker.html`).replace('<head>','<head>\n<meta name="robots" content="noindex,nofollow">').replace('<title>','<title>【テスト版】').replace('property="og:title" content="','property="og:title" content="【テスト版】').replaceAll(`https://slot-tools.jp/${id}-checker.html`,`https://slot-tools.jp/${id}-test-checker.html`).replace('</header>\n','</header>'+banner).replace(new RegExp('checker-data/'+id+'\\.js\\?v=[^"\\s]+'),`checker-data/${id}-test.js?v=${id==='seiya12'?'20261106-test4':'20261106-test3'}`).replace(`CheckerConfigs["${id}"]`,`CheckerConfigs["${id}-test"]`);
   assert.equal(read(id+'-test-checker.html'),expected.replace(`CheckerConfigs.${id}`,`CheckerConfigs["${id}-test"]`));
   assert.ok(read(id+'-test-checker.html').includes(`CheckerEngine.mount(CheckerConfigs["${id}-test"])`));
   const defaults=clone(c.defaults);if(id==='seiya12')delete defaults.gfLamp;if(id==='ragnador')delete defaults.counts.czKakutei;
@@ -33,7 +33,7 @@ for(const id of ['seiya12','ragnador','ggo']){
    else assert.deepEqual(clone(c[k]),clone(b[k]));
   }
   for(const k of Object.keys(b.card).filter(k=>!['detail','bottom','blocks'].includes(k)))assert.equal(typeof c.card[k]==='function'?String(c.card[k]):JSON.stringify(c.card[k]),typeof b.card[k]==='function'?String(b.card[k]):JSON.stringify(b.card[k]));
-  assert.equal(String(c.card.blocks),String(b.card.blocks));assert.equal(String(c.card.bottom).replace(id==='seiya12'?"summary(S,'gfLamp','GFランプ',c=>c[3]>0),":'',''),String(b.card.bottom));
+  assert.equal(String(c.card.blocks),String(b.card.blocks));if(id!=='seiya12')assert.equal(String(c.card.bottom),String(b.card.bottom)); // 星矢はサマリーの行組みを変えた（GFランプ行・折り返し、夢爽 11/6）。下の専用検査で見る。
  });
  check(id+' 旧データ・未知型・新規0・冪等',()=>{
   const S=clone(b.defaults);S.gameLog=[300,700];S.games=9;Object.assign(S,clone(unknown));
@@ -107,9 +107,21 @@ check('文言：内部の計算の扱いの文がない・新しい文がある�
  assert.ok(src.seiya12.includes("trophy:'黄金聖闘士バトル・千日戦争の継続バトル・サガバトル敗北時に出ることがあります。出現率はホール設定で変わります。'"));
  assert.ok(src.ragnador.includes('設定差があるのは通常テーブルだけで、どのテーブルかは見た目では分かりません。'));
  assert.ok(src.ggo.includes('抽選契機は初回有利区間移行時・通常時ボーナス終了時・SJ終了時です。天国に入ったかどうかは、毎回確かめられるとは限りません。'));
- const c=configs.seiya12,S=clone(c.defaults);S.gfLamp.green=2;S.gfLamp.rainbow=1;S.gfLamp.white=5;
- const right=c.card.bottom({S}).columns[1].items.map(r=>r.text);
- assert.equal(right[2],'GFランプ 緑×2・虹×1');assert.ok(right.length<=5);
- assert.ok(c.card.bottom({S:clone(c.defaults)}).columns[1].items.some(r=>r.text==='GFランプ −'&&!r.active));
+ const c=configs.seiya12,bottom=S=>c.card.bottom({S}),texts=col=>Array.from(col.items,r=>r.text);
+ // 記録のある色をすべて出す（白・青・黄も）。0件なら行を出さない。
+ let S=clone(c.defaults);S.gfLamp.blue=1;assert.ok(texts(bottom(S).columns[2]).includes('GFランプ 青×1'));
+ S.gfLamp.green=1;assert.ok(texts(bottom(S).columns[2]).includes('GFランプ 青×1・緑×1'));
+ assert.ok(!texts(bottom(clone(c.defaults)).columns[2]).some(t=>t.startsWith('GFランプ')));
+ // 緑・赤・虹は確定演出にも数える（白・青・黄は数えない）。
+ S=clone(c.defaults);S.gfLamp.white=3;S.gfLamp.blue=2;S.gfLamp.yellow=1;assert.equal(c.card.blocks({S})[2][1],'計0回');
+ S.gfLamp.red=1;assert.equal(c.card.blocks({S})[2][1],'計1回');
+ // 間の空列（x=540）で左列は右列の20px手前まで。全項目4回でも各列5行以内、折った行は「・」で続く。
+ S=clone(c.defaults);for(const g of ['trophy','atEnd','erFirst','erSecond','card','gfLamp'])for(const k of Object.keys(S[g]))S[g][k]=4;S.counts.at=4;S.gameLog=[1000];
+ const b=bottom(S);assert.deepEqual(Array.from(b.columns,col=>col.x),[70,540,560]);assert.equal(b.columns[1].items.length,0);
+ for(const col of b.columns)assert.ok(col.items.length<=5);
+ const left=texts(b.columns[0]),right=texts(b.columns[2]);
+ assert.ok(left.some(t=>t.startsWith('　'))&&left.join('').replace(/　/g,'').includes('トロフィー 銅×4・銀×4・金×4・クマノミ柄×4・虹×4'),left.join('|'));
+ assert.ok(right.join('').replace(/　/g,'').includes('GFランプ 白×4・青×4・黄×4・緑×4・赤×4・虹×4'),right.join('|'));
+ assert.equal(right.at(-1),'AT初当り 4回 1/250.0');
 });
 console.log(`addl-1106 verify: ${checks} passed / 0 failed`);
