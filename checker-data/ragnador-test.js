@@ -99,7 +99,7 @@
   const REF_SECTIONS=[
     [COUNTS.map(c=>c[1]).join('・')+'・出玉率',SETTINGS.map(s=>['設定'+s,COUNTS.map(c=>c[1]+' 1/'+c[2][s].toFixed(1)).join(' ／ ')+' ／ 出玉率 '+PAYOUT[s].toFixed(1)+'%']).concat(REF_NOTES.map(t=>['補足',t]))],
     ['確定CZ当選率',SETTINGS.map((s,i)=>['設定'+s,['0.4%','0.4%','0.4%','0.8%','1.2%','1.2%'][i]]).concat([['補足','CZ突入時に抽選。当選するとCZの結果にかかわらずATに突入します。']])],
-    ['玄武選択率（通常テーブル）',SETTINGS.map((s,i)=>['設定'+s,['1.6%','2.0%','2.3%','4.7%','5.5%','6.3%'][i]]).concat([['補足','設定差は通常テーブルだけです。どのテーブルが選ばれたかを1回ごとに見分けられないため、記録・推測には使いません。']])]
+    ['玄武選択率（通常テーブル）',SETTINGS.map((s,i)=>['設定'+s,['1.6%','2.0%','2.3%','4.7%','5.5%','6.3%'][i]]).concat([['補足','設定差があるのは通常テーブルだけで、どのテーブルかは見た目では分かりません。']])]
   ];
   function pageReference(){
     return pageStyle()+REF_SECTIONS.map((sec,i)=>`<section class="sec" id="ref${i+1}"><div class="sec-h">${sec[0]}</div><table class="ref-table"><tbody>${sec[1].map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('')}</tbody></table></section>`).join('');

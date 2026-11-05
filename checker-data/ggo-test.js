@@ -65,7 +65,7 @@
   }
   const REF_SECTIONS=[
     [COUNTS.map(c=>c[1]).join('・')+'・出玉率',SETTINGS.map(s=>['設定'+s,COUNTS.map(c=>c[1]+' 1/'+c[2][s].toFixed(1)).join(' ／ ')+' ／ 出玉率 '+PAYOUT[s].toFixed(1)+'%']).concat(REF_NOTES.map(t=>['補足',t]))],
-    ['天国選択率',SETTINGS.map((s,i)=>['設定'+s,['21.9%','23.0%','24.6%','28.1%','31.3%','31.6%'][i]]).concat([['補足','抽選契機は初回有利区間移行時・通常時ボーナス終了時・SJ終了時です。天国の示唆が出なかったことは、天国でなかった根拠にはなりません。実測した天国の割合は、選ばれたかどうかを毎回確かめられないため、設定推測には使いません。']])]
+    ['天国選択率',SETTINGS.map((s,i)=>['設定'+s,['21.9%','23.0%','24.6%','28.1%','31.3%','31.6%'][i]]).concat([['補足','抽選契機は初回有利区間移行時・通常時ボーナス終了時・SJ終了時です。天国に入ったかどうかは、毎回確かめられるとは限りません。']])]
   ];
   function pageReference(){
     return pageStyle()+REF_SECTIONS.map((sec,i)=>`<section class="sec" id="ref${i+1}"><div class="sec-h">${sec[0]}</div><table class="ref-table"><tbody>${sec[1].map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('')}</tbody></table></section>`).join('');

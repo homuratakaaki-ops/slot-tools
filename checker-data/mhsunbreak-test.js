@@ -1199,7 +1199,7 @@
       ${picked?`<div class="pick-sum">選んだテーブル：${TABLE_NAMES[picked]}（${no===null?'BZ番号なし':'BZ'+no+'回目'}）</div><div class="step-h">2. 結果アイコン（任意）</div>${inputPosPicker(picked)}<div class="step-h">3. 成功／失敗</div>`:''}
       <div class="crow pick-row"><div class="lbl"><div class="nm">${picked?`<span class="pick-table-label">${TABLE_NAMES[picked]}</span>${pickPos!==null?` <span class="pick-result-label" style="color:${iconColor(posIcon({t:'bz',table:picked,pos:pickPos}))}">・ 結果 ${pickPos}個目 ${ICON_SHORT[posIcon({t:'bz',table:picked,pos:pickPos})]}</span>`:''}`:'テーブルを選んでください'}</div></div><div class="cycle-actions">${resultBtns}</div></div>`}
       <div class="hint">BZ開始時のアイコン1個目でテーブルが決まります。①〜⑦はテーブル1〜7（BZ開始時の1個目のアイコン）です。1でテーブル、2で結果アイコン（押さなくてもかまいません）、3で［成功］［失敗］の順に押します。BZとその後のクエストが終わってから、ATに当選したかで押してください。テーブル⑦はAT濃厚のため［＋］だけを置き、成功として数えます。1回目はAT終了後（リセット後を含む）最初のブレイクゾーン、2回目以降はそれ以外で、開始が分かっているときは次のBZ番号から自動で決まります。据え置きの朝一は前日のAT間の続きなので、開始では［途中から］を選んでください。設定差は公表されていません。記録してサンプルを集める項目です。結果アイコンは、ブレイクゾーンの結果が並んだアイコンの何個目で出たかの記録です。11個目は猛焔一閃（AT）です。押すと成功として記録されます。テーブル別の成功／回数・テンプレ・シナリオの候補には使いません。</div>
-      <div class="hint">猛焔一閃直撃は、BZ完走の11個目とは別の現象です。<details class="hint-fold"><summary>説明を見る</summary><div class="hint-body">CZ突入時にいきなり猛焔一閃が発生します。レア役でBZに当選したときに抽選され、設定差あり（下の表）。CZ当選時にも0.4%で抽選されます（全設定共通）。専用の記録ボタンはありません。出現率は設1:1/16281.7⇔設6:1/4263.1（一撃）。${MOU_TABLE}${MOU_SECOND}${MOU_RATE}どちらの抽選で当たったかは見た目で分からないため、段階1の値を全体の当選率としては使いません。</div></details></div>
+      <div class="hint">猛焔一閃直撃は、BZ完走の11個目とは別の現象です。<details class="hint-fold"><summary>説明を見る</summary><div class="hint-body">CZ突入時にいきなり猛焔一閃が発生します。レア役でBZに当選したときに抽選され、設定差あり（下の表）。CZ当選時にも0.4%で抽選されます（全設定共通）。専用の記録ボタンはありません。出現率は設1:1/16281.7⇔設6:1/4263.1（一撃）。${MOU_TABLE}${MOU_SECOND}${MOU_RATE}どちらの抽選で当たったかは見た目で分からないため、段階1の値がそのまま当選率になるわけではありません。</div></details></div>
     </div>`;
   }
   // 4. 補助（必要なときだけ開く）
@@ -1234,7 +1234,7 @@
       ${entry('fuku','アイルー福引',fukuBody,'福引の成功はこのAT間を閉じます。BZ番号はブレイクゾーンの当選回数で数え、アイルー福引は数えません。')}
       ${entry('submarine','オトモ潜水艇の横切り',submarineBody,'同乗の有無を選ぶと、規定リプレイの1〜5周期目／不明を記録できます。BZ番号・シナリオ参考％への影響なし。')}
       ${entry('','そのほか',otherBody,'押すとそのAT間を閉じて次のAT間を始めます。BZの成功・福引の成功も同じようにAT間を閉じます。')}
-      <div class="hint">失敗を押すとランプ5択が開きます。訂正は履歴のランプを押してください。減算モードでは示唆・福引は記録できません。設定自体の推測には使いません。出典：一撃様・ちょんぼりすた様。失敗後PUSHはエンターライズ公式（voice 2026/10/21）。</div>
+      <div class="hint">失敗を押すとランプ5択が開きます。訂正は履歴のランプを押してください。減算モードでは示唆・福引は記録できません。ランプの色は次回BZレベルの示唆で、設定の示唆ではありません。出典：一撃様・ちょんぼりすた様。失敗後PUSHはエンターライズ公式（voice 2026/10/21）。</div>
     </section>`;
   }
   function totalsSection(ctx){
@@ -1432,7 +1432,7 @@
   <section class="sec">
     <div class="sec-h">規定リプレイ周期</div>
     <div class="cgrid">${CYCLE.map(c=>cycleRow(ctx,c)).join('')}</div>
-    <div class="hint">規定リプレイ到達ごとに、CZに当選したら種別を、当選しなければハズレを押します。<details class="hint-fold"><summary>説明を見る</summary><div class="hint-body">6設定の振り分けは下の表のとおりです（推測には使いません）。${CYCLE_TABLE}AT後も規定リプレイポイントは引き継がれます。</div></details></div>
+    <div class="hint">規定リプレイ到達ごとに、CZに当選したら種別を、当選しなければハズレを押します。<details class="hint-fold"><summary>説明を見る</summary><div class="hint-body">6設定の振り分けは下の表のとおりです。${CYCLE_TABLE}AT後も規定リプレイポイントは引き継がれます。</div></details></div>
   </section>
   <section class="sec">
     <div class="sec-h">CZ種別</div>
@@ -1471,7 +1471,7 @@
     </style>
     <div class="bz-sub">規定周期から</div>
     <div class="cgrid">${czStaticRow('ブレイクゾーン',cyBz,ctx.pct(cyBz,cyBz+cyFuku))}${czStaticRow('アイルー福引',cyFuku,ctx.pct(cyFuku,cyBz+cyFuku),guideSpan('設1:20.0%⇔設6:39.5%'))}</div>
-    <div class="hint" data-fold="no">規定周期の［BZ］［福引］から自動で数えます。福引の目安は、規定周期到達時のCZのうち福引が選ばれた割合です。合計のアイルー福引（設1:1/2290.1⇔設6:1/976.4）と同じ出来事なので、別々の根拠として二重に数えません。</div>
+    <div class="hint" data-fold="no">規定周期の［BZ］［福引］から自動で数えます。福引の目安は、規定周期到達時のCZのうち福引が選ばれた割合です。合計のアイルー福引（設1:1/2290.1⇔設6:1/976.4）と同じ出来事を、別の形で見たものです。</div>
     <div class="bz-sub cz-sub">レア役から</div>
     <div class="cgrid">${czStaticRow('ブレイクゾーン',rareBzNew(S))}</div>
     <div class="hint" data-fold="no">「レア役からのBZ当選」の当選数から自動で数えます。超高確の強レア役（CZ濃厚）は含みません。${(Number(S.rareBzBase)||0)>0?'これより前のレア役BZは旧記録に含まれています。':''}</div>

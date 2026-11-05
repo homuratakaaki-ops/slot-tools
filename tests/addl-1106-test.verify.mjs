@@ -21,7 +21,7 @@ for(const id of ['seiya12','ragnador','ggo']){
   assert.equal(c.storageKey,id+'-checker-v1-test');
   for(const f of [`checker-data/${id}.js`,`${id}-checker.html`,`${id}-guide.html`])assert.equal(read(f),git('show','HEAD:'+f));
   const banner=git('show','65de568:ggo-test-checker.html').split('</header>')[1].split('<main')[0];
-  const expected=git('show',`HEAD:${id}-checker.html`).replace('<head>','<head>\n<meta name="robots" content="noindex,nofollow">').replace('<title>','<title>【テスト版】').replace('property="og:title" content="','property="og:title" content="【テスト版】').replaceAll(`https://slot-tools.jp/${id}-checker.html`,`https://slot-tools.jp/${id}-test-checker.html`).replace('</header>\n','</header>'+banner).replace(new RegExp('checker-data/'+id+'\\.js\\?v=[^"\\s]+'),`checker-data/${id}-test.js?v=20261106-test2`).replace(`CheckerConfigs["${id}"]`,`CheckerConfigs["${id}-test"]`);
+  const expected=git('show',`HEAD:${id}-checker.html`).replace('<head>','<head>\n<meta name="robots" content="noindex,nofollow">').replace('<title>','<title>【テスト版】').replace('property="og:title" content="','property="og:title" content="【テスト版】').replaceAll(`https://slot-tools.jp/${id}-checker.html`,`https://slot-tools.jp/${id}-test-checker.html`).replace('</header>\n','</header>'+banner).replace(new RegExp('checker-data/'+id+'\\.js\\?v=[^"\\s]+'),`checker-data/${id}-test.js?v=20261106-test3`).replace(`CheckerConfigs["${id}"]`,`CheckerConfigs["${id}-test"]`);
   assert.equal(read(id+'-test-checker.html'),expected.replace(`CheckerConfigs.${id}`,`CheckerConfigs["${id}-test"]`));
   assert.ok(read(id+'-test-checker.html').includes(`CheckerEngine.mount(CheckerConfigs["${id}-test"])`));
   const defaults=clone(c.defaults);if(id==='seiya12')delete defaults.gfLamp;if(id==='ragnador')delete defaults.counts.czKakutei;
@@ -33,7 +33,7 @@ for(const id of ['seiya12','ragnador','ggo']){
    else assert.deepEqual(clone(c[k]),clone(b[k]));
   }
   for(const k of Object.keys(b.card).filter(k=>!['detail','bottom','blocks'].includes(k)))assert.equal(typeof c.card[k]==='function'?String(c.card[k]):JSON.stringify(c.card[k]),typeof b.card[k]==='function'?String(b.card[k]):JSON.stringify(b.card[k]));
-  assert.equal(String(c.card.blocks),String(b.card.blocks));assert.equal(String(c.card.bottom),String(b.card.bottom));
+  assert.equal(String(c.card.blocks),String(b.card.blocks));assert.equal(String(c.card.bottom).replace(id==='seiya12'?"summary(S,'gfLamp','GFランプ',c=>c[3]>0),":'',''),String(b.card.bottom));
  });
  check(id+' 旧データ・未知型・新規0・冪等',()=>{
   const S=clone(b.defaults);S.gameLog=[300,700];S.games=9;Object.assign(S,clone(unknown));
@@ -83,8 +83,8 @@ check('ラグナ 確定CZの分母・警告・出力・除外',()=>{
 check('参照表 設定1〜6の値と注記・入力なし',()=>{
  for(const [id,title,values,note] of [
   ['ragnador','確定CZ当選率',['0.4','0.4','0.4','0.8','1.2','1.2'],'CZ突入時に抽選。'],
-  ['ragnador','玄武選択率（通常テーブル）',['1.6','2.0','2.3','4.7','5.5','6.3'],'どのテーブルが選ばれたか'],
-  ['ggo','天国選択率',['21.9','23.0','24.6','28.1','31.3','31.6'],'天国の示唆が出なかったことは、天国でなかった根拠にはなりません。']]){
+  ['ragnador','玄武選択率（通常テーブル）',['1.6','2.0','2.3','4.7','5.5','6.3'],'どのテーブルかは見た目では分かりません。'],
+  ['ggo','天国選択率',['21.9','23.0','24.6','28.1','31.3','31.6'],'天国に入ったかどうかは、毎回確かめられるとは限りません。']]){
   const c=configs[id],h=pages(c,clone(c.defaults))[2]().split(title)[1].split('</section>')[0];
   values.forEach((v,i)=>assert.ok(h.includes(`<td>設定${i+1}</td><td>${v}%</td>`)));assert.ok(h.includes(note));assert.ok(!h.includes('<input'));
  }
@@ -98,5 +98,18 @@ check('構文・LF・保護ファイル・公開導線なし',()=>{
   for(const p of ['index.html','checkers.html','sitemap.xml'])assert.ok(!read(p).includes(id+'-test-checker.html'));
  }
  assert.equal(git('diff','HEAD','--','checker-engine.js','index.html','checkers.html','sitemap.xml','IDEAS.md','AGENTS.md'),'');
+});
+// 利用者向けの文言（夢爽 11/6）：ツール内部の計算の扱いを書いた文を残さない。
+check('文言：内部の計算の扱いの文がない・新しい文がある・星矢GFランプのサマリー行',()=>{
+ const src=Object.fromEntries(['seiya12','ragnador','ggo'].map(id=>[id,read('checker-data/'+id+'-test.js')]));
+ for(const [id,t] of Object.entries(src))for(const bad of ['根拠にしません','推定に使わない','推測には使いません','設定推測','確率には使いません','根拠にはなりません'])assert.ok(!t.includes(bad),id+' '+bad);
+ assert.ok(src.seiya12.includes('強レア役のときは強い示唆が出やすくなります。'));
+ assert.ok(src.seiya12.includes("trophy:'黄金聖闘士バトル・千日戦争の継続バトル・サガバトル敗北時に出ることがあります。出現率はホール設定で変わります。'"));
+ assert.ok(src.ragnador.includes('設定差があるのは通常テーブルだけで、どのテーブルかは見た目では分かりません。'));
+ assert.ok(src.ggo.includes('抽選契機は初回有利区間移行時・通常時ボーナス終了時・SJ終了時です。天国に入ったかどうかは、毎回確かめられるとは限りません。'));
+ const c=configs.seiya12,S=clone(c.defaults);S.gfLamp.green=2;S.gfLamp.rainbow=1;S.gfLamp.white=5;
+ const right=c.card.bottom({S}).columns[1].items.map(r=>r.text);
+ assert.equal(right[2],'GFランプ 緑×2・虹×1');assert.ok(right.length<=5);
+ assert.ok(c.card.bottom({S:clone(c.defaults)}).columns[1].items.some(r=>r.text==='GFランプ −'&&!r.active));
 });
 console.log(`addl-1106 verify: ${checks} passed / 0 failed`);
