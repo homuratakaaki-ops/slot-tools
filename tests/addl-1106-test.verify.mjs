@@ -1,0 +1,99 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+import os from 'node:os';
+import path from 'node:path';
+import {execFileSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
+const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+const read=p=>fs.readFileSync(path.join(root,p),'utf8');
+const git=(...args)=>execFileSync('git',['-c','safe.directory='+root,...args],{cwd:root,encoding:'utf8'});
+const clone=x=>JSON.parse(JSON.stringify(x));
+const load=(source,id)=>{const box={window:{}};vm.runInNewContext(source,box);return box.window.CheckerConfigs[id];};
+const unknown={str:'keep',num:2.5,neg:-3,bool:false,nul:null,arr:[1,'a',{x:1}],obj:{deep:{v:'x'}}};
+const configs={};let checks=0;
+function check(name,fn){fn();checks++;console.log('PASS '+name);}
+function context(c,S){return {S,crow:(key,label,hint,rank,pct)=>`<row key="${key}">${label}|${hint}|${rank}|${pct?pct(key.split('.').reduce((o,k)=>o[k],S)):''}</row>`,pct:(v,n)=>n?`${v}/${n} ${(100*v/n).toFixed(0)}%`:'—'};}
+const pages=(c,S)=>c.pages(context(c,S),()=>'<card>');
+for(const id of ['seiya12','ragnador','ggo']){
+ const source=read(`checker-data/${id}-test.js`),base=git('show',`HEAD:checker-data/${id}.js`),c=load(source,id+'-test'),b=load(base,id);configs[id]=c;
+ check(id+' 分離・本番不変・HTMLの変更範囲',()=>{
+  assert.equal(c.storageKey,id+'-checker-v1-test');
+  for(const f of [`checker-data/${id}.js`,`${id}-checker.html`,`${id}-guide.html`])assert.equal(read(f),git('show','HEAD:'+f));
+  const banner=git('show','65de568:ggo-test-checker.html').split('</header>')[1].split('<main')[0];
+  const expected=git('show',`HEAD:${id}-checker.html`).replace('<head>','<head>\n<meta name="robots" content="noindex,nofollow">').replace('<title>','<title>【テスト版】').replace('property="og:title" content="','property="og:title" content="【テスト版】').replaceAll(`https://slot-tools.jp/${id}-checker.html`,`https://slot-tools.jp/${id}-test-checker.html`).replace('</header>\n','</header>'+banner).replace(new RegExp('checker-data/'+id+'\\.js\\?v=[^"\\s]+'),`checker-data/${id}-test.js?v=20261106-test`).replace(`CheckerConfigs["${id}"]`,`CheckerConfigs["${id}-test"]`);
+  assert.equal(read(id+'-test-checker.html'),expected.replace(`CheckerConfigs.${id}`,`CheckerConfigs["${id}-test"]`));
+  assert.ok(read(id+'-test-checker.html').includes(`CheckerEngine.mount(CheckerConfigs["${id}-test"])`));
+  const defaults=clone(c.defaults);if(id==='seiya12')delete defaults.gfLamp;if(id==='ragnador')delete defaults.counts.czKakutei;
+  assert.deepEqual(defaults,clone(b.defaults));
+  // 公開APIのうち許可のない定義・関数は本番と同じ。
+  for(const k of ['uiV2','nanaCollab','sourceUrl','actions','share','mergeKeys']){
+   if(k==='mergeKeys'&&id==='seiya12')assert.deepEqual(clone(c[k]).filter(x=>x!=='gfLamp'),clone(b[k]));
+   else if(k==='actions')for(const a of Object.keys(b[k]))assert.equal(String(c[k][a]),String(b[k][a]));
+   else assert.deepEqual(clone(c[k]),clone(b[k]));
+  }
+  if(id!=='ggo')assert.equal(String(c.normalizeState),String(b.normalizeState));
+  for(const k of Object.keys(b.card).filter(k=>!['detail','bottom','blocks'].includes(k)))assert.equal(typeof c.card[k]==='function'?String(c.card[k]):JSON.stringify(c.card[k]),typeof b.card[k]==='function'?String(b.card[k]):JSON.stringify(b.card[k]));
+  assert.equal(String(c.card.blocks),String(b.card.blocks));assert.equal(String(c.card.bottom),String(b.card.bottom));
+ });
+ check(id+' 旧データ・未知型・新規0・冪等',()=>{
+  const S=clone(b.defaults);S.gameLog=[300,700];S.games=9;Object.assign(S,clone(unknown));
+  for(const g of b.mergeKeys){for(const k of Object.keys(S[g]))S[g][k]=7;Object.assign(S[g],clone(unknown));}
+  const out=clone(c.normalizeState(clone(S))),expected=clone(b.normalizeState(clone(S)));
+  if(id==='seiya12'){assert.ok(Object.values(out.gfLamp).every(v=>v===0));delete out.gfLamp;}
+  if(id==='ragnador'){assert.equal(out.counts.czKakutei,0);delete out.counts.czKakutei;}
+  if(id==='ggo'){
+   for(const [k,v] of Object.entries(unknown)){assert.deepEqual(out[k],v);for(const g of c.mergeKeys)assert.deepEqual(out[g][k],v);}
+   for(const g of b.mergeKeys)for(const k of Object.keys(b.defaults[g]))assert.equal(out[g][k],7);
+   const invalid=clone(S);invalid.counts.bonus='4.9';invalid.counts.sj=-2;invalid.bonusCard.ren='bad';
+   const fixed=c.normalizeState(invalid);assert.equal(fixed.counts.bonus,4);assert.equal(fixed.counts.sj,0);assert.equal(fixed.bonusCard.ren,0);
+  }else assert.deepEqual(out,expected);
+  const normalized=c.normalizeState(clone(S));assert.deepEqual(clone(c.normalizeState(clone(normalized))),clone(normalized));
+ });
+}
+check('星矢 GF6色・濃厚3色だけ・コピー・詳細',()=>{
+ const c=configs.seiya12,S=clone(c.defaults),colors=['白','青','黄','緑','赤','虹'];
+ assert.ok(!c.template({S}).includes('グランドフィナーレ'));
+ for(const [i,k] of Object.keys(S.gfLamp).entries()){
+  const T=clone(S);T.gfLamp[k]=1;
+  assert.ok(c.template({S:T}).includes('確定演出'+(i>=3?1:0)+'回'));
+  const line=c.card.bottom({S:T}).columns[0].items[0].text;
+  assert.ok(line.includes(i>=3?'GFランプ'+colors[i]:'確定演出 なし'));
+  const text=c.template({S:T}).split('■グランドフィナーレ中のランプ')[1];assert.ok(text.includes(colors[i]+'▶1回'));assert.ok(!text.includes('%'));
+ }
+ const d=c.card.detail({S}).find(x=>x.title==='GFランプ');assert.equal(d.percent,false);assert.equal(d.items.length,6);
+ const html=pages(c,S)[1]();assert.ok(html.indexOf('カード演出の星座')<html.indexOf('グランドフィナーレ中のランプ'));assert.ok(html.indexOf('グランドフィナーレ中のランプ')<html.indexOf('奇数・偶数・高設定の期待度UPは記録のみ'));
+});
+check('ラグナ 確定CZの分母・警告・出力・除外',()=>{
+ const c=configs.ragnador;
+ for(const [N,M,pct,percent] of [[10,0,'—',''],[10,2,'CZ 10回中 2回（20.0%）',' 20.0%'],[2,3,'CZ 2回中 3回',''],[0,1,'CZ 0回中 1回','']]){
+  const S=clone(c.defaults);Object.assign(S.counts,{cz:N,czKakutei:M});
+  const h=pages(c,S)[0]();assert.ok(h.includes(pct));assert.equal(h.includes('class="hint warn"'),M>N);
+  assert.equal((h.match(/<summary>説明を見る<\/summary>/g)||[]).length,1);
+  assert.ok(h.indexOf('key="counts.cz"')<h.indexOf('key="counts.czKakutei"'));assert.ok(h.indexOf('key="counts.czKakutei"')<h.indexOf('key="counts.at"'));
+  const t=c.template({S});assert.ok(t.includes('確定演出0回'));
+  if(M)assert.ok(t.includes(`確定CZ▶${M}回（CZ ${N}回中${percent}）`));else assert.ok(!t.includes('確定CZ▶'));
+  const item=c.card.detail({S})[0].items[1];assert.equal(item.text,`確定CZ ${M}/${N}${percent}`);assert.equal(item.show,M>0);assert.equal(item.hot,false);
+  assert.ok(!JSON.stringify(c.card.blocks({S})).includes('確定CZ'));assert.ok(!JSON.stringify(c.card.chart({S})).includes('確定CZ'));
+ }
+});
+check('参照表 設定1〜6の値と注記・入力なし',()=>{
+ for(const [id,title,values,note] of [
+  ['ragnador','確定CZ当選率',['0.4','0.4','0.4','0.8','1.2','1.2'],'CZ突入時に抽選。'],
+  ['ragnador','玄武選択率（通常テーブル）',['1.6','2.0','2.3','4.7','5.5','6.3'],'どのテーブルが選ばれたか'],
+  ['ggo','天国選択率',['21.9','23.0','24.6','28.1','31.3','31.6'],'天国の示唆が出なかったことは、天国でなかった根拠にはなりません。']]){
+  const c=configs[id],h=pages(c,clone(c.defaults))[2]().split(title)[1].split('</section>')[0];
+  values.forEach((v,i)=>assert.ok(h.includes(`<td>設定${i+1}</td><td>${v}%</td>`)));assert.ok(h.includes(note));assert.ok(!h.includes('<input'));
+ }
+});
+check('構文・LF・保護ファイル・公開導線なし',()=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'addl-1106-syntax-'));
+ for(const id of Object.keys(configs)){
+  const html=read(id+'-test-checker.html');assert.ok(!html.includes('\r'));assert.ok(!read('checker-data/'+id+'-test.js').includes('\r'));
+  execFileSync(process.execPath,['--check',path.join(root,'checker-data/'+id+'-test.js')]);
+  for(const [i,m] of [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)].entries())if(!/\bsrc=/.test(m[1])){const f=path.join(dir,id+i+'.mjs');fs.writeFileSync(f,m[2]);execFileSync(process.execPath,['--check',f]);}
+  for(const p of ['index.html','checkers.html','sitemap.xml'])assert.ok(!read(p).includes(id+'-test-checker.html'));
+ }
+ assert.equal(git('diff','HEAD','--','checker-engine.js','index.html','checkers.html','sitemap.xml','IDEAS.md','AGENTS.md'),'');
+});
+console.log(`addl-1106 verify: ${checks} passed / 0 failed`);
