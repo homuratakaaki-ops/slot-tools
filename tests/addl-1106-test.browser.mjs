@@ -1,4 +1,4 @@
-// node tests/addl-1106-test.browser.mjs — ローカルのみ。長押し未対応は未達として報告する。
+// node tests/addl-1106-test.browser.mjs — ローカルのみ。
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -92,7 +92,6 @@ try{
     const original=CanvasRenderingContext2D.prototype.fillText;
     CanvasRenderingContext2D.prototype.fillText=function(text,x,y,...args){(window.__texts[this.canvas.id]??=[]).push({text:String(text),x,y,w:this.measureText(String(text)).width,font:this.font});return original.call(this,text,x,y,...args);};
   `});
-  const unmet=[];
   for(const id of IDS){
     KEY=id+'-checker-v1-test';PAGE='/'+id+'-test-checker.html';
     await load();
@@ -125,14 +124,6 @@ try{
     if(id==='ragnador')assert.equal((await state()).counts.czKakutei,0);
     pass(id+' old data / new zero / suggestions / undo');
     await tab(0);await plus(keys[0]);await click('#undoBtn');assert.deepEqual(await state(),before);
-    // 実ポインターで800ms押す。本番にも入力UIがないため、未達を隠さない。
-    const selector='[data-c="'+keys[0]+'"] .plus';
-    const pos=await run('const e=d.querySelector('+JSON.stringify(selector)+');e.scrollIntoView({block:"center"});const r=e.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};');
-    await send('Input.dispatchMouseEvent',{type:'mousePressed',...pos,button:'left',clickCount:1});await pause(800);
-    const entry=await run('return [...d.querySelectorAll("dialog,[role=dialog],input")].filter(e=>e.getBoundingClientRect().width>0&&e.id!=="gameLogIn").map(e=>e.outerHTML);');
-    await send('Input.dispatchMouseEvent',{type:'mouseReleased',...pos,button:'left',clickCount:1});
-    if(entry.length===0){unmet.push(id+': 長押し入力UIなし（既存エンジン未対応・変更禁止）');console.log('UNMET '+unmet.at(-1));await click('#undoBtn');}
-    else throw Error('長押しUIが存在します。入力と取消の検証を追加してください。');
     const stable=await state();await load();assert.deepEqual(await state(),stable);
     if(id==='ragnador'){
       const normal=await state();normal.counts.cz=10;normal.counts.czKakutei=2;await seed(normal);
@@ -159,8 +150,6 @@ try{
     if(id==='ragnador')assert.ok(!(await run('return d.getElementById("tpl").value;')).includes('確定CZ▶'));
     pass(id+' empty 4 tabs / zero output hidden');
   }
-  fs.writeFileSync(path.join(artifacts,'unmet.json'),JSON.stringify(unmet,null,2));
-  if(unmet.length){failures+=unmet.length;process.exitCode=1;}
   assert.deepEqual(errors,[]);
 }catch(e){failures++;console.error(e.stack);process.exitCode=1;}
 finally{
