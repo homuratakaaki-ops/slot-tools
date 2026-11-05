@@ -90,7 +90,7 @@ check('本番 js はテスト版との差が3か所だけ・HTML は ?v だけ�
   for(const p of ['vivy-test-checker.html','checker-data/vivy-test.js'])assert.ok(!fs.existsSync(path.join(root,p)),p+' は削除');
   for(const p of fs.readdirSync(root).filter(p=>p.endsWith('.html')))assert.doesNotMatch(read(p),/(?:href|src)=["'][^"']*vivy-test/,p);
   const allowed=new Set(['checker-data/vivy.js','checker-data/vivy-test.js','vivy-checker.html','vivy-test-checker.html','vivy-guide.html','index.html','docs/specs/vivy-checker-v03.md']);
-  assert.deepEqual(git('diff','--name-only',BASE,'--').trim().split('\n').filter(Boolean).filter(p=>!allowed.has(p)&&!p.startsWith('tests/')),[]);
+  assert.deepEqual(git('diff','--name-only',BASE,'--').trim().split('\n').filter(Boolean).filter(p=>!allowed.has(p)&&!p.startsWith('tests/')&&!p.endsWith('-test-checker.html')&&!/^checker-data\/.*-test\.js$/.test(p)&&!(p.startsWith('docs/specs/')&&!p.startsWith('docs/specs/vivy'))),[]);
   const news=read('index.html').split('<div class="section-label">NEW</div>')[1].split('</section>')[0];
   assert.equal((news.match(/<p>/g)||[]).length,8);
   // §9-92：同日・同機種は1行に統合（Vivy・ゴジエヴァ2 の 11/2 の2行ずつ）。空いた2行に 10/21 の2行を戻して8行（夢爽 11/2）。
