@@ -14,7 +14,12 @@ const baseline=load(execFileSync('git',['-c','safe.directory='+decodeURIComponen
 const clone=v=>JSON.parse(JSON.stringify(v));
 // 10/22 設定別解析の反映で足したキー。旧版との比較では、値を確かめてから外す
 const ADDED_1022=['cycleD','cycleBz','cycleFuku','czTenjo','rareBzBase'];
-const dropAdded=S=>{const c=JSON.parse(JSON.stringify(S));if(c&&typeof c==='object')for(const k of ADDED_1022)delete c[k];return c;};
+const dropAdded=S=>{const c=JSON.parse(JSON.stringify(S));if(c&&typeof c==='object'){for(const k of ADDED_1022)delete c[k];if('kareCut' in c){assert.equal(JSON.stringify(c.kareCut),'{"entalion":0}','kareCut は0');delete c.kareCut;}}return c;};
+// 11/6 追加解析で足した「狩れカットイン」：記録 kareCut（上の dropAdded で外す）・テンプレ「6確」の後の2行・詳細カードの最後の1項目。
+// 旧版や原文と比べるこの検査では、0であることを確かめてから外す（足した形そのものは tests/addl-1106b.verify.mjs が見る）。
+const KARE_TPL='■狩れカットイン\nｴﾝﾀﾗｲｵﾝ▶︎ 0回\n\n';
+const dropKareTpl=t=>{assert.ok(t.includes('回\n\n'+KARE_TPL+'■エンディング'),'6確の後に狩れカットインの2行');return t.replace(KARE_TPL,'');};
+const dropKareDetail=d=>{const c=JSON.parse(JSON.stringify(d)),last=c.at(-1);assert.equal(last.title,'盟勇クエスト討伐3G目の狩れカットイン');assert.equal(JSON.stringify(last.items.map(x=>x.value)),'[0]');c.pop();return c;};
 // 新キーの無いデータを読んだとき：周期3種は0、天井0、控えは読み込み時点のレア役BZ当選数
 const checkAdded=S=>{for(const k of ['cycleD','cycleBz','cycleFuku'])assert.equal(JSON.stringify(S[k]),'{"c1":0,"c2":0,"c3":0,"c4":0,"c5":0}',k);assert.equal(S.czTenjo,0);assert.equal(S.rareBzBase,Object.entries(S.bz).filter(([k])=>k.endsWith('N')).reduce((a,[,v])=>a+v,0),'rareBzBase');};
 
@@ -148,7 +153,7 @@ test('カードの中身（行・テーブル集計・注記）',()=>{
 test('保存データ・集計・テンプレ・既存カードは b280977 と同じ',()=>{
   checkAdded(config.defaults);
   assert.equal(JSON.stringify(dropAdded(config.defaults)),JSON.stringify(Object.fromEntries(Object.entries(baseline.defaults).flatMap(([k,v])=>k==='bzT1'?[['bzBase',Object.fromEntries(['bzT1','bzT2','questN1','questN2'].map(key=>[key,baseline.defaults[key]]))]]:['bzT2','questN1','questN2'].includes(k)?[]:[[k,v]]))));
-  assert.equal(JSON.stringify(config.mergeKeys.filter(k=>!ADDED_1022.includes(k))),JSON.stringify(baseline.mergeKeys.filter(k=>!['bzT1','bzT2','questN1','questN2'].includes(k)).concat('bzBase')));
+  assert.equal(JSON.stringify(config.mergeKeys.filter(k=>!ADDED_1022.includes(k)&&k!=='kareCut')),JSON.stringify(baseline.mergeKeys.filter(k=>!['bzT1','bzT2','questN1','questN2'].includes(k)).concat('bzBase')));
   assert.equal(config.storageKey,baseline.storageKey);
   const raws=[null,{},{bzT1:{t1:2},questN1:{t1:1}},
     {bzT1:{blue:3},questN:{blue:1},iconLog:[{icons:['rai'],group:'bzT1',quest:'raizex',result:'win'}]},
@@ -166,8 +171,8 @@ test('保存データ・集計・テンプレ・既存カードは b280977 と�
   S.hits=[300,520];S.atEnd.jay=1;S.trophy.gold=1;S.cycle.c1=2;
   config.actions.bzQuest(ctx(S),{d:'bzT1',q:'t3',r:'miss'});
   config.actions.atEvent(ctx(S),{t:'eye',c:'bahari'});
-  for(const key of ['template','compactTemplate'])assert.deepEqual(Buffer.from(config[key](ctx(clone(S)))),Buffer.from(baseline[key](ctx(legacyState(S)))),key);
-  const card=c=>JSON.stringify(Object.fromEntries(['blocks','chart','bottom','detail'].map(k=>[k,c.card[k](ctx(clone(S)))])));
+  for(const key of ['template','compactTemplate'])assert.deepEqual(Buffer.from(dropKareTpl(config[key](ctx(clone(S))))),Buffer.from(baseline[key](ctx(legacyState(S)))),key);
+  const card=c=>JSON.stringify(Object.fromEntries(['blocks','chart','bottom','detail'].map(k=>[k,k==='detail'&&c===config?dropKareDetail(c.card[k](ctx(clone(S)))):c.card[k](ctx(clone(S)))])));
   assert.equal(card(config),card(baseline));
   // カードタブは engine のカードの後ろに自分の節を足すだけ
   const page=cfg=>cfg.pages(ctx(clone(S)),()=> '[CARD]')[3]();

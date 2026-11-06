@@ -1,5 +1,5 @@
 // 出典: ちょんぼりすた様 https://chonborista.com/slot/sanyo-slot/260304/
-// 2026-10-27 更新分を 2026-10-28 確認（第三者解析）。数値・文言の正本: docs/specs/seiya12-checker-v01.md
+// 2026-11-06 取得（第三者解析）。正本: docs/specs/seiya12-checker-v02.md
 (function(){
   'use strict';
   window.CheckerConfigs=window.CheckerConfigs||{};
@@ -38,19 +38,20 @@
     ['harisenbon','ハリセンボン座','設定2以上濃厚',2],['same','サメ座','設定4以上濃厚',4],
     ['ebi','エビ座','設定5以上濃厚',5],['ankou','アンコウ座','設定6濃厚',6]
   ];
-  const GROUPS={trophy:TROPHY,atEnd:AT_END,erFirst:ER_FIRST,erSecond:ER_SECOND,card:CARD};
-  const TITLES={trophy:'トロフィー',atEnd:'AT終了画面',erFirst:'エクストララウンド キャラ紹介（1人目）',erSecond:'エクストララウンド キャラ紹介（2人目）',card:'カード演出の星座'};
+  const GROUPS={trophy:TROPHY,atEnd:AT_END,erFirst:ER_FIRST,erSecond:ER_SECOND,card:CARD,gfLamp:[['white','白','デフォルト',0],['blue','青','奇数設定期待度UP',0],['yellow','黄','偶数設定期待度UP',0],['green','緑','設定2以上濃厚',2],['red','赤','設定4以上濃厚',4],['rainbow','虹','設定6濃厚',6]]};
+  const TITLES={trophy:'トロフィー',atEnd:'AT終了画面',erFirst:'エクストララウンド キャラ紹介（1人目）',erSecond:'エクストララウンド キャラ紹介（2人目）',card:'カード演出の星座',gfLamp:'グランドフィナーレ中のランプ'};
   // 詳細カード・サマリー専用の短名（10文字以内）。画面・hint・テンプレは上の表示名のまま。
-  const DETAIL_TITLES={trophy:'トロフィー',atEnd:'AT終了画面',erFirst:'ER 1人目',erSecond:'ER 2人目',card:'星座'};
+  const DETAIL_TITLES={trophy:'トロフィー',atEnd:'AT終了画面',erFirst:'ER 1人目',erSecond:'ER 2人目',card:'星座',gfLamp:'GFランプ'};
   const SHORT={
     atEnd:{bronze4L:'左向き青銅4',bronze5:'青銅5一輝',marin:'魔鈴シャイナ'},
     card:{harisenbon:'ハリセンボン',same:'サメ',ebi:'エビ',ankou:'アンコウ'}
   };
   const HINTS={
+    gfLamp:'<details class="hint-fold"><summary>説明を見る</summary><div class="hint-body">グランドフィナーレ中にレア役が成立したときPUSHボタンを押すと、ペガサスランプとPUSHボタンが光ります。強レア役のときは強い示唆が出やすくなります。</div></details>',
     games:'当選するたびに、その当選までのG数（ホールのデータカウンターの当選G、または台メニューのAT間G）を入力して追加します。合計が設定推定の分母になります。今まわしている未当選区間のG数は分母に含めません。',
     cz:'通常CZ（フーアーユー・影ノ襲来）を突入のたびに1回押します。合計・種別の割合の母数はこの2種です。上位CZ「最終決戦サガバトル」は数えません。',
     at:'AT初当りは初当りだけを押します。セット継続・上位移行・千日戦争の引戻しは数えません。CZ成功からの自動加算はしません。',
-    trophy:'黄金聖闘士バトル・千日戦争の継続バトル・サガバトル敗北時に出ることがあります。出現率はホール設定で変わるため、出ないことを低設定の根拠にしません。',
+    trophy:'黄金聖闘士バトル・千日戦争の継続バトル・サガバトル敗北時に出ることがあります。出現率はホール設定で変わります。',
     atEnd:'AT・上位ATの終了時（黄金聖闘士バトル敗北後など）に出ます。一輝は復活の示唆で設定とは無関係です。',
     er:'エクストララウンド中の黄金聖闘士バトルに勝利したときに発生します。1人目・2人目をそれぞれ記録します。割合は出しません。',
     card:'通常時のカード演出で出る星座です。設定示唆のある4種だけ記録します。'
@@ -75,7 +76,7 @@
   function section(title,lines){return lines.length?'\n■'+title+'\n'+lines.join('\n')+'\n':'';}
   // 確定演出＝濃厚系（rank>0）。期待度UP・一輝（復活）は数えない。
   function allStrong(S){
-    return Object.entries(GROUPS).flatMap(([key,arr])=>arr.filter(c=>c[3]>0).map(c=>({label:c[1],rank:c[3],value:n(S[key],c[0])})));
+    return Object.entries(GROUPS).flatMap(([key,arr])=>arr.filter(c=>c[3]>0).map(c=>({label:(key==='gfLamp'?'GFランプ':'')+c[1],rank:c[3],value:n(S[key],c[0])})));
   }
   function strongCount(S){return allStrong(S).reduce((a,c)=>a+c.value,0);}
   function bestStrong(S){
@@ -113,7 +114,7 @@
   function pageSuggest(ctx){
     return pageStyle()+['trophy','atEnd'].map(k=>groupSection(ctx,k)).join('')+
       `<section class="sec"><div class="sec-h">エクストララウンド キャラ紹介</div>${['erFirst','erSecond'].map((k,i)=>`<div class="sec-h">${['1人目','2人目'][i]}</div><div class="cgrid">${groupRows(ctx,k)}</div>`).join('')}<div class="hint">${HINTS.er}</div></section>`+
-      groupSection(ctx,'card')+
+      groupSection(ctx,'card')+groupSection(ctx,'gfLamp')+
       '<div class="hint">奇数・偶数・高設定の期待度UPは記録のみです。</div>';
   }
   const REF_SECTIONS=[
@@ -124,7 +125,7 @@
     ['トロフィー',[['出現場面',HINTS.trophy],['示唆','銅＝設定2以上濃厚、銀＝設定3以上濃厚、金＝設定4以上濃厚、クマノミ柄＝設定5以上濃厚、虹＝設定6濃厚']]],
     ['調査中の項目',[
       ['液晶・メニューのG数','液晶G数は設定変更時と電源OFF→ON時に0Gへ戻ります（電源OFF→ONでは内部状態を引き継ぎます）。メニューのAT間G数も設定変更で0に戻ります。設定推定の分母には使わず、当選ごとのG数の合計を使います。'],
-      ['規定周期の振り分け','調査中（推定に使わない）'],['守護星座の加護','調査中（推定に使わない）'],
+      ['規定周期の振り分け','調査中'],['守護星座の加護','調査中'],
       ['解析値について','当ページの解析値は第三者の独自調査値です。']
     ]]
   ];
@@ -161,14 +162,39 @@
     const hits=GROUPS[key].filter(c=>(!predicate||predicate(c))&&n(S[key],c[0])>0);
     return row(label+' '+(hits.map(c=>shortLabel(key,c)+'×'+n(S[key],c[0])).join('・')||'−'),hits.reduce((a,c)=>a+n(S[key],c[0]),0));
   }
+  // カードのサマリー（§9-102：左右とも5行以内）。幅を超える行は、5行に収まる範囲で長い順に「・」の後ろで2行に折る。
+  // 折っても収まらない行は engine が文字を縮めて描く。幅は engine と同じ書体で測る（canvas が無い環境では文字数で見積もる）。
+  const SUMMARY_FONT=22,SUMMARY_GAP=44,SUMMARY_MAX_ROWS=5;
+  let measureCtx=null;
+  function textWidth(text){
+    try{
+      measureCtx=measureCtx||document.createElement('canvas').getContext('2d');
+      measureCtx.font="800 "+SUMMARY_FONT+"px 'M PLUS 1p'";
+      return measureCtx.measureText(text).width;
+    }catch(e){return Array.from(text).reduce((a,ch)=>a+(ch.charCodeAt(0)<0x2000?0.6:1)*SUMMARY_FONT,0);}
+  }
+  function wrapRows(items,width){
+    const out=items.slice();
+    while(out.length<SUMMARY_MAX_ROWS){
+      let at=-1,widest=width;
+      out.forEach((r,i)=>{const w=textWidth(r.text);if(w>widest&&r.text.includes('・')){at=i;widest=w;}});
+      if(at<0)break;
+      const r=out[at],parts=r.text.split('・');
+      let k=1;
+      while(k<parts.length-1&&textWidth(parts.slice(0,k+1).join('・')+'・')<=width)k++;
+      // 続きの行は全角1字下げ。色・強調は元の行と同じ。
+      out.splice(at,1,Object.assign({},r,{text:parts.slice(0,k).join('・')+'・'}),Object.assign({},r,{text:'　'+parts.slice(k).join('・')}));
+    }
+    return out;
+  }
   function normalizeState(out){
     const integer=v=>Number.isFinite(Number(v))?Math.max(0,Math.floor(Number(v))):0;
     out.games=integer(out.games);
     out.gameLog=Array.isArray(out.gameLog)?out.gameLog.map(integer).filter(v=>v>0):[];
     ['counts',...Object.keys(GROUPS)].forEach(key=>{
-      // 11/1・11/2 に削除した行の旧データの値・未知キーは、DEF のキーだけにそろえて捨てる。
-      out[key]=Object.fromEntries(Object.keys(DEF[key]).map(k=>[k,(out[key]||{})[k]??DEF[key][k]]));
-      Object.keys(out[key]).forEach(k=>{out[key][k]=integer(out[key][k]);});
+      // §9-108-4：知っている項目は検証（非負整数）、知らない項目は捨てずに型ごと保持。新しい項目は0で足す。
+      out[key]=Object.assign({},DEF[key],out[key]||{});
+      Object.keys(DEF[key]).forEach(k=>{out[key][k]=integer(out[key][k]);});
     });
     if(out.img===undefined)out.img=DEF.img;
     if(out.iconChoice===undefined)out.iconChoice=DEF.iconChoice;
@@ -204,9 +230,12 @@
       chart:ctx=>({title:'CZ種別',x:130,step:200,width:80,items:[
         {label:'フーアーユー',value:n(ctx.S.counts,'czWho')},{label:'影ノ襲来',value:n(ctx.S.counts,'czKage')}
       ]}),
-      bottom:ctx=>{const S=ctx.S,g=freeGames(S);return {title:'サマリー',startY:760,rowGap:44,fontSize:22,columns:[
-        {x:70,items:[row(bestStrong(S),strongCount(S),undefined,'#ffc94d'),summary(S,'trophy','トロフィー'),summary(S,'atEnd','終了画面',c=>c[3]>0),summary(S,'card','星座')]},
-        {x:560,items:[summary(S,'erFirst','ER1人目'),summary(S,'erSecond','ER2人目'),row('AT初当り '+n(S.counts,'at')+'回 '+oneIn(n(S.counts,'at'),g),n(S.counts,'at'))]}
+      bottom:ctx=>{const S=ctx.S,g=freeGames(S),gf=summary(S,'gfLamp','GFランプ');return {title:'サマリー',startY:760,rowGap:SUMMARY_GAP,fontSize:SUMMARY_FONT,columns:[
+        {x:70,items:wrapRows([row(bestStrong(S),strongCount(S),undefined,'#ffc94d'),summary(S,'trophy','トロフィー'),summary(S,'atEnd','終了画面',c=>c[3]>0),summary(S,'card','星座')],540-70)},
+        // 空の列：engine は各行を右隣の列の x まで縮めて描くので、左列の行が右列に接しないよう 20px の間をあける。
+        {x:540,items:[]},
+        // GFランプは記録のある色をすべて出す（白・青・黄も）。記録0件なら行を出さない。
+        {x:560,items:wrapRows([summary(S,'erFirst','ER1人目'),summary(S,'erSecond','ER2人目'),...(gf.value>0?[gf]:[]),row('AT初当り '+n(S.counts,'at')+'回 '+oneIn(n(S.counts,'at'),g),n(S.counts,'at'))],1010-560)}
       ]};}
     }
   };

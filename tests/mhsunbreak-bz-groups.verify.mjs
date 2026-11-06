@@ -11,7 +11,12 @@ const config=load(read('checker-data/mhsunbreak.js'));
 const clone=x=>JSON.parse(JSON.stringify(x));
 // 10/22 設定別解析の反映で足したキー。旧版との比較では、値を確かめてから外す
 const ADDED_1022=['cycleD','cycleBz','cycleFuku','czTenjo','rareBzBase'];
-const dropAdded=S=>{const c=JSON.parse(JSON.stringify(S));if(c&&typeof c==='object')for(const k of ADDED_1022)delete c[k];return c;};
+const dropAdded=S=>{const c=JSON.parse(JSON.stringify(S));if(c&&typeof c==='object'){for(const k of ADDED_1022)delete c[k];if('kareCut' in c){assert.equal(JSON.stringify(c.kareCut),'{"entalion":0}','kareCut は0');delete c.kareCut;}}return c;};
+// 11/6 追加解析で足した「狩れカットイン」：記録 kareCut（上の dropAdded で外す）・テンプレ「6確」の後の2行・詳細カードの最後の1項目。
+// 旧版や原文と比べるこの検査では、0であることを確かめてから外す（足した形そのものは tests/addl-1106b.verify.mjs が見る）。
+const KARE_TPL='■狩れカットイン\nｴﾝﾀﾗｲｵﾝ▶︎ 0回\n\n';
+const dropKareTpl=t=>{assert.ok(t.includes('回\n\n'+KARE_TPL+'■エンディング'),'6確の後に狩れカットインの2行');return t.replace(KARE_TPL,'');};
+const dropKareDetail=d=>{const c=JSON.parse(JSON.stringify(d)),last=c.at(-1);assert.equal(last.title,'盟勇クエスト討伐3G目の狩れカットイン');assert.equal(JSON.stringify(last.items.map(x=>x.value)),'[0]');c.pop();return c;};
 // 新キーの無いデータを読んだとき：周期3種は0、天井0、控えは読み込み時点のレア役BZ当選数
 const checkAdded=S=>{for(const k of ['cycleD','cycleBz','cycleFuku'])assert.equal(JSON.stringify(S[k]),'{"c1":0,"c2":0,"c3":0,"c4":0,"c5":0}',k);assert.equal(S.czTenjo,0);assert.equal(S.rareBzBase,Object.entries(S.bz).filter(([k])=>k.endsWith('N')).reduce((a,[,v])=>a+v,0),'rareBzBase');};
 
@@ -130,7 +135,7 @@ test('template buffers equal 006e842 for zero and all table rows',()=>{
       S.bzBase.bzT1[id]=previous.bzT1[oldId]=i+2;S.bzBase.bzT2[id]=previous.bzT2[oldId]=i+3;
       S.bzBase.questN1[id]=i+1;S.bzBase.questN2[id]=2;previous.questN[oldId]=i+3;
     });
-    assert.deepEqual(Buffer.from(config.template(ctx(S))),Buffer.from(old.template(ctx(previous))));
+    assert.deepEqual(Buffer.from(dropKareTpl(config.template(ctx(S)))),Buffer.from(old.template(ctx(previous))));
   }
 });
 test('all 36 checker headers omit UI version labels and use the ・ separator',()=>{
@@ -152,7 +157,7 @@ test('f48130f template differs only by removed memo heading; card JSON identical
     const S=clone(config.defaults);
     if(filled){
       S.hits=[100,200,300,400];
-      for(const key of (config.mergeKeys||[]).filter(k=>k!=='bzBase'&&!ADDED_1022.includes(k)))if(S[key]&&typeof S[key]==='object')Object.keys(S[key]).forEach((id,i)=>{S[key][id]=i+2;});
+      for(const key of (config.mergeKeys||[]).filter(k=>k!=='bzBase'&&!ADDED_1022.includes(k)&&k!=='kareCut'))if(S[key]&&typeof S[key]==='object')Object.keys(S[key]).forEach((id,i)=>{S[key][id]=i+2;});
       // 旧データを読んだ直後と同じ控え（それまでのレア役BZは旧記録に含まれている扱い）
       S.rareBzBase=Object.entries(S.bz).filter(([k])=>k.endsWith('N')).reduce((a,[,v])=>a+v,0);
       ids.forEach((quest,i)=>{
@@ -161,8 +166,9 @@ test('f48130f template differs only by removed memo heading; card JSON identical
     }
     const previous=clone(S);
     for(const key of ['bzT1','bzT2','questN1','questN2'])previous[key]=Object.fromEntries(Object.keys(old.defaults[key]).map((id,i)=>[id,config.totals(S)[key][ids[i]]]));
-    for(const key of ['template','compactTemplate'])assert.deepEqual(Buffer.from(config[key](ctx(clone(S)))),Buffer.from(old[key](ctx(clone(previous))).replace('■BZ配列メモ\n\n','')));
-    assert.equal(JSON.stringify(card(config,clone(S))),JSON.stringify(card(old,clone(previous))));
+    for(const key of ['template','compactTemplate'])assert.deepEqual(Buffer.from(dropKareTpl(config[key](ctx(clone(S))))),Buffer.from(old[key](ctx(clone(previous))).replace('■BZ配列メモ\n\n','')));
+    const now=card(config,clone(S));now.detail=dropKareDetail(now.detail);
+    assert.equal(JSON.stringify(now),JSON.stringify(card(old,clone(previous))));
   }
 });
 console.log(`PASS mhsunbreak BZ groups: ${count} checks`);

@@ -5,6 +5,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import {execFileSync} from 'node:child_process';
+// 11/6 追加解析で足した「狩れカットイン」：記録 kareCut・テンプレ「6確」の後の2行・詳細カードの最後の1項目。
+// 旧版や原文と比べるこの検査では、0であることを確かめてから外す（足した形そのものは tests/addl-1106b.verify.mjs が見る）。
+const dropKare=S=>{const c=JSON.parse(JSON.stringify(S));if(c&&typeof c==='object'&&'kareCut' in c){assert.equal(JSON.stringify(c.kareCut),'{"entalion":0}','kareCut は0');delete c.kareCut;}return c;};
+const KARE_TPL='■狩れカットイン\nｴﾝﾀﾗｲｵﾝ▶︎ 0回\n\n';
+const dropKareTpl=t=>{assert.ok(t.includes('回\n\n'+KARE_TPL+'■エンディング'),'6確の後に狩れカットインの2行');return t.replace(KARE_TPL,'');};
+const dropKareDetail=d=>{const c=JSON.parse(JSON.stringify(d)),last=c.at(-1);assert.equal(last.title,'盟勇クエスト討伐3G目の狩れカットイン');assert.equal(JSON.stringify(last.items.map(x=>x.value)),'[0]');c.pop();return c;};
 
 // 2026-11-02: allow only the specified orphan spacer insertion and engine cache query.
 const beforeOrphan=s=>s.replace("      // drawDetailCard の maxRows=20 に対応：省略を終えた最終の行で、見出しが左の列の最後（index 19）に来たら\n      // spacer を入れて右の列の先頭へ送る。「ほか」行込みで40行を超えたら同じ優先順で1項目だけ追加で省略し、やり直す（最大2回）。\n      function finish(rows,moreCount){\n        for(let retry=0;;retry++){\n          if(rows[19]&&rows[19].type==='section')rows.splice(19,0,{type:'spacer',hot:false,value:0});\n          if(rows.length+(moreCount>0?1:0)<=maxRows||retry>=2)break;\n          if(!removeOne(prepared,false)&&!removeOne(prepared,true))break;\n          moreCount++;\n          prepared=prepared.filter(sec=>sec.items.length>0);\n          rows=build(prepared);\n        }\n        if(moreCount>0)rows.push({type:'more',text:'ほか '+moreCount+'項目',hot:false,value:0});\n        return rows;\n      }\n","").replace("if(rows.length<=maxRows)return finish(rows,0);","if(rows.length<=maxRows)return rows;").replace("      return finish(rows,moreCount);\n","      if(moreCount>0)rows.push({type:'more',text:'ほか '+moreCount+'項目',hot:false,value:0});\n      return rows;\n").replace("        if(row.type==='spacer')return;\n","").replaceAll('checker-engine.js?v=20261102-orphan','checker-engine.js?v=20260924');
@@ -17,7 +23,7 @@ const src=fs.readFileSync(new URL('checker-data/mhsunbreak.js',root),'utf8');
 const config=load(src),before=load(show(BASE+':checker-data/mhsunbreak.js'));
 const ctx=(S,mode=1)=>({S,mode,nanaCreditText:()=>'',pct:(n,d)=>d>0?`${n}/${d} ${(100*n/d).toFixed(0)}%`:`${n}/0 —`,
   crow:(path,name)=>`<div class="crow" data-c="${path}" data-l="${name}"><button class="plus">${mode<0?'−':'＋'}</button></div>`,get:()=>0});
-const card=(cfg,S)=>JSON.stringify(Object.fromEntries(['blocks','chart','bottom','detail'].map(k=>[k,cfg.card[k](ctx(clone(S)))])));
+const card=(cfg,S)=>JSON.stringify(Object.fromEntries(['blocks','chart','bottom','detail'].map(k=>[k,k==='detail'&&cfg===config?dropKareDetail(cfg.card[k](ctx(clone(S)))):cfg.card[k](ctx(clone(S)))])));
 let checks=0;const test=(label,fn)=>{fn();checks++;console.log('PASS '+label);};
 const sumN=S=>Object.entries(S.bz).filter(([k])=>k.endsWith('N')).reduce((a,[,v])=>a+v,0);
 
@@ -44,7 +50,7 @@ test('旧データ：既存値と未知キーを保持し、新キーは0・控�
 test('旧データ：テンプレ（通常・収支帳用）とカードが改修前とバイト一致（レア役BZ N>0 を含む）',()=>{
   const now=config.normalizeState(clone(OLD),clone(OLD)),was=before.normalizeState(clone(OLD),clone(OLD));
   for(const key of ['template','compactTemplate'])
-    assert.deepEqual(Buffer.from(config[key](ctx(clone(now)))),Buffer.from(before[key](ctx(clone(was)))),key);
+    assert.deepEqual(Buffer.from(dropKareTpl(config[key](ctx(clone(now))))),Buffer.from(before[key](ctx(clone(was)))),key);
   assert.equal(card(config,now),card(before,was));
   const t=config.template(ctx(clone(now)));
   assert.match(t,/①周期▶︎ 2回　②周期▶︎ 1回\n③周期▶︎ 3回　④周期▶︎ 0回\n⑤周期▶︎ 1回/);
@@ -129,7 +135,9 @@ test('入力タブ：3ボタンの配線・当選／到達・種別未記録・�
   // ハズレの減算で当選＞到達にならない：BZ・福引を埋めると到達＝当選
   S.cycleD.c1=2;
   assert.ok(!rowOf(page(-1),'①周期').includes('data-bump="cycleD.c1"'));
-  assert.ok(page(1).includes('規定リプレイ到達ごとに、CZに当選したら種別を、当選しなければハズレを押します。設定1の規定周期の振り分けは①〜⑤が各20%で均等です（他の設定は未公表）。'));
+  // 11/6 追加解析：6設定の振り分け表を「説明を見る」の中に入れた（夢爽 11/6）。
+  assert.ok(page(1).includes('規定リプレイ到達ごとに、CZに当選したら種別を、当選しなければハズレを押します。<details class="hint-fold"><summary>説明を見る</summary><div class="hint-body">6設定の振り分けは下の表のとおりです。'));
+  assert.ok(page(1).includes('AT後も規定リプレイポイントは引き継がれます。</div></details></div>'));
 });
 
 test('入力タブ：CZ種別の契機別表示（旧記録は値があるときだけ・減算でだけ減らせる）',()=>{
@@ -137,7 +145,7 @@ test('入力タブ：CZ種別の契機別表示（旧記録は値があるとき
   S.cycleD.c1=3;S.cycleBz.c1=2;S.cycleFuku.c1=1;S.czTenjo=1;S.bz.weakNormalD++;S.bz.weakNormalN++;
   const page=mode=>config.pages(ctx(S,mode),()=> '')[0]();
   const plus=page(1);
-  for(const text of ['規定周期から','レア役から','天井（CZ間333G＋α）から','契機未記録（旧記録）','合計','参考：設定1：BZ 80%・福引 20%',
+  for(const text of ['規定周期から','レア役から','天井（CZ間333G＋α）から','契機未記録（旧記録）','合計',/* 11/6：設定1の参考％を6設定の目安に置き換え */'福引の目安は、規定周期到達時のCZのうち福引が選ばれた割合です。',
     '超高確の強レア役（CZ濃厚）は含みません','これより前のレア役BZは旧記録に含まれています','設1:1/111.4⇔設6:1/95.8','設1:1/2290.1⇔設6:1/976.4'])
     assert.ok(plus.includes(text),text);
   assert.ok(plus.includes('data-c="czTenjo"'));
@@ -191,9 +199,10 @@ test('BZタブ：獲得アイコン別のクエスト成功率（pos有無・対
 });
 
 test('猛焔一閃直撃のhint・参照クエリ',()=>{
-  assert.ok(src.includes('専用の記録ボタンはありません。出現率は設1:1/16281.7⇔設6:1/4263.1（一撃）。</div>'));
+  // 11/6 追加解析：この後ろに段階別・実質確率の表と注記が続く（夢爽 11/6）。
+  assert.ok(src.includes('専用の記録ボタンはありません。出現率は設1:1/16281.7⇔設6:1/4263.1（一撃）。${MOU_TABLE}${MOU_SECOND}${MOU_RATE}どちらの抽選で当たったかは見た目で分からないため、段階1の値がそのまま当選率になるわけではありません。</div>'));
   const html=fs.readFileSync(new URL('mhsunbreak-checker.html',root),'utf8');
-  assert.ok(html.includes('<script src="checker-data/mhsunbreak.js?v=20261022"></script>'));
+  assert.ok(html.includes('<script src="checker-data/mhsunbreak.js?v=20261106-addl"></script>'));
 });
 
 test('共通ファイルは変更しない',()=>{

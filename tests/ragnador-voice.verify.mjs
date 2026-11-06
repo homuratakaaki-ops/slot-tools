@@ -65,10 +65,11 @@ check('18行・3セクション・説明1つずつ・グループ内％・最上
   Object.entries(EXPECTED).forEach(([g,rows],i)=>{assert.ok(tpl.includes('■'+TITLES[i]));const total=rows.length*(rows.length+1)/2;rows.forEach(([key,label],j)=>assert.ok(tpl.includes(label+'▶'+(j+1)+'回 ('+(100*(j+1)/total).toFixed(0)+'%)')));});
   assert.equal(c.compactTemplate(cx),tpl);assert.ok(!c.template(ctx(fresh())).includes('■'));
 });
-check('詳細カード短縮名・母数・全項目24行・既存カード維持',()=>{
+check('詳細カード短縮名・母数・全項目25行（11/6 確定CZ）・既存カード維持',()=>{
   const S=fresh();for(const g of c.mergeKeys)for(const k of Object.keys(S[g]))S[g][k]=1;S.gameLog=[1000];const cx=ctx(S),d=c.card.detail(cx);
   assert.deepEqual(clone(d.map(s=>s.title)),['カウント系','EDボイス','AT終了ボイス','CZ終了ボイス']);
-  assert.equal(d.reduce((sum,s)=>sum+s.items.length+1,0),24);
+  // 11/6 追加解析：カウント系に「確定CZ」1行（docs/specs/ragnador-checker-v03.md）
+  assert.equal(d.reduce((sum,s)=>sum+s.items.length+1,0),25);
   Object.entries(EXPECTED).forEach(([g,rows],i)=>{assert.equal(d[i+1].percent,true);assert.equal(d[i+1].denominator,rows.length);assert.deepEqual(clone(d[i+1].items.map(x=>x.label)),rows.map(r=>r[1]));});
   assert.deepEqual(clone(c.card.blocks(cx)),[['CZ','1/1000.0'],['AT初当り','1/1000.0'],['確定演出','計4回'],['通常G','1000G']]);
   assert.deepEqual(clone(c.card.chart(cx).items),[{label:'CZ',value:1},{label:'AT初当り',value:1}]);
@@ -76,18 +77,20 @@ check('詳細カード短縮名・母数・全項目24行・既存カード維�
   assert.equal(c.card.detail(ctx(fresh()))[1].denominator,0);
   const ref=c.pages(cx,()=>'')[2]();assert.ok(ref.includes('CZ・AT初当り・出玉率'));assert.ok(!ref.includes('ボイス'));
 });
-check('normalize旧データ補完・整数化・未知キー無視・冪等',()=>{
+check('normalize旧データ補完・整数化・未知キーは型ごと保持（§9-108-4）・冪等',()=>{
   assert.deepEqual(clone(c.mergeKeys),['counts','edVoice','atVoice','czVoice']);assert.deepEqual(clone(c.normalizeState({})),clone(c.defaults));
   const S=c.normalizeState({counts:{cz:'4.9',future:99},edVoice:{ten:'2.9',future:99},atVoice:{base:-3},czVoice:{suzaku:Infinity},gameLog:['500.9',-1,'x'],futureRoot:'keep'});
   assert.equal(S.counts.cz,4);assert.equal(S.edVoice.ten,2);assert.equal(S.atVoice.base,0);assert.equal(S.czVoice.suzaku,0);assert.equal(S.futureRoot,'keep');
-  for(const g of c.mergeKeys)assert.deepEqual(Object.keys(S[g]),Object.keys(c.defaults[g]));assert.deepEqual(clone(S.gameLog),[500]);assert.deepEqual(clone(c.normalizeState(clone(S))),clone(S));
-  for(const g of c.mergeKeys)for(const k of Object.keys(S[g]))for(const v of [-1,NaN,Infinity,'bad',null]){const t=fresh();t[g][k]=v;c.normalizeState(t);assert.equal(t[g][k],0);}
+  // 11/6（§9-108-4）：知らないキーは型ごと残す
+  assert.equal(S.counts.future,99);assert.equal(S.edVoice.future,99);
+  for(const g of c.mergeKeys)assert.deepEqual(Object.keys(S[g]).filter(k=>k!=='future'),Object.keys(c.defaults[g]));assert.deepEqual(clone(S.gameLog),[500]);assert.deepEqual(clone(c.normalizeState(clone(S))),clone(S));
+  for(const g of c.mergeKeys)for(const k of Object.keys(c.defaults[g]))for(const v of [-1,NaN,Infinity,'bad',null]){const t=fresh();t[g][k]=v;c.normalizeState(t);assert.equal(t[g][k],0);}
 });
 check('HTML4タブ・noindex・クエリ・ガイド・LF・後読みなし・構文',()=>{
   assert.equal(c.storageKey,'ragnador-checker-v1');assert.equal(c.pages(ctx(fresh()),()=>'').length,4);
   const html=read('ragnador-checker.html'),guide=read('ragnador-guide.html');
   assert.deepEqual([...html.matchAll(/<button data-p="\d"[^>]*>(.*?)<\/button>/g)].map(m=>m[1]),['入力','示唆','参照','カード']);
-  for(const t of ['repeat(4,1fr)','checker-data/ragnador.js?v=20261101-voice'])assert.ok(html.includes(t));
+  for(const t of ['repeat(4,1fr)','checker-data/ragnador.js?v=20261106-addl'])assert.ok(html.includes(t));
   for(const kind of ['name="description"','property="og:description"'])assert.ok(html.split(kind)[1].split('>')[0].includes('ボイス示唆'));
   for(const t of [...TITLES,'2026年11月1日','母数','確定演出'])assert.ok(guide.includes(t));
   assert.ok(!c.pages(ctx(fresh()),()=>'')[0]().includes('調査中'));assert.ok(!guide.includes('調査中'));

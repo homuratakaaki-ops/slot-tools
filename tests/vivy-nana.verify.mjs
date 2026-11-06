@@ -82,16 +82,20 @@ check('詳細カード・率書式・23全角字・確定演出本番一致',()=
  const input=c.pages(ctx(S),()=>'')[0]();assert.ok(input.includes('Ａ2~6・Ｂ2.3・天国1周期'));assert.ok(input.includes('>EX昇格</button>'));assert.ok(input.includes('>昇格なし</button>'));
 });
 check('本番 js はテスト版との差が3か所だけ・HTML は ?v だけ・テスト版削除・NEW欄・導線なし',()=>{
+  // 反映（PR #88、c004ff7）時点の本番で見る。以降の PR は他機種の更新で index.html などを変えるため（11/6 追加解析で NEW欄が動いた）。
+  const RELEASED='c004ff7';
   const testJs=git('show',BASE+':checker-data/vivy-test.js');
-  const reverted=read('checker-data/vivy.js').replace(/^\/\/ 出典: [^\n]*\n\/\/ [^\n]*\n/,'').replace('window.CheckerConfigs.vivy={','window.CheckerConfigs["vivy-test"]={').replace('storageKey:"vivy-checker-v1"','storageKey:"vivy-checker-v1-test"');
+  assert.equal(read('checker-data/vivy.js'),git('show',RELEASED+':checker-data/vivy.js'),'vivy.js は反映時のまま');
+  const reverted=git('show',RELEASED+':checker-data/vivy.js').replace(/^\/\/ 出典: [^\n]*\n\/\/ [^\n]*\n/,'').replace('window.CheckerConfigs.vivy={','window.CheckerConfigs["vivy-test"]={').replace('storageKey:"vivy-checker-v1"','storageKey:"vivy-checker-v1-test"');
   assert.equal(reverted,testJs.replace(/^(\/\/ [^\n]*\n){3}/,''),'先頭コメント・設定名・保存キー以外はテスト版と同じ');
   assert.equal(c.storageKey,'vivy-checker-v1');assert.equal(c.nanaCollab,true);
-  assert.equal(read('vivy-checker.html'),git('show',BASE+':vivy-checker.html').replace('checker-data/vivy.js?v=20261102-suggest"','checker-data/vivy.js?v=20261102-nana"'));
+  assert.equal(read('vivy-checker.html'),git('show',RELEASED+':vivy-checker.html'));
+  assert.equal(git('show',RELEASED+':vivy-checker.html'),git('show',BASE+':vivy-checker.html').replace('checker-data/vivy.js?v=20261102-suggest"','checker-data/vivy.js?v=20261102-nana"'));
   for(const p of ['vivy-test-checker.html','checker-data/vivy-test.js'])assert.ok(!fs.existsSync(path.join(root,p)),p+' は削除');
   for(const p of fs.readdirSync(root).filter(p=>p.endsWith('.html')))assert.doesNotMatch(read(p),/(?:href|src)=["'][^"']*vivy-test/,p);
   const allowed=new Set(['checker-data/vivy.js','checker-data/vivy-test.js','vivy-checker.html','vivy-test-checker.html','vivy-guide.html','index.html','docs/specs/vivy-checker-v03.md']);
-  assert.deepEqual(git('diff','--name-only',BASE,'--').trim().split('\n').filter(Boolean).filter(p=>!allowed.has(p)&&!p.startsWith('tests/')&&!p.endsWith('-test-checker.html')&&!/^checker-data\/.*-test\.js$/.test(p)&&!(p.startsWith('docs/specs/')&&!p.startsWith('docs/specs/vivy'))),[]);
-  const news=read('index.html').split('<div class="section-label">NEW</div>')[1].split('</section>')[0];
+  assert.deepEqual(git('diff','--name-only',BASE,RELEASED,'--').trim().split('\n').filter(Boolean).filter(p=>!allowed.has(p)&&!p.startsWith('tests/')),[]);
+  const news=git('show',RELEASED+':index.html').split('<div class="section-label">NEW</div>')[1].split('</section>')[0];
   assert.equal((news.match(/<p>/g)||[]).length,8);
   // §9-92：同日・同機種は1行に統合（Vivy・ゴジエヴァ2 の 11/2 の2行ずつ）。空いた2行に 10/21 の2行を戻して8行（夢爽 11/2）。
   const expectedNews=[
@@ -105,7 +109,7 @@ check('本番 js はテスト版との差が3か所だけ・HTML は ?v だけ�
     '<p>10/21｜<a href="tonski-checker.html">とんスキ 333G到達時の女神の舞移行率を追加</a></p>'];
   assert.deepEqual(news.match(/<p>.*<\/p>/g),expectedNews);
   const oldIndex=git('show',BASE+':index.html'),oldNews=oldIndex.split('<div class="section-label">NEW</div>')[1].split('</section>')[0];
-  assert.equal(read('index.html'),oldIndex.replace(oldNews,'\n  <section class="info-block">\n'+expectedNews.map(l=>'    '+l+'\n').join('')+'  '),'NEW欄以外は変えない');
+  assert.equal(git('show',RELEASED+':index.html'),oldIndex.replace(oldNews,'\n  <section class="info-block">\n'+expectedNews.map(l=>'    '+l+'\n').join('')+'  '),'NEW欄以外は変えない');
   for(const l of expectedNews.slice(4))assert.ok(oldIndex.includes(l)||git('show','2dc06d3:index.html').includes(l),'戻した行は元の文言のまま: '+l);
   const guide=read('vivy-guide.html');
   for(const t of ['アクセスチャンスの継続回数は記録のみ。レア役による昇格があるため、規定回数とは一致しないことがあります。','<h3>規定周期・規定ポイント</h3>','<h3>レア役からのアクセスチャンス</h3>','<h3>アクセスチャンスの継続回数</h3>','<h2>テンプレのコピー</h2>'])assert.ok(guide.includes(t),t);

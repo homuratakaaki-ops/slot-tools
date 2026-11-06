@@ -20,15 +20,38 @@
   const SUIKA_CZ=[21.9,23.4,25.0,28.1,29.7,31.3];
   const SUIKA=[['normal','通常時','設1:21.9%⇔設6:31.3%'],['at','AT中','記録のみ']];
   const KITEI=['after','other'].flatMap(prefix=>G_VALUES.map(g=>[prefix+g,(prefix==='after'?'AT後 ':'AT後以外 ')+g+'G']));
+  // 2026-11-06 原典照合: docs/specs/godzieva2-checker-v04.md。rank と exclude を別に持つ。
   const END_SCREEN=[
-    ['shinji','シンジ','奇数設定示唆','シンジ(奇数)'],
-    ['rei','レイ','偶数設定示唆','レイ(偶数)'],
-    ['mari','マリ','高設定示唆（弱）','マリ(高弱)'],
-    ['asuka','アスカ','高設定示唆（強）','アスカ(高強)'],
-    ['mothra','モスラ'],['xrei','Xレイ'],['reiBg','レイ背景'],
-    ['godzillaShogoki','ゴジラ＆初号機','示唆内容は調査中','ゴジラ初号機'],['allStars','全員集合'],['kaworu','カヲル']
-  ].map(c=>[c[0],c[1],c[2]||'示唆内容は調査中',c[3]||c[1]]);
-  const ED_VOICE=[['shinji','シンジ'],['asuka','アスカ'],['misato','ミサト'],['gendo','ゲンドウ'],['kaworu','カヲル']];
+    ['shinji','シンジ','奇数設定期待度UP','シンジ(奇数)',0,[]],
+    ['rei','レイ','偶数設定期待度UP','レイ(偶数)',0,[]],
+    ['mari','マリ','高設定期待度UP(弱)','マリ(高弱)',0,[]],
+    ['asuka','アスカ','高設定期待度UP(強)','アスカ(高強)',0,[]],
+    ['mothra','モスラ','設定1・3否定','モスラ',0,[1,3]],
+    ['xrei','Xレイ','設定2・4否定','Xレイ',0,[2,4]],
+    ['reiBg','レイ背景','設定2以上濃厚','レイ背景',2,[]],
+    ['godzillaShogoki','ゴジラ＆初号機','設定4以上濃厚','ゴジラ初号機',4,[]],
+    ['allStars','全員集合','設定5以上濃厚','全員集合',5,[]],
+    ['kaworu','カヲル','設定6濃厚','カヲル',6,[]]
+  ];
+  const ED_VOICE=[
+    ['shinji','シンジ','奇数設定期待度UP',0],['misato','ミサト','偶数設定期待度UP',0],
+    ['mari','マリ','高設定期待度UP(弱)',0],['asuka','アスカ','高設定期待度UP(強)',0],
+    ['rei','レイ','設定2以上濃厚',2],['kaji','加持','設定4以上濃厚',4],
+    ['gendo','ゲンドウ','設定5以上濃厚',5],['kaworu','カヲル','設定6濃厚',6]
+  ];
+  const END_VOICE=[['shinji','シンジ'],['asuka','アスカ'],['misato','ミサト'],['ritsuko','リツコ'],['mari','マリ']];
+  const CERT=[...END_SCREEN.filter(c=>c[4]>0).map(c=>['endScreen',c[0],'終了'+c[1],c[4]]),...ED_VOICE.filter(c=>c[3]>0).map(c=>['edVoice',c[0],'ED'+c[1],c[3]])];
+  function allStrong(S){return CERT.map(([group,key,label,rank])=>({label,rank,value:n(S[group],key)}));}
+  function strongCount(S){return allStrong(S).reduce((sum,c)=>sum+c.value,0);}
+  function bestStrong(S){
+    const hit=allStrong(S).filter(c=>c.value>0).sort((a,b)=>b.rank-a.rank)[0];
+    return hit?'確定演出 '+hit.label+'('+(hit.rank===6?'6濃厚':hit.rank+'以上')+') ×'+hit.value:'確定演出 なし';
+  }
+  function denialRow(S){
+    const excluded=[...new Set(END_SCREEN.filter(c=>n(S.endScreen,c[0])>0).flatMap(c=>c[5]))].sort();
+    return row('否定 '+(excluded.length?'設'+excluded.join('・'):'−'),excluded.length);
+  }
+  function voiceTotal(S,key,rows){return rows.reduce((sum,c)=>sum+n(S[key],c[0]),0);}
   const G_ROLE=[["henyaku","小役変異","成立役がレア役に昇格"],["zoushoku","増殖変異","小役が2連続成立扱い"],["bunretsu","画面分裂","恩恵が2倍"],["boost","ブースト","G因子pt獲得5倍（AT中はレア役で上乗せ）"],["kasseika","活性化","20G＋αのG侵食役・レア小役高確"],["gesshoku","月蝕変異","月蝕ステージへ（通常時のみ）"],["gRensa","Ｇ連鎖","ST7GのG侵食役高確"],["shouri","勝利変異","恩恵は調査中"],["kakutei","確定変異","出典に記載なし"]];
   const BONUS_GROUPS=[["cb","🍒🔔 弱ﾁｪ/ﾍﾞﾙ3連","弱ﾁｪ/ﾍﾞﾙ3連"],["blue","🟦 強ﾚｱ/ﾍﾞﾙ4/弱ﾚｱ2/強弱ﾚｱ2連","強ﾚｱ/ﾍﾞﾙ4他"],["red","🟥 弱ﾚｱの後強ﾚｱ","弱ﾚｱ→強ﾚｱ"],["rainbow","🌈 ﾘｰﾁ目/ﾍﾞﾙ5/弱3~/強2~","ﾘｰﾁ目/ﾍﾞﾙ5他"]];
   const BONUS_STATES=[['Normal','通常'],['High','高確'],['Super','超高']];
@@ -37,15 +60,15 @@
   const BONUS_RATES=BONUS_ROWS.filter(c=>c[2]);
   const G_ROLE_HINT='G侵食役の成立後、5G以内に小役が成立すると変異が発生します。発生した変異の回数を数えます。設定差は公表されていないため記録のみです。';
   const BONUS_HINT='グループの役が成立したとき、ボーナスに当選したら当選、しなかったらハズレを押します。当選率が100%の欄は、回数だけを数えます。設定差は公表されていないため記録のみです。';
-  const MERGE_KEYS=['counts','gRole','bonusRate','suika','kitei','endScreen','edVoice'];
+  const MERGE_KEYS=['counts','gRole','bonusRate','suika','kitei','endScreen','edVoice','endVoice'];
   const zeroCounts=rows=>Object.fromEntries(rows.map(c=>[c[0],0]));
   const zeroRates=rows=>Object.fromEntries(rows.flatMap(c=>[[c[0]+'D',0],[c[0]+'W',0]]));
   const SUIKA_HINT='表はスイカ成立時の当選率です。小役変異の緑アイコンからの当選が表に含まれるかは出典に書かれていません。\nAT中：設定別の数値は出典で確認できていないため、記録のみです。';
-  const END_HINT='ATを獲得したボーナスの後は終了画面が出ません。';
+  const END_HINT='ボーナス後のAT非当選時と、AT終了時に出ます。ATを獲得したボーナスの後は出ません。';
   const KITEI_HINT='その規定ゲーム数に到達したとき、当選したら当選、しなかったらハズレを押します。設定差は公表されていないため記録のみです。';
   // v02正本から承認済み3か所だけを機械置換。空白も保持。
-  const TEMPLATE="ゴジエヴァ2\n\n\n■G侵食役\n小役変異▶︎  0回　増殖変異▶︎ 0回\n画面分裂▶︎  0回　ブースト▶︎ 0回\n活性化　▶︎  0回　月蝕変異▶︎ 0回\nＧ連鎖　▶︎  0回　\n勝利変異▶︎  0回　確定変異▶︎ 0回\n\n■ボーナス当選率\n\n🍒🔔 弱ﾁｪ/ﾍﾞﾙ3連\n通常▶︎ 0/0     | 高確▶︎ 0/0     | 超高▶︎ 0/0\n\n🟦 強ﾚｱ/ﾍﾞﾙ4/弱ﾚｱ2/強弱ﾚｱ2連\n通常▶︎ 0/0     | 高確▶︎ 0/0     | 超高▶︎ 0回\n\n🟥 弱ﾚｱの後強ﾚｱ\n通常▶︎ 0/0     | 高確▶︎ 0/0     | 超高▶︎ 0回\n\n🌈 ﾘｰﾁ目/ﾍﾞﾙ5/弱3~/強2~\n通常▶︎ 0回     | 高確▶︎ 0回     | 超高▶︎ 0回\n\n■スイカからのCZ\n通常 ▶︎ 0/0\nAT中▶︎ 0/0\n\n■規定ゲーム数\nAT後⤵︎             AT後以外⤵︎\n100g▶︎ 0/0   ・100g▶︎ 0/0\n250g▶︎ 0/0   ・250g▶︎ 0/0\n400g▶︎ 0/0   ・400g▶︎0/0\n550g▶︎ 0/0   ・550g▶︎ 0/0\n700g▶︎ 0/0   ・700g▶︎ 0/0\n850g▶︎ 0/0   ・850g▶︎ 0/0\n\n■ボーナス・AT終了画面\nシンジ(奇数)▶︎ \nレイ(偶数)    ▶︎ \nマリ(弱)        ▶︎ \nアスカ(強)    ▶︎ \nモスラ　　　▶︎ \nXレイ　　　▶︎ \nレイ背景       ▶︎ \nｺﾞｼﾞﾗ初号機 ▶︎ \n全員集合       ▶︎ \nカヲル          ▶︎ \n\n■エンディング中ボイス\nシンジ▶︎ \nアスカ▶︎ \nミサト▶︎ \nゲンドウ▶︎ \nカヲル▶︎";
-  const DEF={schemaVersion:1,gRole:zeroCounts(G_ROLE),bonusRate:{...zeroRates(BONUS_RATES),...zeroCounts(BONUS_ROWS.filter(c=>!c[2]))},gameLog:[],games:0,counts:zeroCounts(COUNTS),suika:zeroRates(SUIKA),kitei:zeroRates(KITEI),endScreen:zeroCounts(END_SCREEN),edVoice:zeroCounts(ED_VOICE),img:null,iconChoice:null};
+  const TEMPLATE="ゴジエヴァ2\n\n\n■G侵食役\n小役変異▶︎  0回　増殖変異▶︎ 0回\n画面分裂▶︎  0回　ブースト▶︎ 0回\n活性化　▶︎  0回　月蝕変異▶︎ 0回\nＧ連鎖　▶︎  0回　\n勝利変異▶︎  0回　確定変異▶︎ 0回\n\n■ボーナス当選率\n\n🍒🔔 弱ﾁｪ/ﾍﾞﾙ3連\n通常▶︎ 0/0     | 高確▶︎ 0/0     | 超高▶︎ 0/0\n\n🟦 強ﾚｱ/ﾍﾞﾙ4/弱ﾚｱ2/強弱ﾚｱ2連\n通常▶︎ 0/0     | 高確▶︎ 0/0     | 超高▶︎ 0回\n\n🟥 弱ﾚｱの後強ﾚｱ\n通常▶︎ 0/0     | 高確▶︎ 0/0     | 超高▶︎ 0回\n\n🌈 ﾘｰﾁ目/ﾍﾞﾙ5/弱3~/強2~\n通常▶︎ 0回     | 高確▶︎ 0回     | 超高▶︎ 0回\n\n■スイカからのCZ\n通常 ▶︎ 0/0\nAT中▶︎ 0/0\n\n■規定ゲーム数\nAT後⤵︎             AT後以外⤵︎\n100g▶︎ 0/0   ・100g▶︎ 0/0\n250g▶︎ 0/0   ・250g▶︎ 0/0\n400g▶︎ 0/0   ・400g▶︎0/0\n550g▶︎ 0/0   ・550g▶︎ 0/0\n700g▶︎ 0/0   ・700g▶︎ 0/0\n850g▶︎ 0/0   ・850g▶︎ 0/0\n\n■ボーナス・AT終了画面\nシンジ(奇数)▶︎ \nレイ(偶数)    ▶︎ \nマリ(弱)        ▶︎ \nアスカ(強)    ▶︎ \nモスラ　　　▶︎ \nXレイ　　　▶︎ \nレイ背景       ▶︎ \nｺﾞｼﾞﾗ初号機 ▶︎ \n全員集合       ▶︎ \nカヲル          ▶︎ \n\n■エンディング中ボイス\nシンジ▶︎ \nミサト▶︎ \nマリ▶︎ \nアスカ▶︎ \nレイ▶︎ \n加持▶︎ \nゲンドウ▶︎ \nカヲル▶︎";
+  const DEF={schemaVersion:1,gRole:zeroCounts(G_ROLE),bonusRate:{...zeroRates(BONUS_RATES),...zeroCounts(BONUS_ROWS.filter(c=>!c[2]))},gameLog:[],games:0,counts:zeroCounts(COUNTS),suika:zeroRates(SUIKA),kitei:zeroRates(KITEI),endScreen:zeroCounts(END_SCREEN),edVoice:zeroCounts(ED_VOICE),endVoice:zeroCounts(END_VOICE),img:null,iconChoice:null};
   function n(obj,key){return Number((obj||{})[key])||0;}
   // 分母＝当選ごとのG数の合計（§9-105）。今まわしている未当選区間は含めない。
   function gameLog(S){return Array.isArray(S.gameLog)?S.gameLog:[];}
@@ -98,9 +121,10 @@
     <section class="sec"><div class="sec-h">規定ゲーム数</div><div class="cgrid">${KITEI.map(c=>rateRow(ctx,'kitei',c[0]+'D',c[0]+'W',c[1],'')).join('')}</div><div class="hint">${KITEI_HINT}</div></section>`;
   }
   function pageSuggest(ctx){
-    const S=ctx.S,total=endTotal(S),voices=ED_VOICE.reduce((sum,c)=>sum+n(S.edVoice,c[0]),0);
-    return pageStyle()+`<section class="sec"><div class="sec-h">ボーナス・AT終了画面<span class="sub">計${total}回</span></div><div class="cgrid">${END_SCREEN.map(c=>ctx.crow('endScreen.'+c[0],c[1],c[2],false,v=>ctx.pct(v,total))).join('')}</div><div class="hint">${END_HINT}</div></section>
-    <section class="sec"><div class="sec-h">エンディング中ボイス<span class="sub">計${voices}回</span></div><div class="cgrid">${ED_VOICE.map(c=>ctx.crow('edVoice.'+c[0],c[1],'示唆内容は調査中',false)).join('')}</div></section>`;
+    const S=ctx.S,total=endTotal(S),voices=voiceTotal(S,'edVoice',ED_VOICE),endVoices=voiceTotal(S,'endVoice',END_VOICE);
+    return pageStyle()+`<section class="sec"><div class="sec-h">ボーナス・AT終了画面<span class="sub">計${total}回</span></div><div class="cgrid">${END_SCREEN.map(c=>ctx.crow('endScreen.'+c[0],c[1],c[2],c[4]>0,v=>ctx.pct(v,total))).join('')}</div><div class="hint">${END_HINT}</div></section>
+    <section class="sec"><div class="sec-h">終了画面のボイス<span class="sub">計${endVoices}回</span></div><div class="cgrid">${END_VOICE.map(c=>ctx.crow('endVoice.'+c[0],c[1],'示唆内容は調査中',false,v=>ctx.pct(v,endVoices))).join('')}</div><div class="hint">ボーナス・AT終了画面でPUSHボタンを押すと発生します。<details class="hint-fold"><summary>説明を見る</summary><div class="hint-body">示唆内容は調査中です。出現率も公表されていないため、記録のみです。</div></details></div></section>
+    <section class="sec"><div class="sec-h">エンディング中ボイス<span class="sub">計${voices}回</span></div><div class="cgrid">${ED_VOICE.map(c=>ctx.crow('edVoice.'+c[0],c[1],c[2],c[3]>0,v=>ctx.pct(v,voices))).join('')}</div><div class="hint">エンディング中にレア役が成立したときPUSHボタンを押すと発生します。<details class="hint-fold"><summary>説明を見る</summary><div class="hint-body">出現率は公表されていません。％は記録した回数の内訳です。</div></details></div></section>`;
   }
   const REF_SECTIONS=[
     [COUNTS.map(c=>c[1]).join('・')+'・出玉率',SETTINGS.map(s=>['設定'+s,COUNTS.map(c=>c[1]+' 1/'+c[2][s].toFixed(1)).join(' ／ ')+' ／ 出玉率 '+PAYOUT[s].toFixed(1)+'%']).concat(REF_NOTES.map(t=>['補足',t]))],
@@ -132,8 +156,9 @@
       {title:'ボーナス当選率',items:BONUS_ROWS.map(c=>{const label=c[3]+' '+c[1],d=n(S.bonusRate,c[0]+'D'),value=n(S.bonusRate,c[0]+(c[2]?'W':''));return {label,value,hot:false,text:label+(c[2]?' '+(d>0?ratio(value,d):value+'/0'):' ×'+value),show:c[2]?d>0:value>0};})},
       // 率の行は入力画面と同じ ratio() で「n/d xx%」（§9-47・ネネ検収 11/1）。分母0の行は％を省く（show:false で出さない）。
       ...[['スイカCZ','suika',SUIKA],['規定G','kitei',KITEI]].map(([title,group,rows])=>({title,items:rows.map(c=>({label:c[1].replace(' ',''),value:n(S[group],c[0]+'W'),hot:false,text:c[1].replace(' ','')+' '+(n(S[group],c[0]+'D')>0?ratio(n(S[group],c[0]+'W'),n(S[group],c[0]+'D')):n(S[group],c[0]+'W')+'/0'),show:n(S[group],c[0]+'D')>0}))})),
-      {title:'終了画面',items:END_SCREEN.map(c=>({label:c[3],value:n(S.endScreen,c[0]),hot:false})),percent:true,denominator:endTotal(S)},
-      {title:'EDボイス',items:ED_VOICE.map(c=>({label:c[1],value:n(S.edVoice,c[0]),hot:false}))}
+      {title:'終了画面',items:END_SCREEN.map(c=>({label:c[3],value:n(S.endScreen,c[0]),hot:c[4]>0})),percent:true,denominator:endTotal(S)},
+      {title:'終了ボイス',items:END_VOICE.map(c=>({label:c[1],value:n(S.endVoice,c[0]),hot:false})),percent:true,denominator:voiceTotal(S,'endVoice',END_VOICE)},
+      {title:'EDボイス',items:ED_VOICE.map(c=>({label:c[1],value:n(S.edVoice,c[0]),hot:c[3]>0})),percent:true,denominator:voiceTotal(S,'edVoice',ED_VOICE)}
     ];
   }
   function normalizeState(out){
@@ -176,10 +201,10 @@
     template:tplText,compactTemplate:tplText,
     card:{title:TITLE,metaText:(ctx,date)=>date+'  累計通常G '+logText(ctx.S),titleFitMax:650,
       footerTags:"#ゴジエヴァ2 #設定判別",downloadName:"godzieva2_check.png",detailDownloadName:"godzieva2_check_detail.png",detail,
-      blocks:ctx=>{const S=ctx.S,g=freeGames(S);return COUNTS.map(c=>[c[4],oneIn(n(S.counts,c[0]),g)]).concat([['通常G',freeText(S)]]);},
+      blocks:ctx=>{const S=ctx.S,g=freeGames(S);return COUNTS.map(c=>[c[4],oneIn(n(S.counts,c[0]),g)]).concat([['確定演出','計'+strongCount(S)+'回'],['通常G',freeText(S)]]);},
       chart:ctx=>({title:'カウント',x:130,step:200,width:80,items:COUNTS.map(c=>({label:c[4],value:n(ctx.S.counts,c[0])}))}),
       bottom:ctx=>{const S=ctx.S,g=freeGames(S);return {title:'サマリー',startY:760,rowGap:44,fontSize:22,columns:[
-        {x:70,items:COUNTS.map(c=>row(c[1]+' '+n(S.counts,c[0])+'回 '+oneIn(n(S.counts,c[0]),g),n(S.counts,c[0])))},
+        {x:70,items:[row(bestStrong(S),strongCount(S),undefined,'#ffc94d'),denialRow(S),...COUNTS.map(c=>row(c[1]+' '+n(S.counts,c[0])+'回 '+oneIn(n(S.counts,c[0]),g),n(S.counts,c[0])))]},
         {x:560,items:[row('累計通常G '+logText(S),g)]}
       ]};}
     }

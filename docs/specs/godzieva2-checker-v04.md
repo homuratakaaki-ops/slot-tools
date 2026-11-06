@@ -78,3 +78,5 @@ CERTは終了画面4項目とEDボイス4項目。allStrong／bestStrongの表�
 ## 判断に迷い、今回は直していない文（全機種の文言修正＝夢爽 案A でまとめて扱う、11/6）
 
 - 当選G入力の説明「合計が設定推定の分母になります。」：G数の入れ方の説明で、本番の全機種共通の文。テスト版だけ変えると機種ごとにずれるため。
+
+本番反映（2026-11-06、?v=20261106-addl）。テスト版（godzieva2-test-checker.html・checker-data/godzieva2-test.js）は削除。保存キーは本番のまま（godzieva2-checker-v1。画像の保存名も godzieva2_check に戻した）。

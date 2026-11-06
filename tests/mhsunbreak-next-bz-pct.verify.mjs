@@ -10,6 +10,12 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
+// 11/6 追加解析で足した「狩れカットイン」：記録 kareCut・テンプレ「6確」の後の2行・詳細カードの最後の1項目。
+// 旧版や原文と比べるこの検査では、0であることを確かめてから外す（足した形そのものは tests/addl-1106b.verify.mjs が見る）。
+const dropKare=S=>{const c=JSON.parse(JSON.stringify(S));if(c&&typeof c==='object'&&'kareCut' in c){assert.equal(JSON.stringify(c.kareCut),'{"entalion":0}','kareCut は0');delete c.kareCut;}return c;};
+const KARE_TPL='■狩れカットイン\nｴﾝﾀﾗｲｵﾝ▶︎ 0回\n\n';
+const dropKareTpl=t=>{assert.ok(t.includes('回\n\n'+KARE_TPL+'■エンディング'),'6確の後に狩れカットインの2行');return t.replace(KARE_TPL,'');};
+const dropKareDetail=d=>{const c=JSON.parse(JSON.stringify(d)),last=c.at(-1);assert.equal(last.title,'盟勇クエスト討伐3G目の狩れカットイン');assert.equal(JSON.stringify(last.items.map(x=>x.value)),'[0]');c.pop();return c;};
 
 const root=new URL('../',import.meta.url);
 const repo=decodeURIComponent(root.pathname).replace(/^[/]/,'');
@@ -344,8 +350,8 @@ test('g. 保存データ6通りが改修前（'+BASE+'）と一致し、候補�
     assert.deepEqual(Buffer.from(comparable(now)),Buffer.from(comparable(was)),name+': normalizeState のバイト列が一致しない');
     assert.deepEqual(totals(now),totals(was),name+': 集計が一致しない');
     for(const key of ['template','compactTemplate'])
-      assert.deepEqual(Buffer.from(config[key](ctx(now))),Buffer.from(before[key](ctx(was))),name+': '+key+' が一致しない');
-    assert.deepEqual(cardJson(config,now),cardJson(before,was),name+': カードJSONが一致しない');
+      assert.deepEqual(Buffer.from(dropKareTpl(config[key](ctx(now)))),Buffer.from(before[key](ctx(was))),name+': '+key+' が一致しない');
+    assert.deepEqual({...cardJson(config,now),detail:dropKareDetail(cardJson(config,now).detail)},cardJson(before,was),name+': カードJSONが一致しない');
     assert.deepEqual(clone(config.scenarioModel(now)),clone(before.scenarioModel(was)),name+': シナリオカードJSONが一致しない');
     // UI全体の同一性ではなく、今回以後も保持する候補/集計の数値表示を比較する。
     const a=page(before,was),b=page(config,now);

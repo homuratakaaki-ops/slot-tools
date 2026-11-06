@@ -1,4 +1,4 @@
-// node tests/addl-1106b-test.browser.mjs — ローカルのみ。
+// node tests/addl-1106.browser.mjs — ローカルのみ。11/6 追加解析の本番反映（?v=20261106-addl）を本番ページ・本番キーで見る。
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -7,10 +7,10 @@ import http from 'node:http';
 import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
-const artifacts=fs.mkdtempSync(path.join(process.env.CHECKER_ARTIFACTS||os.tmpdir(),'slot-addl-1106b-'));
-const profile=fs.mkdtempSync(path.join(os.tmpdir(),'slot-addl-1106b-profile-'));
+const artifacts=fs.mkdtempSync(path.join(process.env.CHECKER_ARTIFACTS||os.tmpdir(),'slot-addl-1106-'));
+const profile=fs.mkdtempSync(path.join(os.tmpdir(),'slot-addl-1106-profile-'));
 const chrome=process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe';
-const IDS=['godzieva2','mhsunbreak'];let KEY='',PAGE='';const errors=[],measures=[];
+const IDS=['seiya12','ragnador','ggo'];let KEY='',PAGE='';const errors=[],measures=[];
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
 const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.png':'image/png','.jpg':'image/jpeg','.webp':'image/webp'};
 const server=http.createServer((req,res)=>{
@@ -93,87 +93,81 @@ try{
     CanvasRenderingContext2D.prototype.fillText=function(text,x,y,...args){(window.__texts[this.canvas.id]??=[]).push({text:String(text),x,y,w:this.measureText(String(text)).width,font:this.font});return original.call(this,text,x,y,...args);};
   `});
   for(const id of IDS){
-    KEY=id+'-checker-v1-test';PAGE='/'+id+'-test-checker.html';
+    KEY=id+'-checker-v1';PAGE='/'+id+'-checker.html';
     await load();
-    const defaults=await run('return CheckerConfigs['+JSON.stringify(id+'-test')+'].defaults;');
-    const old=structuredClone(defaults);delete old.endVoice;delete old.kareCut;
-    if(id==='godzieva2'){for(const k of ['mari','rei','kaji'])delete old.edVoice[k];old.gameLog=[300,700];}
-    old.games=9;old.iconChoice='default';
+    const defaults=await run('return CheckerConfigs['+JSON.stringify(id)+'].defaults;');
+    const old=structuredClone(defaults);delete old.gfLamp;delete old.counts.czKakutei;
+    old.gameLog=[300,700];old.games=9;old.iconChoice='default';
     const unknown={str:'keep',num:2.5,neg:-3,bool:false,nul:null,arr:[1,'a',{x:1}],obj:{deep:{v:'x'}}};
-    Object.assign(old,unknown);
-    const groups=await run('return CheckerConfigs['+JSON.stringify(id+'-test')+'].mergeKeys;');
-    for(const g of groups.filter(k=>old[k]&&k!=='bzBase')){for(const k of Object.keys(old[g]))old[g][k]=4;Object.assign(old[g],unknown);}
-    if(id==='mhsunbreak'){for(const k of Object.keys(defaults.cycleD))old.cycleD[k]=8;Object.assign(old.bzBase,unknown);for(const g of ['bzT1','bzT2','questN1','questN2'])Object.assign(old.bzBase[g],unknown);}
-    const production=JSON.stringify(old),productionKeys=['','-prefs','-pre-ext','-bztransfer-backup','-bak'].map(x=>id+'-checker-v1'+x);
-    const beforeProduction=Object.fromEntries(productionKeys.map(k=>[k,production]));
-    await run('for(const [k,v] of Object.entries('+JSON.stringify(beforeProduction)+'))localStorage.setItem(k,v);');
+    old.futureRoot=unknown;
+    for(const g of Object.keys(old).filter(k=>old[k]&&typeof old[k]==='object'&&!Array.isArray(old[k])&&k!=='futureRoot')){
+      for(const k of Object.keys(old[g]))old[g][k]=4;
+      Object.assign(old[g],unknown);
+    }
+    // 0以外の既存本番データ（知らない項目入り）を本番キーに置く。テスト版の名残のキーは読まない・書かない。
+    const production=JSON.stringify(old),leftover=JSON.stringify({test:7});
+    await run('localStorage.setItem('+JSON.stringify(id+'-checker-v1-test')+','+JSON.stringify(leftover)+');');
     await seed(old);
+    // 起動だけでは保存文字列を変更せず、描画には正規化値を用いる。
+    assert.equal(await run('return localStorage.getItem('+JSON.stringify(KEY)+');'),production);
+    const keys=await run('return [...d.querySelectorAll("[data-c]")].map(e=>e.dataset.c);');
+    for(const key of keys){
+      const expected=key==='counts.czKakutei'?'0':'4';
+      assert.equal(await run('return d.querySelector('+JSON.stringify('[data-c="'+key+'"] .num')+').textContent;'),expected);
+    }
     await tab(1);
-    const newKeys=id==='godzieva2'?['endVoice.shinji','endVoice.asuka','endVoice.misato','endVoice.ritsuko','endVoice.mari','edVoice.mari','edVoice.rei','edVoice.kaji']:['kareCut.entalion'];
-    for(const key of newKeys)assert.equal(await run('return d.querySelector('+JSON.stringify('[data-c="'+key+'"] .num')+').textContent;'),'0');
-    for(const key of newKeys){await plus(key);const one=await state();await plus(key);await click('#undoBtn');assert.deepEqual(await state(),one);await click('#modeBtn');await plus(key);assert.equal(key.split('.').reduce((o,k)=>o[k],await state()),0);await click('#undoBtn');assert.deepEqual(await state(),one);await click('#modeBtn');}
-    for(const [k,v] of Object.entries(unknown)){const cur=await state();assert.deepEqual(cur[k],v);for(const g of groups.filter(k=>old[k]&&k!=='bzBase'))assert.deepEqual(cur[g][k],v,id+' '+g+'.'+k);}
-    for(const g of groups.filter(k=>old[k]&&k!=='bzBase'))for(const k of Object.keys(defaults[g]))if(k in old[g])assert.equal((await state())[g][k],old[g][k],g+'.'+k);
-    if(id==='mhsunbreak'){const cur=await state();for(const [k,v] of Object.entries(unknown)){assert.deepEqual(cur.bzBase[k],v);for(const g of ['bzT1','bzT2','questN1','questN2'])assert.deepEqual(cur.bzBase[g][k],v);}}
-    pass(id+' old data / unknown types / new zero / plus / minus / undo');
-    await tab(0);
-    const rate=id==='godzieva2'?['suika.normalD','suika.normalW']:['bz.weakNormalD','bz.weakNormalN'];
-    const before=await state();
-    await click('[data-bump-many="'+rate.join(',')+'"]');await click('#undoBtn');assert.deepEqual(await state(),before);
-    await click('[data-bump="'+rate[0]+'"]');await click('#undoBtn');assert.deepEqual(await state(),before);
-    // 通常入力を取り消しても先に記録した新項目は残る。
-    for(const key of newKeys)assert.equal(key.split('.').reduce((o,k)=>o[k],await state()),1);
-    await click('#modeBtn');await click('[data-bump-many="'+rate.join(',')+'"]');await click('#undoBtn');assert.deepEqual(await state(),before);await click('#modeBtn');
-    await load();assert.deepEqual(await state(),before);
-    for(let p=0;p<4;p++){
-      await tab(p);
-      if(id==='mhsunbreak'){
-        assert.equal(await run('return d.querySelectorAll("#nav [data-p]").length;'),4);
-        const count=await run('return [...d.querySelectorAll("details.hint-fold")].filter(e=>e.querySelector(".analysis-table")).length;');
-        assert.equal(count,p===0?3:p===2?1:0);
-        await run('for(const e of d.querySelectorAll("details.hint-fold"))if(e.querySelector(".analysis-table")&&!e.open)e.querySelector("summary").click();');
-        const cells=await run('return [...d.querySelectorAll(".analysis-table td")].filter(e=>e.scrollWidth>e.clientWidth).map(e=>e.textContent);');assert.deepEqual(cells,[]);
-        const styles=await run('return [...d.querySelectorAll(".analysis-table")].map(e=>({layout:getComputedStyle(e).tableLayout,border:getComputedStyle(e).borderCollapse,width:e.getBoundingClientRect().width,parent:e.parentElement.getBoundingClientRect().width}));');
-        assert.ok(styles.every(s=>s.layout==='fixed'&&s.border==='collapse'&&Math.abs(s.width-s.parent)<1));
-        const tableCount=await run('return d.querySelectorAll(".analysis-table").length;');
-        for(let t=0;t<tableCount;t++){await run('d.querySelectorAll(".analysis-table")['+t+'].scrollIntoView({block:"start"});');await shot('mhsunbreak-table-'+p+'-'+t+'-360',360);}
-      }
-      await shot(id+'-'+p+'-360',360);
-      try{await layout(360,'old-data',p);}catch(e){failures++;console.error('LAYOUT '+id+' tab '+p+': '+e.message);process.exitCode=1;}
+    if(id==='seiya12')for(const color of Object.keys(defaults.gfLamp))assert.equal(await run('return d.querySelector('+JSON.stringify('[data-c="gfLamp.'+color+'"] .num')+').textContent;'),'0');
+    const suggestion=await run('return [...d.querySelectorAll("[data-c]")].map(e=>e.dataset.c);');
+    const target=id==='seiya12'?'gfLamp.rainbow':suggestion[0];
+    await plus(target);const before=await state();await plus(target);await click('#undoBtn');assert.deepEqual(await state(),before);
+    for(const [k,v] of Object.entries(old.counts))if(k in defaults.counts)assert.equal((await state()).counts[k],v);
+    // 3機種とも未知キーはトップレベル・グループ内とも型ごと保持（§9-108-4）。
+    {const cur=await state();assert.deepEqual(cur.futureRoot,unknown);for(const g of Object.keys(old).filter(k=>old[k]&&typeof old[k]==='object'&&!Array.isArray(old[k])&&k!=='futureRoot'))for(const [k,v] of Object.entries(unknown))assert.deepEqual(cur[g][k],v,id+' '+g+'.'+k);}
+    if(id==='ragnador')assert.equal((await state()).counts.czKakutei,0);
+    pass(id+' old data / new zero / suggestions / undo');
+    await tab(0);await plus(keys[0]);await click('#undoBtn');assert.deepEqual(await state(),before);
+    const stable=await state();await load();assert.deepEqual(await state(),stable);
+    if(id==='ragnador'){
+      const normal=await state();normal.counts.cz=10;normal.counts.czKakutei=2;await seed(normal);
+      assert.equal(await run(`return d.querySelector('[data-c="counts.czKakutei"] .pct').textContent;`),'CZ 10回中 2回（20.0%）');
+      await layout(360,'valid-percent',0);await shot('ragnador-valid-percent-360',360);
+      const S=await state();S.counts.cz=2;S.counts.czKakutei=3;await seed(S);
+      assert.equal(await run('return d.querySelector(".hint.warn").textContent;'),'確定CZの回数がCZ回数を超えています。');
+      assert.equal(await run(`return d.querySelector('[data-c="counts.czKakutei"] .pct').textContent;`),'CZ 2回中 3回');
+      await plus('counts.czKakutei');assert.equal((await state()).counts.czKakutei,4);
+      assert.ok(await run('return !!d.querySelector(".hint.warn");'));await click('#undoBtn');assert.equal((await state()).counts.czKakutei,3);
+      pass('ragnador M>N warning / plus continues / undo');
     }
-    if(id==='mhsunbreak'){
-      await tab(2);assert.ok(!(await run('return d.getElementById("main").textContent;')).includes('直前の引き継ぎを確認・取り消す'));
-      const toggle=await run('return !!d.querySelector("[data-action=tplAtLog]");');
-      if(toggle)await click('[data-action=tplAtLog]');
-      assert.equal(await run('return localStorage.getItem("mhsunbreak-checker-v1-test-pre-ext");'),production);
-    }
-    await tab(0);
-    if(id==='mhsunbreak'){
-      await run('d.querySelector(".bz-row").scrollIntoView({block:"start"});');await pause(1800);await shot('mhsunbreak-bz-guide-360',360);
-      const wraps=await run('return [...d.querySelectorAll(".bz-row .ct small, .cz-row .mn")].filter(el=>el.querySelector("wbr")).map(el=>({text:el.textContent,parts:[...el.querySelectorAll("span")].map(span=>{const range=d.createRange();range.selectNodeContents(span);return {text:span.textContent,lines:range.getClientRects().length,nowrap:getComputedStyle(span).whiteSpace};})}));');
-      measures.push({page:PAGE,width:360,bzGuide:wraps});
-      try{assert.ok(wraps.length===6&&wraps.every(x=>x.parts.length===2&&x.parts[0].text.endsWith('⇔')&&x.parts.every(p=>p.lines===1&&p.nowrap==='nowrap')),'目安の設6表記が行途中で分断: '+JSON.stringify(wraps));}catch(e){failures++;console.error('LAYOUT '+e.message);process.exitCode=1;}
-      await run('const e=[...d.querySelectorAll(".sec")].find(e=>e.textContent.includes("規定周期から"));e?.scrollIntoView({block:"start"});');await shot('mhsunbreak-cz-guide-360',360);
-    }
-    if(id==='godzieva2'){
-      for(const [group,label] of [['endScreen','終了カヲル'],['edVoice','EDカヲル']]){
-        const only=structuredClone(defaults);await seed(only);await tab(1);await plus(group+'.kaworu');await tab(3);await pause(250);
-        const card=await canvas('cardCanvas',id+'-'+group);assert.ok(card.texts.some(t=>t.text.includes(label+'(6濃厚)')));
-      }
-    }
+    for(let p=0;p<4;p++){await tab(p);await layout(360,'old-data',p);await shot(id+'-'+p+'-360',360);}
     await tab(3);await pause(250);await canvas('cardCanvas',id+'-summary');
-    // 全項目入りは共通エンジンの40行上限で省略される。新項目単独でも実描画を確認する。
-    const focused=structuredClone(defaults);if(id==='godzieva2'){focused.endVoice.mari=1;focused.edVoice.rei=1;}else focused.kareCut.entalion=1;
-    await seed(focused);await tab(3);
     await click('#detailBtn');await pause(250);const detail=await canvas('detailCanvas',id+'-detail');
-    assert.ok(detail.texts.some(x=>x.text.includes(id==='godzieva2'?'終了ボイス':'狩れカットイン')));
+    if(id==='seiya12')assert.ok(detail.texts.some(x=>x.text.includes('GFランプ')));
+    if(id==='ragnador')assert.ok(detail.texts.some(x=>x.text.includes('確定CZ 3/2')));
     assert.deepEqual(await run('return window.__errors;'),[]);
-    const afterProduction=await run('return Object.fromEntries(Object.entries(localStorage).filter(([k])=>k.startsWith('+JSON.stringify(id+'-checker-v1')+')&&!k.startsWith('+JSON.stringify(KEY)+')));');
-    assert.deepEqual(afterProduction,beforeProduction,'本番関連キーはすべてバイト一致・新規キーなし');
-    pass(id+' production bytes / backup isolation / count rollback / card pixels');
+    assert.equal(await run('return localStorage.getItem('+JSON.stringify(id+'-checker-v1-test')+');'),leftover,'テスト版の名残のキーはバイト一致');
+    // 操作後に本番キーへ保存した文字列にも、知らない項目が型ごと残る。
+    {const saved=JSON.parse(await run('return localStorage.getItem('+JSON.stringify(KEY)+');'));assert.deepEqual(saved.futureRoot,unknown);for(const g of Object.keys(old).filter(k=>old[k]&&typeof old[k]==='object'&&!Array.isArray(old[k])&&k!=='futureRoot'))for(const [k,v] of Object.entries(unknown))assert.deepEqual(saved[g][k],v,id+' saved '+g+'.'+k);}
+    pass(id+' production key keeps old values and unknown keys / test key untouched / 360px 4 tabs / card pixels');
     await seed({});
-    for(let p=0;p<4;p++){await tab(p);try{await layout(360,'empty',p);}catch(e){failures++;console.error('LAYOUT empty '+id+' tab '+p+': '+e.message);process.exitCode=1;}}
-    pass(id+' empty tabs');
+    for(let p=0;p<4;p++){await tab(p);await layout(360,'empty',p);}
+    if(id==='seiya12')assert.ok(!(await run('return d.getElementById("tpl").value;')).includes('グランドフィナーレ'));
+    if(id==='ragnador')assert.ok(!(await run('return d.getElementById("tpl").value;')).includes('確定CZ▶'));
+    pass(id+' empty 4 tabs / zero output hidden');
+    if(id==='seiya12'){
+      // カードのサマリー：長い記録でも左列が右列に重ならない（左列は x=540 まで、右列はカード右端 1010 まで）・各列5行以内（夢爽 11/6）。
+      for(const [label,v] of [['4',4],['12',12],['blue',0]]){
+        const S=structuredClone(defaults);S.gameLog=[1000];S.counts.at=4;
+        if(v)for(const g of ['trophy','atEnd','erFirst','erSecond','card','gfLamp'])for(const k of Object.keys(S[g]))S[g][k]=v;else S.gfLamp.blue=1;
+        await seed(S);await tab(3);await pause(400);
+        const data=await canvas('cardCanvas','seiya12-summary-'+label);
+        const rows=data.texts.filter(t=>t.y>=760&&t.y<=760+44*4);
+        for(const t of rows){const limit=t.x<540?540:1010;assert.ok(t.x+t.w<=limit+0.5,label+' '+t.text+' '+(t.x+t.w));}
+        for(const x0 of [70,560])assert.ok(new Set(rows.filter(t=>t.x===x0).map(t=>t.y)).size<=5);
+        if(label==='blue')assert.ok(rows.some(t=>t.text==='GFランプ 青×1'),JSON.stringify(rows.map(t=>t.text)));
+        else assert.ok(rows.some(t=>t.text.startsWith('GFランプ 白×'+v)),JSON.stringify(rows.map(t=>t.text)));
+      }
+      pass('seiya12 card summary no overlap / GF lamp all colors');
+    }
   }
   assert.deepEqual(errors,[]);
 }catch(e){failures++;console.error(e.stack);process.exitCode=1;}

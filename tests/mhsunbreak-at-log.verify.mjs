@@ -1,6 +1,12 @@
 import fs from 'node:fs';
 import vm from 'node:vm';
 import assert from 'node:assert/strict';
+// 11/6 追加解析で足した「狩れカットイン」：記録 kareCut・テンプレ「6確」の後の2行・詳細カードの最後の1項目。
+// 旧版や原文と比べるこの検査では、0であることを確かめてから外す（足した形そのものは tests/addl-1106b.verify.mjs が見る）。
+const dropKare=S=>{const c=JSON.parse(JSON.stringify(S));if(c&&typeof c==='object'&&'kareCut' in c){assert.equal(JSON.stringify(c.kareCut),'{"entalion":0}','kareCut は0');delete c.kareCut;}return c;};
+const KARE_TPL='■狩れカットイン\nｴﾝﾀﾗｲｵﾝ▶︎ 0回\n\n';
+const dropKareTpl=t=>{assert.ok(t.includes('回\n\n'+KARE_TPL+'■エンディング'),'6確の後に狩れカットインの2行');return t.replace(KARE_TPL,'');};
+const dropKareDetail=d=>{const c=JSON.parse(JSON.stringify(d)),last=c.at(-1);assert.equal(last.title,'盟勇クエスト討伐3G目の狩れカットイン');assert.equal(JSON.stringify(last.items.map(x=>x.value)),'[0]');c.pop();return c;};
 
 const read=p=>fs.readFileSync(new URL('../'+p,import.meta.url),'utf8');
 const source=read('checker-data/mhsunbreak.js');
@@ -136,7 +142,7 @@ test('past intervals retain start, strongest eye and H',()=>{
 test('v04 zero template bytes; AT log only appends the memo block at the tail',()=>{
   const S=fresh(),original=read('docs/specs/mhsunbreak-nana-template-v04.txt');
   const expected='設定判別メモ｜スマスロ モンスターハンターライズ：サンブレイク\n通常 0G / AT0回\n_______\n\n'+original.split('■').map(section=>section.replace(/▶︎ (?=\r?\n)/g,'▶︎ '+(section.startsWith('クエスト成功率')?'0/0':'0回'))).join('■')+'\n\nby slot-tools.jp\nﾃﾝﾌﾟﾚ:鈴白なな様 @nana_szsr\n解析出典:ちょんぼりすた様';
-  equal(Buffer.from(config.template(ctx(S))),Buffer.from(expected));
+  equal(Buffer.from(dropKareTpl(config.template(ctx(S)))),Buffer.from(expected));
   // 書式と ON/OFF は tests/mhsunbreak-tpl-atlog.verify.mjs が固定する。
   // ここでは「■AT間メモ 以外の本文が1バイトも動かない」ことだけを見る。
   for(const name of ['template','compactTemplate']){

@@ -96,6 +96,9 @@ check('all root HTML changes are exactly the engine query',()=>{
     let base=git('show','d279952:'+file);
     if(file==='godzieva2-checker.html')base=base.replace('checker-data/godzieva2.js?v=20261101-nana4','checker-data/godzieva2.js?v=20261102-nana5');
     if(file==='vivy-checker.html')base=base.replace('checker-data/vivy.js?v=20261102-suggest','checker-data/vivy.js?v=20261102-nana');
+    // 追加解析5機種の本番反映（11/6）は機種データの ?v だけが変わる。
+    const addl=file.match(/^(seiya12|ragnador|ggo|godzieva2|mhsunbreak)-checker\.html$/);
+    if(addl)base=base.replace(new RegExp('checker-data/'+addl[1]+'\\.js\\?v=[^"]+'),'checker-data/'+addl[1]+'.js?v=20261106-addl');
     assert.equal(now,base.replaceAll('checker-engine.js?v=20260924','checker-engine.js?v=20261102-orphan'),file);count++;
   }
   assert.ok(count>=36,String(count));

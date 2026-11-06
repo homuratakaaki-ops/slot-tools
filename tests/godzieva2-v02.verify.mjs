@@ -21,11 +21,11 @@ let checks=0;function check(name,fn){fn();checks++;console.log('PASS '+name);}
 const roles=['henyaku','zoushoku','bunretsu','boost','kasseika','gesshoku','gRensa','shouri','kakutei'];
 const labels=['小役変異','増殖変異','画面分裂','ブースト','活性化','月蝕変異','Ｇ連鎖','勝利変異','確定変異'];
 const bonus=[['cbNormal',true],['cbHigh',true],['cbSuper',true],['blueNormal',true],['blueHigh',true],['blueSuper',false],['redNormal',true],['redHigh',true],['redSuper',false],['rainbowNormal',false],['rainbowHigh',false],['rainbowSuper',false]];
-const end=['shinji','rei','mari','asuka','mothra','xrei','reiBg','godzillaShogoki','allStars','kaworu'],voice=['shinji','asuka','misato','gendo','kaworu'];
+const end=['shinji','rei','mari','asuka','mothra','xrei','reiBg','godzillaShogoki','allStars','kaworu'],voice=['shinji','misato','mari','asuka','rei','kaji','gendo','kaworu']; // 11/6 追加解析（v04）：EDボイスは原典順の8種
 const entries=[...roles.map(k=>['gRole',k,false]),...bonus.map(([k,r])=>['bonusRate',k,r]),...['normal','at'].map(k=>['suika',k,true]),...[100,250,400,550,700,850].flatMap(g=>['after','other'].map(p=>['kitei',p+g,true])),...end.map(k=>['endScreen',k,false]),...voice.map(k=>['edVoice',k,false])];
 const raw=read('docs/specs/godzieva2-nana-template-v02.txt');
 // 行ごとに承認差分を適用。実装のTEMPLATEや定義は参照しない。
-let group='';const approved=raw.split('\n').map(line=>{
+let group='';let approved=raw.split('\n').map(line=>{
   if(line.startsWith('🍒🔔'))group='cb';if(line.startsWith('🌈'))group='rainbow';
   if(line.startsWith('🟦')||line.startsWith('🟥')||line.startsWith('■'))group='';
   if(line.startsWith('150g'))line=line.replaceAll('150g','100g');
@@ -33,6 +33,9 @@ let group='';const approved=raw.split('\n').map(line=>{
   if(group==='rainbow')line=line.replace('通常▶︎ 0/0','通常▶︎ 0回').replace('高確▶︎ 0/0','高確▶︎ 0回');
   return line;
 }).join('\n');
+// v04 の承認差分（夢爽判断・なな様へ事後報告）：■エンディング中ボイス を8行に。それ以外は原文のまま。
+const ED5='■エンディング中ボイス\nシンジ▶︎ \nアスカ▶︎ \nミサト▶︎ \nゲンドウ▶︎ \nカヲル▶︎',ED8='■エンディング中ボイス\nシンジ▶︎ \nミサト▶︎ \nマリ▶︎ \nアスカ▶︎ \nレイ▶︎ \n加持▶︎ \nゲンドウ▶︎ \nカヲル▶︎';
+if(!approved.endsWith(ED5))throw Error('原文のEDボイス5行が見つからない');approved=approved.slice(0,-ED5.length)+ED8;
 function expected(S){
   let i=0;return approved.split('\n').map(line=>{
     line=line.replace(/0\/0|0回/g,()=>{const [g,k,r]=entries[i++];return r?`${S[g][k+'W']}/${S[g][k+'D']}`:`${S[g][k]}回`;});
@@ -66,7 +69,9 @@ check('main保存互換・未知キー・冪等・新規0・schemaVersion',()=>{
   for(const g of production.mergeKeys){for(const k of Object.keys(old[g]))old[g][k]=7;old[g].future={keep:true};}
   old=clone(production.normalizeState(old));
   assert.equal(c.storageKey,production.storageKey);
-  const S=c.normalizeState(clone(old));for(const k of Object.keys(old))assert.deepEqual(clone(S[k]),old[k],k);
+  // v04（11/6）：EDボイスのマリ・レイ・加持と終了画面のボイス endVoice は新規なので0で足される。既存の値はそのまま。
+  const S=c.normalizeState(clone(old));for(const k of Object.keys(old))assert.deepEqual(clone(S[k]),k==='edVoice'?{...old[k],mari:0,rei:0,kaji:0}:old[k],k);
+  assert.deepEqual(clone(S.endVoice),{shinji:0,asuka:0,misato:0,ritsuko:0,mari:0});
   for(const g of ['gRole','bonusRate'])assert.ok(Object.values(S[g]).every(v=>v===0));
   S.gRole.future={x:1};S.bonusRate.future=[9];assert.deepEqual(clone(c.normalizeState(clone(S))),clone(S));
   assert.equal(S.schemaVersion,1);S.schemaVersion=99;assert.equal(c.normalizeState(S).schemaVersion,99);
@@ -77,23 +82,25 @@ check('D/W補正・不正値・冪等',()=>{
 });
 check('詳細カード・率・非表示・23全角字幅・記録のみ',()=>{
   const S=fresh();for(const [g,k,r] of entries){if(r){S[g][k+'D']=123;S[g][k+'W']=41;}else S[g][k]=29;}
-  const sections=c.card.detail(ctx(S));assert.deepEqual(clone(sections.map(x=>x.title)),['カウント系','G侵食役','ボーナス当選率','スイカCZ','規定G','終了画面','EDボイス']);
+  const sections=c.card.detail(ctx(S));assert.deepEqual(clone(sections.map(x=>x.title)),['カウント系','G侵食役','ボーナス当選率','スイカCZ','規定G','終了画面','終了ボイス','EDボイス']); // 終了ボイスは v04（11/6）で追加
   assert.deepEqual(clone(sections[1].items.map(x=>x.label)),labels);
   const shorts=['弱ﾁｪ/ﾍﾞﾙ3連','強ﾚｱ/ﾍﾞﾙ4他','弱ﾚｱ→強ﾚｱ','ﾘｰﾁ目/ﾍﾞﾙ5他'];
   sections[2].items.forEach((it,i)=>{assert.equal(it.text,shorts[Math.floor(i/3)]+' '+['通常','高確','超高'][i%3]+(bonus[i][1]?' 41/123 33%':' ×29'));assert.ok(it.show);});
   for(const sec of sections.slice(1,3))for(const it of sec.items){assert.equal(it.hot,false);const width=[...it.text].reduce((n,ch)=>n+(/[\x00-\x7f\uff61-\uff9f]/.test(ch)?0.5:1),0);assert.ok(width<=23,it.text);}
   for(const sec of c.card.detail(ctx(fresh())).slice(1,3))assert.ok(sec.items.every(x=>x.show===false));
-  assert.deepEqual(clone(c.card.blocks(ctx(S))),clone(production.card.blocks(ctx(S))));
+  // v04（11/6）：カード上部に「確定演出 計n回」が入る（終了画面4・EDボイス4の各29回で232回）。それ以外のブロックは v02 のまま。
+  const blocks=clone(production.card.blocks(ctx(S)));blocks.splice(2,0,['確定演出','計232回']);assert.deepEqual(clone(c.card.blocks(ctx(S))),blocks);
   const input=c.pages(ctx(S),()=>'')[0]();assert.equal((input.match(/bonus-group-h">/g)||[]).length,4);assert.ok(!/14\.1%|18\.7%|38\.2%|44\.9%/.test(input));assert.equal(c.pages(ctx(S),()=>'').length,4);
 });
 check('本番差分限定・削除・全ページ導線なし・NEW8行',()=>{
-  assert.equal(read('godzieva2-checker.html'),git('show',BASE+':godzieva2-checker.html').replace('checker-data/godzieva2.js?v=20261101-nana4','checker-data/godzieva2.js?v=20261102-nana5'));
+  // v03 の反映（776791a）時点の本番で見る。11/6 の v04 は tests/addl-1106b.verify.mjs が検収したテスト版との一致を見る。
+  const RELEASED='776791a';
+  assert.equal(git('show',RELEASED+':godzieva2-checker.html'),git('show',BASE+':godzieva2-checker.html').replace('checker-data/godzieva2.js?v=20261101-nana4','checker-data/godzieva2.js?v=20261102-nana5'));
   const tested=git('show','4a5c35a:checker-data/godzieva2-test.js');
   const released=tested.split('\n').slice(1).join('\n').replace(/^\/\/ 2026-11-01.*$/m,"// 2026-11-02 更新分を確認（第三者解析）。数値・文言の正本: docs/specs/godzieva2-checker-v03.md（テスト版 4a5c35a をネネ検収合格・夢爽スマホ確認○の後に本番へ反映）").replace('window.CheckerConfigs["godzieva2-test"]','window.CheckerConfigs.godzieva2').replace('storageKey:"godzieva2-checker-v1-test"','storageKey:"godzieva2-checker-v1"');
-  assert.equal(read('checker-data/godzieva2.js'),released);assert.equal(c.storageKey,'godzieva2-checker-v1');
-  const addl1106=fs.existsSync(path.join(root,'godzieva2-test-checker.html'))&&read('godzieva2-test-checker.html').includes('checker-data/godzieva2-test.js?v=20261106-test');
-  for(const p of ['checker-data/godzieva2-test.js','godzieva2-test-checker.html'].filter(()=>!addl1106))assert.ok(!fs.existsSync(path.join(root,p)));
-  for(const p of fs.readdirSync(root,{recursive:true}).filter(p=>p.endsWith('.html')&&!(addl1106&&p==='godzieva2-test-checker.html')))assert.doesNotMatch(read(p),/(?:href|src)=["'][^"']*godzieva2-test/);
+  assert.equal(git('show',RELEASED+':checker-data/godzieva2.js'),released);assert.equal(c.storageKey,'godzieva2-checker-v1');
+  for(const p of ['checker-data/godzieva2-test.js','godzieva2-test-checker.html'])assert.ok(!fs.existsSync(path.join(root,p)));
+  for(const p of fs.readdirSync(root,{recursive:true}).filter(p=>p.endsWith('.html')))assert.doesNotMatch(read(p),/(?:href|src)=["'][^"']*godzieva2-test/);
   const news=read('index.html').split('<div class="section-label">NEW</div>')[1].split('</section>')[0];
   assert.equal((news.match(/<p>/g)||[]).length,8);
   // 後の更新（11/2 Vivy）で先頭に行が足されたので、位置ではなく行があることを見る。

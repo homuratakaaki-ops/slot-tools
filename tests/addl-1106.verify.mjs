@@ -9,6 +9,8 @@ const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const read=p=>fs.readFileSync(path.join(root,p),'utf8');
 const git=(...args)=>execFileSync('git',['-c','safe.directory='+root,...args],{cwd:root,encoding:'utf8'});
 const clone=x=>JSON.parse(JSON.stringify(x));
+// 本番反映前の main（テスト版がまだある版）。ネネ検収・夢爽確認はこの版のテスト版で行った。
+const BASE='7ae3526';
 const load=(source,id)=>{const box={window:{}};vm.runInNewContext(source,box);return box.window.CheckerConfigs[id];};
 const unknown={str:'keep',num:2.5,neg:-3,bool:false,nul:null,arr:[1,'a',{x:1}],obj:{deep:{v:'x'}}};
 const configs={};let checks=0;
@@ -16,14 +18,14 @@ function check(name,fn){fn();checks++;console.log('PASS '+name);}
 function context(c,S){return {S,crow:(key,label,hint,rank,pct)=>`<row key="${key}">${label}|${hint}|${rank}|${pct?pct(key.split('.').reduce((o,k)=>o[k],S)):''}</row>`,pct:(v,n)=>n?`${v}/${n} ${(100*v/n).toFixed(0)}%`:'—'};}
 const pages=(c,S)=>c.pages(context(c,S),()=>'<card>');
 for(const id of ['seiya12','ragnador','ggo']){
- const source=read(`checker-data/${id}-test.js`),base=git('show',`HEAD:checker-data/${id}.js`),c=load(source,id+'-test'),b=load(base,id);configs[id]=c;
- check(id+' 分離・本番不変・HTMLの変更範囲',()=>{
-  assert.equal(c.storageKey,id+'-checker-v1-test');
-  for(const f of [`checker-data/${id}.js`,`${id}-checker.html`,`${id}-guide.html`])assert.equal(read(f),git('show','HEAD:'+f));
-  const banner=git('show','65de568:ggo-test-checker.html').split('</header>')[1].split('<main')[0];
-  const expected=git('show',`HEAD:${id}-checker.html`).replace('<head>','<head>\n<meta name="robots" content="noindex,nofollow">').replace('<title>','<title>【テスト版】').replace('property="og:title" content="','property="og:title" content="【テスト版】').replaceAll(`https://slot-tools.jp/${id}-checker.html`,`https://slot-tools.jp/${id}-test-checker.html`).replace('</header>\n','</header>'+banner).replace(new RegExp('checker-data/'+id+'\\.js\\?v=[^"\\s]+'),`checker-data/${id}-test.js?v=${id==='seiya12'?'20261106-test4':'20261106-test3'}`).replace(`CheckerConfigs["${id}"]`,`CheckerConfigs["${id}-test"]`);
-  assert.equal(read(id+'-test-checker.html'),expected.replace(`CheckerConfigs.${id}`,`CheckerConfigs["${id}-test"]`));
-  assert.ok(read(id+'-test-checker.html').includes(`CheckerEngine.mount(CheckerConfigs["${id}-test"])`));
+ const source=read(`checker-data/${id}.js`),base=git('show',`${BASE}:checker-data/${id}.js`),c=load(source,id),b=load(base,id);configs[id]=c;
+ check(id+' 本番反映：検収したテスト版と同じ中身・本番キー・HTMLは?vだけ',()=>{
+  assert.equal(c.storageKey,id+'-checker-v1');
+  for(const f of [`checker-data/${id}-test.js`,`${id}-test-checker.html`])assert.ok(!fs.existsSync(path.join(root,f)),f);
+  // 本番JS＝検収したテスト版から、設定名と保存キーの1行ずつを本番に戻しただけ。
+  const tested=git('show',`${BASE}:checker-data/${id}-test.js`).replace(new RegExp(`window\\.CheckerConfigs\\[(['"])${id}-test\\1\\]=\\{`),`window.CheckerConfigs.${id}={`).replace(`${id}-checker-v1-test`,`${id}-checker-v1`);
+  assert.equal(source,tested);assert.ok(!/-test\b|_test_/.test(source));
+  assert.equal(read(`${id}-checker.html`),git('show',`${BASE}:${id}-checker.html`).replace(new RegExp('checker-data/'+id+'\\.js\\?v=[^"\\s]+'),`checker-data/${id}.js?v=20261106-addl`));
   const defaults=clone(c.defaults);if(id==='seiya12')delete defaults.gfLamp;if(id==='ragnador')delete defaults.counts.czKakutei;
   assert.deepEqual(defaults,clone(b.defaults));
   // 公開APIのうち許可のない定義・関数は本番と同じ。
@@ -89,19 +91,19 @@ check('参照表 設定1〜6の値と注記・入力なし',()=>{
   values.forEach((v,i)=>assert.ok(h.includes(`<td>設定${i+1}</td><td>${v}%</td>`)));assert.ok(h.includes(note));assert.ok(!h.includes('<input'));
  }
 });
-check('構文・LF・保護ファイル・公開導線なし',()=>{
+check('構文・LF・保護ファイル・テスト版への導線なし',()=>{
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'addl-1106-syntax-'));
  for(const id of Object.keys(configs)){
-  const html=read(id+'-test-checker.html');assert.ok(!html.includes('\r'));assert.ok(!read('checker-data/'+id+'-test.js').includes('\r'));
-  execFileSync(process.execPath,['--check',path.join(root,'checker-data/'+id+'-test.js')]);
+  const html=read(id+'-checker.html');assert.ok(!html.includes('\r'));assert.ok(!read('checker-data/'+id+'.js').includes('\r'));
+  execFileSync(process.execPath,['--check',path.join(root,'checker-data/'+id+'.js')]);
   for(const [i,m] of [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)].entries())if(!/\bsrc=/.test(m[1])){const f=path.join(dir,id+i+'.mjs');fs.writeFileSync(f,m[2]);execFileSync(process.execPath,['--check',f]);}
-  for(const p of ['index.html','checkers.html','sitemap.xml'])assert.ok(!read(p).includes(id+'-test-checker.html'));
+  for(const p of ['index.html','checkers.html','sitemap.xml'])assert.ok(!read(p).includes('-test-checker.html'));
  }
- assert.equal(git('diff','HEAD','--','checker-engine.js','index.html','checkers.html','sitemap.xml','IDEAS.md','AGENTS.md'),'');
+ assert.equal(git('diff',BASE,'--','checker-engine.js','checkers.html','sitemap.xml','AGENTS.md'),'');
 });
 // 利用者向けの文言（夢爽 11/6）：ツール内部の計算の扱いを書いた文を残さない。
 check('文言：内部の計算の扱いの文がない・新しい文がある・星矢GFランプのサマリー行',()=>{
- const src=Object.fromEntries(['seiya12','ragnador','ggo'].map(id=>[id,read('checker-data/'+id+'-test.js')]));
+ const src=Object.fromEntries(['seiya12','ragnador','ggo'].map(id=>[id,read('checker-data/'+id+'.js')]));
  for(const [id,t] of Object.entries(src))for(const bad of ['根拠にしません','推定に使わない','推測には使いません','設定推測','確率には使いません','根拠にはなりません'])assert.ok(!t.includes(bad),id+' '+bad);
  assert.ok(src.seiya12.includes('強レア役のときは強い示唆が出やすくなります。'));
  assert.ok(src.seiya12.includes("trophy:'黄金聖闘士バトル・千日戦争の継続バトル・サガバトル敗北時に出ることがあります。出現率はホール設定で変わります。'"));

@@ -77,7 +77,7 @@
     ["momiji","紅葉柄","設定5以上濃厚",5,"紅",1],
     ["rainbow","虹","設定6濃厚",6,"虹",1]
   ];
-  const TEMPLATE="モンハンライズサンブレイク\n\n■BZテーブル1回目\n青ｽﾀｰﾄ        ▶︎ \n黄ｽﾀｰﾄ        ▶︎ \nﾗｲｾﾞｸｽ        ▶︎ \nｾﾙﾚｷﾞｵｽ      ▶︎ \nｵﾛﾐﾄﾞﾛ亜種▶︎ \nﾃｵﾃｽｶﾄﾙ      ▶︎ \nAT               ▶︎ \n\n■BZテーブル2回目以降\n青ｽﾀｰﾄ        ▶︎ \n黄ｽﾀｰﾄ        ▶︎ \nﾗｲｾﾞｸｽ        ▶︎ \nｾﾙﾚｷﾞｵｽ      ▶︎ \nｵﾛﾐﾄﾞﾛ亜種▶︎ \nﾃｵﾃｽｶﾄﾙ      ▶︎ \nAT               ▶︎ \n\n■クエスト成功率\n青ｽﾀｰﾄ        ▶︎ 0/0\n黄ｽﾀｰﾄ        ▶︎ \nﾗｲｾﾞｸｽ        ▶︎ \nｾﾙﾚｷﾞｵｽ      ▶︎ \nｵﾛﾐﾄﾞﾛ亜種▶︎ \nﾃｵﾃｽｶﾄﾙ      ▶︎ \nAT               ▶︎ \n\n■レア役からのBZ当選率\n弱レア\n通常▶︎ 0/0 ・高確▶︎ 0/0 ・超高▶︎ 0/0\n強レア\n通常▶︎ 0/0 ・高確▶︎ 0/0 ・超高▶︎CZ濃厚\n\n■規定リプレイ周期\n①周期▶︎ 0回　②周期▶︎ 0回\n③周期▶︎ 0回　④周期▶︎ 0回\n⑤周期▶︎ 0回\n\nブレイクゾーン▶︎ 0回\nアイルー福引　▶︎ 0回\n\n■ 猛焔一閃直撃\n↪︎BZ突入時に告知される\n\n■AT終了画面\n女(偶数)▶︎ \nﾛﾝﾃﾞｨｰﾈ ▶︎ \nﾙｰﾁｶ       ▶︎ \n\n男(奇数)▶︎ \nｼﾞｪｲ       ▶︎ \nｱﾙﾛｰ       ▶︎ \nｶﾞﾚｱｽ     ▶︎ \n\n高設定弱▶︎ \n↪︎ﾌｨｵﾚｰﾈ&ｱｲﾙｰ\n高設定強▶︎ \n↪︎ﾁｯﾁｪ&ｱｲﾙｰ&ｶﾞﾙｸ\n2否定　▶︎ \n↪︎ﾌｨｵﾚｰﾈ&ﾛﾝﾃﾞｨｰﾈ\n3否定　▶︎ \n↪︎男3人\n2以上　▶︎ \n↪︎ﾋﾉｴ&ﾐﾉﾄ\n5以上　▶︎ \n6確　　▶︎ \n\n■エンディング中スタンプ\n🔵奇  0回・🟡 偶 0回\n🟢弱  0回・🔴 強 0回\n銅 0回・銀 0回・金 0回\n🍁 0回・🌈 0回";
+  const TEMPLATE="モンハンライズサンブレイク\n\n■BZテーブル1回目\n青ｽﾀｰﾄ        ▶︎ \n黄ｽﾀｰﾄ        ▶︎ \nﾗｲｾﾞｸｽ        ▶︎ \nｾﾙﾚｷﾞｵｽ      ▶︎ \nｵﾛﾐﾄﾞﾛ亜種▶︎ \nﾃｵﾃｽｶﾄﾙ      ▶︎ \nAT               ▶︎ \n\n■BZテーブル2回目以降\n青ｽﾀｰﾄ        ▶︎ \n黄ｽﾀｰﾄ        ▶︎ \nﾗｲｾﾞｸｽ        ▶︎ \nｾﾙﾚｷﾞｵｽ      ▶︎ \nｵﾛﾐﾄﾞﾛ亜種▶︎ \nﾃｵﾃｽｶﾄﾙ      ▶︎ \nAT               ▶︎ \n\n■クエスト成功率\n青ｽﾀｰﾄ        ▶︎ 0/0\n黄ｽﾀｰﾄ        ▶︎ \nﾗｲｾﾞｸｽ        ▶︎ \nｾﾙﾚｷﾞｵｽ      ▶︎ \nｵﾛﾐﾄﾞﾛ亜種▶︎ \nﾃｵﾃｽｶﾄﾙ      ▶︎ \nAT               ▶︎ \n\n■レア役からのBZ当選率\n弱レア\n通常▶︎ 0/0 ・高確▶︎ 0/0 ・超高▶︎ 0/0\n強レア\n通常▶︎ 0/0 ・高確▶︎ 0/0 ・超高▶︎CZ濃厚\n\n■規定リプレイ周期\n①周期▶︎ 0回　②周期▶︎ 0回\n③周期▶︎ 0回　④周期▶︎ 0回\n⑤周期▶︎ 0回\n\nブレイクゾーン▶︎ 0回\nアイルー福引　▶︎ 0回\n\n■ 猛焔一閃直撃\n↪︎BZ突入時に告知される\n\n■AT終了画面\n女(偶数)▶︎ \nﾛﾝﾃﾞｨｰﾈ ▶︎ \nﾙｰﾁｶ       ▶︎ \n\n男(奇数)▶︎ \nｼﾞｪｲ       ▶︎ \nｱﾙﾛｰ       ▶︎ \nｶﾞﾚｱｽ     ▶︎ \n\n高設定弱▶︎ \n↪︎ﾌｨｵﾚｰﾈ&ｱｲﾙｰ\n高設定強▶︎ \n↪︎ﾁｯﾁｪ&ｱｲﾙｰ&ｶﾞﾙｸ\n2否定　▶︎ \n↪︎ﾌｨｵﾚｰﾈ&ﾛﾝﾃﾞｨｰﾈ\n3否定　▶︎ \n↪︎男3人\n2以上　▶︎ \n↪︎ﾋﾉｴ&ﾐﾉﾄ\n5以上　▶︎ \n6確　　▶︎ \n\n■狩れカットイン\nｴﾝﾀﾗｲｵﾝ▶︎ \n\n■エンディング中スタンプ\n🔵奇  0回・🟡 偶 0回\n🟢弱  0回・🔴 強 0回\n銅 0回・銀 0回・金 0回\n🍁 0回・🌈 0回";
   function ndRow(ctx,opt){
     const canMinus=opt.d>opt.n;
     const missAttrs=ctx.mode<0&&!canMinus?'disabled aria-disabled="true"':`data-bump="${opt.dPath}"`;
@@ -94,6 +94,18 @@
   const ND_STYLE="      .cycle-row .num{min-width:38px}\n      .cycle-row .ct{flex:1;min-width:0}\n      .cycle-row .ct b,.cycle-row .ct small{display:block}\n      .cycle-row .ct b{font-size:16px}\n      .cycle-row .ct small{font-size:13px;color:var(--muted)}\n      .cycle-row .pct{min-width:92px;text-align:right}\n      .cycle-actions{display:flex;gap:6px;margin-left:6px;flex:none}\n      .cycle-btn{height:44px;min-width:54px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;font-weight:900;font-size:12px;padding:0 8px;white-space:nowrap;writing-mode:horizontal-tb;line-height:1;display:flex;align-items:center;justify-content:center}\n      .cycle-btn.win{color:#ffc94d}\n      .minus .cycle-btn{border-color:rgba(255,91,91,.55);color:#ff9b9b}\n      .cycle-btn[disabled]{opacity:.4}\n      details.hit-more>summary{display:flex;align-items:center;min-height:44px;cursor:pointer;list-style:none}\n      details.hit-more>summary::-webkit-details-marker{display:none}\n      details.hit-more>summary::before{content:'▾ ';margin-right:4px}\n      details.hit-more[open]>summary::before{content:'▴ '}\n      .jump-nav button{padding:6px 10px}\n";
 
   const BZ=[['weakNormal','弱レア 通常'],['weakHigh','弱レア 高確'],['weakSuper','弱レア 超高確'],['strongNormal','強レア 通常'],['strongHigh','強レア 高確']];
+  // 解析表は既存の説明内だけに表示する。記録・推測には干渉しない。
+  function guideSpan(text){return text.split("⇔").map((part,i)=>`<span style="white-space:nowrap">${part}${i===0?"⇔":""}</span>`).join("<wbr>");}
+  const ANALYSIS_STYLE="    .analysis-table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:11px;background:var(--panel);border:1px solid var(--line);margin:8px 0}\n    .analysis-table caption{text-align:left;font-size:12px;font-weight:700;color:var(--txt);padding:6px 0}\n    .analysis-table th,.analysis-table td{border-bottom:1px solid var(--line);padding:6px 1px;text-align:center;overflow-wrap:normal;word-break:normal}\n    .analysis-table th{color:var(--txt)}.analysis-table td{color:var(--muted)}\n";
+  function analysisTable(title,headers,rows){return `<table class="ref-table analysis-table"><caption>${title}</caption><thead><tr>${headers.map(v=>`<th scope="col">${v}</th>`).join("")}</tr></thead><tbody>${rows.map((row,i)=>`<tr><th scope="row">設定${i+1}</th>${row.map(v=>`<td>${v}</td>`).join("")}</tr>`).join("")}</tbody></table>`;}
+  const RARE_TABLE=analysisTable("レア役のBZ当選率（弱レア）",["設定","通常","高確","超高確"],[["9.8%","33.2%","66.8%"],["10.5%","34.4%","67.6%"],["11.7%","35.9%","69.5%"],["14.1%","38.3%","76.6%"],["14.8%","40.2%","77.3%"],["16.4%","42.2%","78.9%"]]);
+  const STRONG_TABLE=analysisTable("レア役のBZ当選率（強レア）",["設定","通常","高確","超高確"],[["33.2%","66.8%","BZ濃厚"],["34.4%","68.0%","BZ濃厚"],["35.9%","69.5%","BZ濃厚"],["38.3%","71.9%","BZ濃厚"],["40.2%","74.2%","BZ濃厚"],["42.2%","76.6%","BZ濃厚"]]);
+  const CYCLE_TABLE=analysisTable("規定周期の振り分け（オトモ潜水艇の規定周期）",["設定","1周期","2周期","3周期","4周期","5周期"],[["20.0%","20.0%","20.0%","20.0%","20.0%"],["20.3%","21.1%","20.7%","18.4%","19.5%"],["20.7%","22.7%","21.5%","16.4%","18.8%"],["22.3%","26.6%","23.0%","13.7%","14.5%"],["23.4%","28.5%","23.8%","11.7%","12.5%"],["25.0%","30.5%","25.0%","9.8%","9.8%"]]);
+  const CZ_TABLE=analysisTable("規定周期到達時のCZ種別",["設定","BZ","福引"],[["80.0%","20.0%"],["78.5%","21.5%"],["75.8%","24.2%"],["71.9%","28.1%"],["67.2%","32.8%"],["60.5%","39.5%"]]);
+  const MOU_TABLE=analysisTable("猛焔一閃 段階1（レア役でのBZ当選時）",["設定","弱レア","強レア"],[["0.4%","1.6%"],["0.4%","2.0%"],["0.4%","2.7%"],["0.8%","3.9%"],["1.2%","5.5%"],["2.0%","7.8%"]]);
+  const MOU_SECOND=analysisTable("猛焔一閃 段階2（レア役・規定リプレイでのBZ当選時）",["設定","当選率"],[["0.4%"],["0.4%"],["0.4%"],["0.4%"],["0.4%"],["0.4%"]]);
+  const MOU_RATE=analysisTable("猛焔一閃 実質の直撃確率",["設定","確率"],[["1/16281.7"],["1/14875.5"],["1/12788.0"],["1/8702.1"],["1/6351.2"],["1/4263.1"]]);
+  const BZ_GUIDE={weakNormal:'設1:9.8%⇔設6:16.4%',weakHigh:'設1:33.2%⇔設6:42.2%',weakSuper:'設1:66.8%⇔設6:78.9%',strongNormal:'設1:33.2%⇔設6:42.2%',strongHigh:'設1:66.8%⇔設6:76.6%'};
   const CYCLE=[['c1','①周期'],['c2','②周期'],['c3','③周期'],['c4','④周期'],['c5','⑤周期']];
   const CZ_TYPE=[['breakzone','ブレイクゾーン'],['airou','アイルー福引']];
   // 設定差（出典：一撃 https://1geki.jp/slot/l_mh_sun/0/ 数値等自社調査。CZ出現率・猛焔一閃直撃はななプレスでも同値）
@@ -103,7 +115,8 @@
     ['atEnd','AT終了画面',AT_END,'AT終了画面が出たら該当の行を記録します。デフォルト画面は解析に示唆の記載がないため項目を置いていません。出るたびに必ずどれかが選ばれる振り分けではないため、割合は表示しません。'],
     ['trophy','エンタトロフィー',TROPHY,'AT終了画面で出現します。出た色の行を記録します。出るたびに必ずどれかが選ばれる振り分けではないため、割合は表示しません。'],
     ['over','獲得枚数表示',OVER,'246枚 OVERは設定1・3・5を否定する飛び値の示唆なので、カードの確定演出の欄には出しません。'],
-    ['stamp','エンディング中スタンプ',STAMP,'エンディング中のレア役成立時に出たスタンプの色を記録します。']
+    ['stamp','エンディング中スタンプ',STAMP,'エンディング中のレア役成立時に出たスタンプの色を記録します。'],
+    ['kareCut','盟勇クエスト討伐3G目の狩れカットイン',[["entalion","エンタライオン","討伐成功＋設定6濃厚",6,"狩6",1]],'盟勇クエストの討伐パート3G目の狩れカットインで出たら記録します。<details class="hint-fold"><summary>説明を見る</summary><div class="hint-body">AT終了画面のエンタライオンとは別の項目です。</div></details>']
   ];
   // BZのアイコンテーブル。1個目のアイコンでテーブルが決まる（原本 2026/10/9 更新で確認）。
   // [キー, 丸数字, 短い表示名, 1個目のアイコン, 帯と文字の色]
@@ -978,7 +991,7 @@
       ${eye?`<div class="now-note" style="color:${eye[4]}">${eye[3]}</div>`:''}
       <button type="button" class="act plain fuku-toggle" data-action="fukuMode" role="checkbox" aria-checked="${fukuIncluded()}" aria-label="福引をシナリオの回数に含める">${fukuIncluded()?'☑':'☐'} 福引をシナリオの回数に含める</button>
       <div class="hint">${fukuModeText()}。扱いは未確認です。チェックで候補・参考％・次回予測を切り替えます。</div>
-      ${(()=>{try{return store()?.getItem('mhsunbreak-checker-v1-bztransfer-backup')?'<div class="hint"><a href="mhsunbreak-bz-import.html" style="color:#9ce2ff">直前の引き継ぎを確認・取り消す ↗</a></div>':''}catch(e){return ''}})()}
+      ${(()=>{try{return store()?.getItem(STORAGE_KEY+'-bztransfer-backup')?'<div class="hint"><a href="mhsunbreak-bz-import.html" style="color:#9ce2ff">直前の引き継ぎを確認・取り消す ↗</a></div>':''}catch(e){return ''}})()}
             ${pctModePicker(S)}
       ${scenarioLine(session,S)}
       ${nextBzLine(session,S)}
@@ -1186,7 +1199,7 @@
       ${picked?`<div class="pick-sum">選んだテーブル：${TABLE_NAMES[picked]}（${no===null?'BZ番号なし':'BZ'+no+'回目'}）</div><div class="step-h">2. 結果アイコン（任意）</div>${inputPosPicker(picked)}<div class="step-h">3. 成功／失敗</div>`:''}
       <div class="crow pick-row"><div class="lbl"><div class="nm">${picked?`<span class="pick-table-label">${TABLE_NAMES[picked]}</span>${pickPos!==null?` <span class="pick-result-label" style="color:${iconColor(posIcon({t:'bz',table:picked,pos:pickPos}))}">・ 結果 ${pickPos}個目 ${ICON_SHORT[posIcon({t:'bz',table:picked,pos:pickPos})]}</span>`:''}`:'テーブルを選んでください'}</div></div><div class="cycle-actions">${resultBtns}</div></div>`}
       <div class="hint">BZ開始時のアイコン1個目でテーブルが決まります。①〜⑦はテーブル1〜7（BZ開始時の1個目のアイコン）です。1でテーブル、2で結果アイコン（押さなくてもかまいません）、3で［成功］［失敗］の順に押します。BZとその後のクエストが終わってから、ATに当選したかで押してください。テーブル⑦はAT濃厚のため［＋］だけを置き、成功として数えます。1回目はAT終了後（リセット後を含む）最初のブレイクゾーン、2回目以降はそれ以外で、開始が分かっているときは次のBZ番号から自動で決まります。据え置きの朝一は前日のAT間の続きなので、開始では［途中から］を選んでください。設定差は公表されていません。記録してサンプルを集める項目です。結果アイコンは、ブレイクゾーンの結果が並んだアイコンの何個目で出たかの記録です。11個目は猛焔一閃（AT）です。押すと成功として記録されます。テーブル別の成功／回数・テンプレ・シナリオの候補には使いません。</div>
-      <div class="hint">猛焔一閃直撃は、BZ完走の11個目とは別の現象です。CZ突入時にいきなり猛焔一閃が発生します。レア役でBZに当選したときに抽選され、弱レア0.4%・強レア1.6%（設定1。設定差あり、他の設定は未公表）。CZ当選時にも0.4%で抽選されます（全設定共通）。専用の記録ボタンはありません。出現率は設1:1/16281.7⇔設6:1/4263.1（一撃）。</div>
+      <div class="hint">猛焔一閃直撃は、BZ完走の11個目とは別の現象です。<details class="hint-fold"><summary>説明を見る</summary><div class="hint-body">CZ突入時にいきなり猛焔一閃が発生します。レア役でBZに当選したときに抽選され、設定差あり（下の表）。CZ当選時にも0.4%で抽選されます（全設定共通）。専用の記録ボタンはありません。出現率は設1:1/16281.7⇔設6:1/4263.1（一撃）。${MOU_TABLE}${MOU_SECOND}${MOU_RATE}どちらの抽選で当たったかは見た目で分からないため、段階1の値がそのまま当選率になるわけではありません。</div></details></div>
     </div>`;
   }
   // 4. 補助（必要なときだけ開く）
@@ -1221,7 +1234,7 @@
       ${entry('fuku','アイルー福引',fukuBody,'福引の成功はこのAT間を閉じます。BZ番号はブレイクゾーンの当選回数で数え、アイルー福引は数えません。')}
       ${entry('submarine','オトモ潜水艇の横切り',submarineBody,'同乗の有無を選ぶと、規定リプレイの1〜5周期目／不明を記録できます。BZ番号・シナリオ参考％への影響なし。')}
       ${entry('','そのほか',otherBody,'押すとそのAT間を閉じて次のAT間を始めます。BZの成功・福引の成功も同じようにAT間を閉じます。')}
-      <div class="hint">失敗を押すとランプ5択が開きます。訂正は履歴のランプを押してください。減算モードでは示唆・福引は記録できません。設定自体の推測には使いません。出典：一撃様・ちょんぼりすた様。失敗後PUSHはエンターライズ公式（voice 2026/10/21）。</div>
+      <div class="hint">失敗を押すとランプ5択が開きます。訂正は履歴のランプを押してください。減算モードでは示唆・福引は記録できません。ランプの色は次回BZレベルの示唆で、設定の示唆ではありません。出典：一撃様・ちょんぼりすた様。失敗後PUSHはエンターライズ公式（voice 2026/10/21）。</div>
     </section>`;
   }
   function totalsSection(ctx){
@@ -1363,7 +1376,8 @@
     const dropped=[];
     out.atLog=normalizeAtLog(out.atLog,dropped);
     const keptDerived=derived(out);
-    const base=emptyBase();
+    const base=Object.assign({},src.bzBase||{},emptyBase());
+    BASE_KEYS.forEach(k=>{base[k]=Object.assign({},src.bzBase?.[k]||{},base[k]);});
     BASE_KEYS.forEach(k=>TABLES.forEach(([id])=>{
       const value=n(migrate?src[k]:src.bzBase[k],id);
       base[k][id]=Math.max(0,(Number.isFinite(value)?Math.trunc(value):0)-(migrate?keptDerived[k][id]:0));
@@ -1375,7 +1389,7 @@
     out.hits=Array.isArray(out.hits)?out.hits.map(v=>Math.max(0,parseInt(v,10)||0)).filter(v=>v>0):[];
     MERGE_KEYS.filter(key=>key!=='bzBase').forEach(key=>{
       out[key]=Object.assign({},DEF[key],out[key]||{});
-      Object.keys(out[key]).forEach(k=>{out[key][k]=Math.max(0,Number(out[key][k])||0);});
+      Object.keys(DEF[key]).forEach(k=>{out[key][k]=Math.max(0,Number(out[key][k])||0);});
     });
     BZ.forEach(c=>{out.bz[c[0]+'N']=Math.min(out.bz[c[0]+'N'],out.bz[c[0]+'D']);});
     out.czTenjo=Math.max(0,Number(out.czTenjo)||0);
@@ -1404,21 +1418,22 @@
   function pageInput(ctx){const S=ctx.S;return hitSection(S)+`
   <section class="sec">
     <div class="sec-h">レア役からのBZ当選</div>
-    <style>${ND_STYLE}
+    <style>${ND_STYLE}${ANALYSIS_STYLE}
       .bz-row .pct{min-width:48px;text-align:right}
+      @media (max-width:339px){.bz-row .ct b{white-space:nowrap}.bz-row .ct small{font-size:12px;overflow-wrap:anywhere}.bz-row .ct small span{white-space:normal!important}}
       .bz-sub{font-size:11px;font-weight:800;color:var(--txt);letter-spacing:.06em;margin-bottom:6px}
     </style>
     ${[['弱レア',BZ.slice(0,3)],['強レア',BZ.slice(3)]].map(([title,rows])=>`
     <div class="bz-sub">${title}</div>
-    <div class="cgrid">${rows.map(c=>ndRow(ctx,{cls:'bz-row',name:c[1],displayName:c[1].split(' ')[1],dPath:'bz.'+c[0]+'D',nPath:'bz.'+c[0]+'N',d:n(S.bz,c[0]+'D'),n:n(S.bz,c[0]+'N'),winLabel:'当選',missLabel:'ハズレ'})).join('')}
+    <div class="cgrid">${rows.map(c=>ndRow(ctx,{cls:'bz-row',name:c[1],displayName:c[1].split(' ')[1],sub:guideSpan(BZ_GUIDE[c[0]]),dPath:'bz.'+c[0]+'D',nPath:'bz.'+c[0]+'N',d:n(S.bz,c[0]+'D'),n:n(S.bz,c[0]+'N'),winLabel:'当選',missLabel:'ハズレ'})).join('')}
       ${title==='強レア'?'<div class="crow"><div class="lbl"><div class="nm">超高確</div></div><div class="pct">CZ濃厚</div></div>':''}
     </div>`).join('')}
-    <div class="hint">滞在ステージで状態を判断（砂原＝高確示唆、溶岩洞＝超高確示唆）。設定差は公表されていません。記録してサンプルを集める項目です。</div>
+    <div class="hint">滞在ステージで状態を判断（砂原＝高確示唆、溶岩洞＝超高確示唆）。<details class="hint-fold"><summary>説明を見る</summary><div class="hint-body">設定差があります（目安）。レア役のあとは必ず3G以上の高確になるため、直前にレア役を引いたあとの当否は高確として記録します。状態がはっきりしないときは記録しません。${RARE_TABLE}${STRONG_TABLE}</div></details></div>
   </section>
   <section class="sec">
     <div class="sec-h">規定リプレイ周期</div>
     <div class="cgrid">${CYCLE.map(c=>cycleRow(ctx,c)).join('')}</div>
-    <div class="hint">規定リプレイ到達ごとに、CZに当選したら種別を、当選しなければハズレを押します。設定1の規定周期の振り分けは①〜⑤が各20%で均等です（他の設定は未公表）。</div>
+    <div class="hint">規定リプレイ到達ごとに、CZに当選したら種別を、当選しなければハズレを押します。<details class="hint-fold"><summary>説明を見る</summary><div class="hint-body">6設定の振り分けは下の表のとおりです。${CYCLE_TABLE}AT後も規定リプレイポイントは引き継がれます。</div></details></div>
   </section>
   <section class="sec">
     <div class="sec-h">CZ種別</div>
@@ -1456,8 +1471,8 @@
       .cyc3 .ct b{font-size:15px}
     </style>
     <div class="bz-sub">規定周期から</div>
-    <div class="cgrid">${czStaticRow('ブレイクゾーン',cyBz,ctx.pct(cyBz,cyBz+cyFuku))}${czStaticRow('アイルー福引',cyFuku,ctx.pct(cyFuku,cyBz+cyFuku))}</div>
-    <div class="hint" data-fold="no">規定周期の［BZ］［福引］から自動で数えます。参考：設定1：BZ 80%・福引 20%。</div>
+    <div class="cgrid">${czStaticRow('ブレイクゾーン',cyBz,ctx.pct(cyBz,cyBz+cyFuku))}${czStaticRow('アイルー福引',cyFuku,ctx.pct(cyFuku,cyBz+cyFuku),guideSpan('設1:20.0%⇔設6:39.5%'))}</div>
+    <div class="hint" data-fold="no">規定周期の［BZ］［福引］から自動で数えます。福引の目安は、規定周期到達時のCZのうち福引が選ばれた割合です。合計のアイルー福引（設1:1/2290.1⇔設6:1/976.4）と同じ出来事を、別の形で見たものです。</div>
     <div class="bz-sub cz-sub">レア役から</div>
     <div class="cgrid">${czStaticRow('ブレイクゾーン',rareBzNew(S))}</div>
     <div class="hint" data-fold="no">「レア役からのBZ当選」の当選数から自動で数えます。超高確の強レア役（CZ濃厚）は含みません。${(Number(S.rareBzBase)||0)>0?'これより前のレア役BZは旧記録に含まれています。':''}</div>
@@ -1466,14 +1481,14 @@
     ${legacy?`<div class="bz-sub cz-sub">契機未記録（旧記録）</div><div class="cgrid">${legacy}</div><div class="hint" data-fold="no">契機を分ける前の記録です。増やせません。訂正は減算モードで行います。</div>`:''}
     <div class="bz-sub cz-sub">合計</div>
     <div class="cgrid">${CZ_TYPE.map(c=>czStaticRow(c[1],all[c[0]],ctx.pct(all[c[0]],allTotal),CZ_SETTING_DIFF[c[0]])).join('')}</div>
-    <div class="hint">合計がテンプレ・カードの「ブレイクゾーン」「アイルー福引」の値です。規定周期到達時の福引の期待度は約60%です（設定1。他の設定は未公表）。設定差の出典：一撃（数値等自社調査）。</div>`;
+    <div class="hint">合計がテンプレ・カードの「ブレイクゾーン」「アイルー福引」の値です。<details class="hint-fold"><summary>説明を見る</summary><div class="hint-body">規定周期到達時の福引の期待度は約60%です（設定1。他の設定は未公表）。設定差の出典：一撃（数値等自社調査）。${CZ_TABLE}</div></details></div>`;
   }
   function pageShisa(ctx){return GROUPS.map(([key,title,arr,hint])=>`<section class="sec">
     <div class="sec-h">${title}<span class="sub">計${total(arr,ctx.S[key])}回</span></div>
     <div class="cgrid">${arr.map(c=>ctx.crow(key+'.'+c[0],c[1],c[2],c[3]>0)).join('')}</div>
     <div class="hint">${hint}</div>
   </section>`).join('');}
-  function pageBZ(ctx){return `<style>${ND_STYLE}
+  function pageBZ(ctx){return `<style>${ND_STYLE}${ANALYSIS_STYLE}
 /* 現在の状況（読む所。入力と見た目で分ける） */
 .now-box{border:2px solid #2f5d72;background:linear-gradient(180deg,#131a22,#0f1319);border-radius:12px;padding:10px 10px 12px}
 .now-h{font-size:19px;font-weight:800;color:var(--cyan);letter-spacing:.04em;margin-bottom:8px}
@@ -1637,7 +1652,7 @@
       ...CZ_TYPE.map(c=>n(czValues(S),c[0])+'回'),
       n(e,'rondine')+n(e,'luchika'),n(e,'rondine'),n(e,'luchika'),
       n(e,'jay')+n(e,'arlo')+n(e,'galeas'),n(e,'jay'),n(e,'arlo'),n(e,'galeas'),
-      n(e,'fioreneAirou'),n(e,'chicheAirouGaruku'),n(e,'fioreneRondine'),n(e,'jayArloGaleas'),n(e,'hinoeMinoto'),n(e,'zenin'),n(e,'entalion'),
+      n(e,'fioreneAirou'),n(e,'chicheAirouGaruku'),n(e,'fioreneRondine'),n(e,'jayArloGaleas'),n(e,'hinoeMinoto'),n(e,'zenin'),n(e,'entalion'),n(S.kareCut,'entalion'),
       ...STAMP.map(c=>n(S.stamp,c[0])+'回')
     ];
     let i=0;
@@ -1877,7 +1892,7 @@
           row(shown('CZ',[['breakzone','BZ'],['airou','アイルー']],czValues(S)),czTotal(S))
         ]},
         {x:560,items:[
-          ...GROUPS.map(g=>row(shown(g[1],g[2],S[g[0]]),total(g[2],S[g[0]]))),
+          ...GROUPS.filter(g=>g[0]!=='kareCut').map(g=>row(shown(g[1],g[2],S[g[0]]),total(g[2],S[g[0]]))),
           row(deniedTotal(S)>0?'否定系 計'+deniedTotal(S)+'回':'否定系 —',deniedTotal(S))
         ]}
       ]};}
