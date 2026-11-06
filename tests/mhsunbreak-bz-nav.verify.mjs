@@ -19,7 +19,12 @@ const config=load(read('checker-data/mhsunbreak.js'));
 const clone=v=>JSON.parse(JSON.stringify(v));
 // 10/22 設定別解析の反映で足したキー。旧版との比較では、値を確かめてから外す
 const ADDED_1022=['cycleD','cycleBz','cycleFuku','czTenjo','rareBzBase'];
-const dropAdded=S=>{const c=JSON.parse(JSON.stringify(S));if(c&&typeof c==='object')for(const k of ADDED_1022)delete c[k];return c;};
+const dropAdded=S=>{const c=JSON.parse(JSON.stringify(S));if(c&&typeof c==='object'){for(const k of ADDED_1022)delete c[k];if('kareCut' in c){assert.equal(JSON.stringify(c.kareCut),'{"entalion":0}','kareCut は0');delete c.kareCut;}}return c;};
+// 11/6 追加解析で足した「狩れカットイン」：記録 kareCut（上の dropAdded で外す）・テンプレ「6確」の後の2行・詳細カードの最後の1項目。
+// 旧版や原文と比べるこの検査では、0であることを確かめてから外す（足した形そのものは tests/addl-1106b.verify.mjs が見る）。
+const KARE_TPL='■狩れカットイン\nｴﾝﾀﾗｲｵﾝ▶︎ 0回\n\n';
+const dropKareTpl=t=>{assert.ok(t.includes('回\n\n'+KARE_TPL+'■エンディング'),'6確の後に狩れカットインの2行');return t.replace(KARE_TPL,'');};
+const dropKareDetail=d=>{const c=JSON.parse(JSON.stringify(d)),last=c.at(-1);assert.equal(last.title,'盟勇クエスト討伐3G目の狩れカットイン');assert.equal(JSON.stringify(last.items.map(x=>x.value)),'[0]');c.pop();return c;};
 // 新キーの無いデータを読んだとき：周期3種は0、天井0、控えは読み込み時点のレア役BZ当選数
 const checkAdded=S=>{for(const k of ['cycleD','cycleBz','cycleFuku'])assert.equal(JSON.stringify(S[k]),'{"c1":0,"c2":0,"c3":0,"c4":0,"c5":0}',k);assert.equal(S.czTenjo,0);assert.equal(S.rareBzBase,Object.entries(S.bz).filter(([k])=>k.endsWith('N')).reduce((a,[,v])=>a+v,0),'rareBzBase');};
 
@@ -188,8 +193,9 @@ const sameOutputs=(name,was,now)=>{
   assert.deepEqual(Buffer.from(comparable(now)),Buffer.from(comparable(was)),name+': normalizeState のバイト列が一致しない');
   assert.deepEqual(totals(now),totals(was),name+': 集計が一致しない');
   for(const key of ['template','compactTemplate'])
-    assert.deepEqual(Buffer.from(config[key](ctx(now))),Buffer.from(before[key](ctx(was))),name+': '+key+' が一致しない');
-  assert.deepEqual(cardJson(config,now),cardJson(before,was),name+': カードJSONが一致しない');
+    assert.deepEqual(Buffer.from(dropKareTpl(config[key](ctx(now)))),Buffer.from(before[key](ctx(was))),name+': '+key+' が一致しない');
+  const card=cardJson(config,now);card.detail=dropKareDetail(card.detail);
+  assert.deepEqual(card,cardJson(before,was),name+': カードJSONが一致しない');
   // 参考％（pct・注記3行目）はこの改修より後に足したもの。比べる前に落とす
   assert.deepEqual(dropPct(config.scenarioModel(now)),dropPct(before.scenarioModel(was)),name+': シナリオカードJSONが参考％以外で一致しない');
 };

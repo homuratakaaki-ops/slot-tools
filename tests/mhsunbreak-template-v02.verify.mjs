@@ -15,7 +15,12 @@ const load=(id,s)=>{const x={window:{}};vm.runInNewContext(s,x);return x.window.
 const clone=x=>JSON.parse(JSON.stringify(x));
 // 10/22 設定別解析の反映で足したキー。旧版との比較では、値を確かめてから外す
 const ADDED_1022=['cycleD','cycleBz','cycleFuku','czTenjo','rareBzBase'];
-const dropAdded=S=>{const c=JSON.parse(JSON.stringify(S));if(c&&typeof c==='object')for(const k of ADDED_1022)delete c[k];return c;};
+const dropAdded=S=>{const c=JSON.parse(JSON.stringify(S));if(c&&typeof c==='object'){for(const k of ADDED_1022)delete c[k];if('kareCut' in c){assert.equal(JSON.stringify(c.kareCut),'{"entalion":0}','kareCut は0');delete c.kareCut;}}return c;};
+// 11/6 追加解析で足した「狩れカットイン」：記録 kareCut（上の dropAdded で外す）・テンプレ「6確」の後の2行・詳細カードの最後の1項目。
+// 旧版や原文と比べるこの検査では、0であることを確かめてから外す（足した形そのものは tests/addl-1106b.verify.mjs が見る）。
+const KARE_TPL='■狩れカットイン\nｴﾝﾀﾗｲｵﾝ▶︎ 0回\n\n';
+const dropKareTpl=t=>{assert.ok(t.includes('回\n\n'+KARE_TPL+'■エンディング'),'6確の後に狩れカットインの2行');return t.replace(KARE_TPL,'');};
+const dropKareDetail=d=>{const c=JSON.parse(JSON.stringify(d)),last=c.at(-1);assert.equal(last.title,'盟勇クエスト討伐3G目の狩れカットイン');assert.equal(JSON.stringify(last.items.map(x=>x.value)),'[0]');c.pop();return c;};
 // 新キーの無いデータを読んだとき：周期3種は0、天井0、控えは読み込み時点のレア役BZ当選数
 const checkAdded=S=>{for(const k of ['cycleD','cycleBz','cycleFuku'])assert.equal(JSON.stringify(S[k]),'{"c1":0,"c2":0,"c3":0,"c4":0,"c5":0}',k);assert.equal(S.czTenjo,0);assert.equal(S.rareBzBase,Object.entries(S.bz).filter(([k])=>k.endsWith('N')).reduce((a,[,v])=>a+v,0),'rareBzBase');};
 
@@ -34,7 +39,7 @@ const v04=read('docs/specs/mhsunbreak-nana-template-v04.txt');
 bytes(v04,original);
 const filled=v04.split('■').map(s=>s.replace(/▶︎ (?=\n)/g,'▶︎ '+(s.startsWith('クエスト成功率')?'0/0':'0回'))).join('■');
 const current=load('mhsunbreak',read('checker-data/mhsunbreak.js')),old=load('mhsunbreak',before('checker-data/mhsunbreak.js'));
-const output=current.template(ctx(clone(current.defaults)));
+const output=dropKareTpl(current.template(ctx(clone(current.defaults))));
 bytes(output.split('_______\n\n')[1].split('\n\nby slot-tools.jp')[0],filled);
 const legacy=s=>s.slice(s.indexOf('■レア役からのBZ当選率'));
 bytes(legacy(output),legacy(before('tests/fixtures/mhsunbreak-zero-template.txt')));
@@ -64,7 +69,7 @@ ids.forEach(id=>{S.bzBase.bzT1[id]=4;S.bzBase.bzT2[id]=5;S.bzBase.questN1[id]=4;
 const previous=clone(S);delete previous.bzT1;delete previous.bzT2;delete previous.questN1;delete previous.questN2;
 for(let mask=0;mask<2**keys.length;mask++){
   keys.forEach(([g,k],i)=>{S[g][k]=previous[g][k]=(mask>>i)&1;});
-  for(const key of ['blocks','chart','detail'])assert.equal(JSON.stringify(current.card[key](ctx(S))),JSON.stringify(old.card[key](ctx(previous))),key+' mask '+mask);
+  for(const key of ['blocks','chart','detail'])assert.equal(JSON.stringify(key==='detail'?dropKareDetail(current.card[key](ctx(S))):current.card[key](ctx(S))),JSON.stringify(old.card[key](ctx(previous))),key+' mask '+mask);
   const expectedBottom=clone(old.card.bottom(ctx(previous)));
   const deniedTotal=S.atEnd.fioreneRondine+S.atEnd.jayArloGaleas;
   if(deniedTotal===0){

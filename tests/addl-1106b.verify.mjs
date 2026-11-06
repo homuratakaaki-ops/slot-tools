@@ -9,6 +9,8 @@ const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const read=p=>fs.readFileSync(path.join(root,p),'utf8');
 const git=(...args)=>execFileSync('git',['-c','safe.directory='+root,...args],{cwd:root,encoding:'utf8'});
 const clone=x=>JSON.parse(JSON.stringify(x));
+// 本番反映前の main（テスト版がまだある版）。ネネ検収・夢爽確認はこの版のテスト版で行った。
+const BASE='7ae3526';
 const unknown={str:'keep',num:2.5,neg:-3,bool:false,nul:null,arr:[1,'a',{x:1}],obj:{deep:{v:'x'}}};
 function load(source,id,storage=new Map()){
  const localStorage={getItem:k=>storage.get(k)??null,setItem:(k,v)=>storage.set(k,String(v))};
@@ -18,15 +20,19 @@ function context(c,S){return {S,mode:1,nanaCreditText:()=>'',crow:(key,label,hin
 const configs={};let checks=0;
 function check(name,fn){fn();checks++;console.log('PASS '+name);}
 for(const id of ['godzieva2','mhsunbreak']){
- const source=read(`checker-data/${id}-test.js`),base=git('show',`HEAD:checker-data/${id}.js`),c=load(source,id+'-test'),b=load(base,id);configs[id]=c;
- check(id+' 本番不変・保存分離・HTML差分',()=>{
-  assert.equal(c.storageKey,id+'-checker-v1-test');
-  for(const f of [`checker-data/${id}.js`,`${id}-checker.html`,`${id}-guide.html`])assert.equal(read(f),git('show','HEAD:'+f));
-  for(const ext of ['js','html'])assert.ok(!(ext==='js'?source:read(id+'-test-checker.html')).match(new RegExp(id+'-checker-v1[\'\"]')));
-  const banner=read('seiya12-test-checker.html').split('</header>')[1].split('<main')[0];
-  const expected=git('show',`HEAD:${id}-checker.html`).replace('<head>','<head>\n<meta name="robots" content="noindex,nofollow">').replace('<title>','<title>【テスト版】').replace('property="og:title" content="','property="og:title" content="【テスト版】').replaceAll(`https://slot-tools.jp/${id}-checker.html`,`https://slot-tools.jp/${id}-test-checker.html`).replace('</header>\n','</header>'+banner).replace(new RegExp('checker-data/'+id+'\\.js\\?v=[^"\\s]+'),`checker-data/${id}-test.js?v=20261106-test3`).replace(`CheckerConfigs.${id}`,`CheckerConfigs["${id}-test"]`).replace("const KEY='mhsunbreak-checker-v1'","const KEY='mhsunbreak-checker-v1-test'");
-  assert.equal(read(id+'-test-checker.html'),expected);
-  for(const [k,v] of Object.entries(b.actions))assert.equal(String(c.actions[k]).replaceAll('mhsunbreak_test_','mhsunbreak_'),String(v),k);
+ const source=read(`checker-data/${id}.js`),base=git('show',`${BASE}:checker-data/${id}.js`),c=load(source,id),b=load(base,id);configs[id]=c;
+ check(id+' 本番反映：検収したテスト版と同じ中身・本番キー・HTMLは?vだけ',()=>{
+  assert.equal(c.storageKey,id+'-checker-v1');
+  for(const f of [`checker-data/${id}-test.js`,`${id}-test-checker.html`])assert.ok(!fs.existsSync(path.join(root,f)),f);
+  // 本番JS＝検収したテスト版から、設定名・保存キー（サンブレイクは ID も）・画像の保存名を本番に戻しただけ。
+  const tested=git('show',`${BASE}:checker-data/${id}-test.js`).replace(`window.CheckerConfigs["${id}-test"]={`,`window.CheckerConfigs.${id}={`).replace(`${id}-checker-v1-test`,`${id}-checker-v1`).replace('const ID="mhsunbreak-test";','const ID="mhsunbreak";').replaceAll(`${id}_test_`,`${id}_`);
+  // 検収後の差はサンブレイクの1行だけ：幅339px以下のときだけ目安の折り返し禁止を外す（320pxで横にはみ出したため、夢爽承認 11/6）。360px以上の表示は検収どおり。
+  const NARROW="      @media (max-width:339px){.bz-row .ct b{white-space:nowrap}.bz-row .ct small{font-size:12px;overflow-wrap:anywhere}.bz-row .ct small span{white-space:normal!important}}\n";
+  const released=id==='mhsunbreak'?tested.replace('      .bz-row .pct{min-width:48px;text-align:right}\n','      .bz-row .pct{min-width:48px;text-align:right}\n'+NARROW):tested;
+  if(id==='mhsunbreak')assert.notEqual(released,tested);
+  assert.equal(source,released);assert.ok(!/-test\b|_test_/.test(source));
+  assert.equal(read(`${id}-checker.html`),git('show',`${BASE}:${id}-checker.html`).replace(new RegExp('checker-data/'+id+'\\.js\\?v=[^"\\s]+'),`checker-data/${id}.js?v=20261106-addl`));
+  for(const [k,v] of Object.entries(b.actions))assert.equal(String(c.actions[k]),String(v),k);
   for(const key of ['share','sourceUrl','uiV2','nanaCollab'])assert.deepEqual(clone(c[key]),clone(b[key]));
  });
  check(id+' 旧形式・未知型・既知値・新規0・冪等',()=>{
@@ -75,24 +81,25 @@ check('ゴジエヴァ2 CERT8項目・否定・詳細比率',()=>{
  assert.equal(d.find(x=>x.title==='終了ボイス').denominator,3);
  const h=c.pages(ctx,()=> '')[1]();assert.ok(h.indexOf('ボーナス・AT終了画面')<h.indexOf('終了画面のボイス'));assert.ok(h.indexOf('終了画面のボイス')<h.indexOf('エンディング中ボイス'));assert.equal((h.match(/<summary>説明を見る<\/summary>/g)||[]).length,2);
 });
-check('サンブレイク 目安5行・説明・独立CERT・pre-ext分離',()=>{
+check('サンブレイク 目安5行・説明・独立CERT・pre-ext本番名',()=>{
  const c=configs.mhsunbreak,S=clone(c.defaults),ctx=context(c,S),h=c.pages(ctx,()=> '')[0]().replace(/<[^>]*>/g,'');
  for(const text of ['設1:9.8%⇔設6:16.4%','設1:33.2%⇔設6:42.2%','設1:66.8%⇔設6:78.9%','設1:66.8%⇔設6:76.6%','設1:20.0%⇔設6:39.5%','状態がはっきりしないときは記録しません。','AT後も規定リプレイポイントは引き継がれます。','同じ出来事を、別の形で見たものです。'])assert.ok(h.includes(text),text);
  assert.equal((h.match(/設1:33.2%⇔設6:42.2%/g)||[]).length,2);
  S.kareCut.entalion=1;assert.equal(S.atEnd.entalion,0);assert.ok(JSON.stringify(c.card.blocks(ctx)).includes('計1回'));assert.ok(c.card.bottom(ctx).columns[0].items[0].text.includes('6濃厚'));
  assert.ok(!c.card.detail(ctx).find(x=>x.title.includes('狩れ')).percent);
- const storage=new Map([['mhsunbreak-checker-v1','{"production":7}'],['mhsunbreak-checker-v1-test','{"games":7}']]);
- load(read('checker-data/mhsunbreak-test.js'),'mhsunbreak-test',storage).normalizeState({});assert.equal(storage.get('mhsunbreak-checker-v1-test-pre-ext'),'{"games":7}');assert.ok(!storage.has('mhsunbreak-checker-v1-pre-ext'));assert.equal(storage.get('mhsunbreak-checker-v1'),'{"production":7}');
+ // 関連キーは本番名（-pre-ext）で控え、テスト版の名残のキーには触らない。
+ const storage=new Map([['mhsunbreak-checker-v1','{"games":7}'],['mhsunbreak-checker-v1-test','{"test":7}']]);
+ load(read('checker-data/mhsunbreak.js'),'mhsunbreak',storage).normalizeState({});assert.equal(storage.get('mhsunbreak-checker-v1-pre-ext'),'{"games":7}');assert.ok(!storage.has('mhsunbreak-checker-v1-test-pre-ext'));assert.equal(storage.get('mhsunbreak-checker-v1-test'),'{"test":7}');
 });
-check('構文・LF・保護ファイル・導線なし',()=>{
+check('構文・LF・保護ファイル・テスト版への導線なし',()=>{
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'addl-1106b-syntax-'));
  for(const id of Object.keys(configs)){
-  const html=read(id+'-test-checker.html');assert.ok(!html.includes('\r'));assert.ok(!read('checker-data/'+id+'-test.js').includes('\r'));
-  execFileSync(process.execPath,['--check',path.join(root,'checker-data/'+id+'-test.js')]);
+  const html=read(id+'-checker.html');assert.ok(!html.includes('\r'));assert.ok(!read('checker-data/'+id+'.js').includes('\r'));
+  execFileSync(process.execPath,['--check',path.join(root,'checker-data/'+id+'.js')]);
   for(const [i,m] of [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)].entries())if(!/\bsrc=/.test(m[1])){const f=path.join(dir,id+i+'.mjs');fs.writeFileSync(f,m[2]);execFileSync(process.execPath,['--check',f]);}
-  for(const p of ['index.html','checkers.html','sitemap.xml'])assert.ok(!read(p).includes(id+'-test-checker.html'));
+  for(const p of ['index.html','checkers.html','sitemap.xml'])assert.ok(!read(p).includes('-test-checker.html'));
  }
- assert.equal(git('diff','HEAD','--','checker-engine.js','index.html','checkers.html','sitemap.xml','IDEAS.md','AGENTS.md','mhsunbreak-bz-import.html','docs/specs/*-nana-template-*.txt'),'');
+ assert.equal(git('diff',BASE,'--','checker-engine.js','checkers.html','sitemap.xml','AGENTS.md','mhsunbreak-bz-import.html','docs/specs/*-nana-template-*.txt'),'');
 });
 
 // 各表は既存説明の中に置き、全セルを検査する。
@@ -124,7 +131,7 @@ check('サンブレイク 参照表4種の全設定値',()=>{
 
 // 利用者向けの文言（夢爽 11/6）：ツール内部の計算の扱いを書いた文を残さない。
 check('文言：内部の計算の扱いの文がない・新しい文がある',()=>{
- const g=read('checker-data/godzieva2-test.js'),m=read('checker-data/mhsunbreak-test.js');
+ const g=read('checker-data/godzieva2.js'),m=read('checker-data/mhsunbreak.js');
  for(const [id,t] of [['godzieva2',g],['mhsunbreak',m]])for(const bad of ['確率には使いません','全体の当選率としては使いません','（推測には使いません）','二重に数えません','設定自体の推測には使いません','根拠にしません'])assert.ok(!t.includes(bad),id+' '+bad);
  assert.ok(g.includes('出現率は公表されていません。％は記録した回数の内訳です。'));
  for(const t of ['どちらの抽選で当たったかは見た目で分からないため、段階1の値がそのまま当選率になるわけではありません。','6設定の振り分けは下の表のとおりです。','と同じ出来事を、別の形で見たものです。','ランプの色は次回BZレベルの示唆で、設定の示唆ではありません。'])assert.ok(m.includes(t),t);

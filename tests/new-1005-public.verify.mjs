@@ -67,7 +67,7 @@ for(const id of ['ricorico','toaru2','mhsunbreak']){
     if(mode!=='zero'){
       S.games=1000;
       // 10/22 にサンブレイクへ足したキー（周期3種）は旧データには無いので埋めない。控えは旧データを読んだ直後と同じにする
-      for(const [name,v] of Object.entries(S.bzBase?Object.assign({},S,S.bzBase):S))if(!(id==='mhsunbreak'&&['cycleD','cycleBz','cycleFuku'].includes(name))&&v&&typeof v==='object'&&!Array.isArray(v))for(const k of Object.keys(v))if(typeof v[k]==='number')v[k]=mode==='all'?1:index++%3;
+      for(const [name,v] of Object.entries(S.bzBase?Object.assign({},S,S.bzBase):S))if(!(id==='mhsunbreak'&&['cycleD','cycleBz','cycleFuku','kareCut'].includes(name))&&v&&typeof v==='object'&&!Array.isArray(v))for(const k of Object.keys(v))if(typeof v[k]==='number')v[k]=mode==='all'?1:index++%3;
       // 合算の成功数は従来の questN と同じ値に保ち、1回目に入るだけ入れて残りを2回目以降に回す。
       if(id==='mhsunbreak')for(const key of Object.keys(S.bzBase.questN1)){const t=Math.min(S.bzBase.questN1[key],S.bzBase.bzT1[key]+S.bzBase.bzT2[key]);S.bzBase.questN1[key]=Math.min(t,S.bzBase.bzT1[key]);S.bzBase.questN2[key]=t-S.bzBase.questN1[key];}
       if(S.bz)for(const k of ['weakNormal','weakHigh','weakSuper','strongNormal','strongHigh'])S.bz[k+'D']=Math.max(S.bz[k+'D'],S.bz[k+'N']);
@@ -75,7 +75,9 @@ for(const id of ['ricorico','toaru2','mhsunbreak']){
     }
     const previous=clone(S);if(id==='mhsunbreak'){Object.assign(previous,clone(b.totals(S)));delete previous.bzBase;}
     const old=a.template(ctx(previous)),now=b.template(ctx(clone(S)));
-    const legacyNow=id==='ricorico'?dropWeakLyco(now):id==='mhsunbreak'?now.replace(/■BZテーブル1回目[\s\S]*?(?=■レア役からのBZ当選率)/,''):now;
+    // 11/6 にサンブレイクへ足した「■狩れカットイン」2行（記録は0のまま）も旧版との比較では外す。
+    const KARE='■狩れカットイン\nｴﾝﾀﾗｲｵﾝ▶︎ 0回\n\n';if(id==='mhsunbreak')assert.ok(now.includes('回\n\n'+KARE+'■エンディング'),'6確の後に狩れカットインの2行');
+    const legacyNow=id==='ricorico'?dropWeakLyco(now):id==='mhsunbreak'?now.replace(/■BZテーブル1回目[\s\S]*?(?=■レア役からのBZ当選率)/,'').replace(KARE,''):now;
     if(id==='mhsunbreak'&&mode!=='zero'){
       // Only the authorized tool header may change; compare every other byte.
       const oldLines=old.split('\n'),newLines=legacyNow.split('\n');

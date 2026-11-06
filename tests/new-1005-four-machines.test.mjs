@@ -90,7 +90,7 @@ test('HTML contract: original CSS apart from specified nav count, public links a
     // 設定判別カウンターにはUIバージョン文字列を出さない（AGENTS 作業規約4）。
     assert.doesNotMatch(html.match(/<header\b[^>]*>[\s\S]*?<\/header>/)[0],/\bUI\s/,id);
     assert.ok(html.includes('checker-engine.js?v=20261102-orphan'));
-    assert.ok(html.includes('checker-data/'+id+'.js?v='+({mhsunbreak:'20261022',juuou:'20261004-2',tenten:'20261021',paripi:'20261026'}[id])+'"'));
+    assert.ok(html.includes('checker-data/'+id+'.js?v='+({mhsunbreak:'20261106-addl',juuou:'20261004-2',tenten:'20261021',paripi:'20261026'}[id])+'"'));
     assert.ok(!html.includes('\r')&&!js.includes('\r'));
     assert.equal(configs[id].template,configs[id].compactTemplate);
     if(id==='juuou')assert.ok(!html.includes('設定3')&&!js.includes('設定3'));
@@ -101,7 +101,9 @@ test('MH template preserves original bytes except the 34 blank values and wrappe
   const c=configs.mhsunbreak,original=read('docs/specs/mhsunbreak-nana-template-v04.txt');
   let section='';
   const body=original.split('\n').map(line=>{if(line.startsWith('■'))section=line;return line.replace(/▶︎ $/,'▶︎ '+(section==='■クエスト成功率'?'0/0':'0回'));}).join('\n');
-  assert.equal(c.template(context(c)),'設定判別メモ｜スマスロ モンスターハンターライズ：サンブレイク\n通常 0G / AT0回\n_______\n\n'+body+'\n\nby slot-tools.jp\nﾃﾝﾌﾟﾚ:鈴白なな様 @nana_szsr\n解析出典:ちょんぼりすた様');
+  // 11/6 追加解析（夢爽承認、§9-52/§9-95）：「6確」の後に「■狩れカットイン」2行を足した。それ以外は原文のまま。
+  const approved=body.replace(/(6確　　▶︎ 0回\n\n)(?=■エンディング)/,'$1■狩れカットイン\nｴﾝﾀﾗｲｵﾝ▶︎ 0回\n\n');assert.notEqual(approved,body);
+  assert.equal(c.template(context(c)),'設定判別メモ｜スマスロ モンスターハンターライズ：サンブレイク\n通常 0G / AT0回\n_______\n\n'+approved+'\n\nby slot-tools.jp\nﾃﾝﾌﾟﾚ:鈴白なな様 @nana_szsr\n解析出典:ちょんぼりすた様');
   assert.equal((original.match(/▶︎ (?=\n)/g)||[]).length,34);
 });
 
@@ -113,14 +115,14 @@ test('v04 template keeps the v04 golden bytes without regex lookbehind',()=>{
 test('MH template bytes match the golden files in zero, mixed and fully populated states',()=>{
   const c=configs.mhsunbreak;
   const fixture=Buffer.from(read('tests/fixtures/mhsunbreak-zero-template.txt'));
-  assert.equal(fixture.length,2230);
+  assert.equal(fixture.length,2289); // 11/6 の「■狩れカットイン」2行（59バイト）を足した
   assert.deepEqual(Buffer.from(c.template(context(c))),fixture);
   for(const mode of ['zero','mixed','all']){
     const S=clone(c.defaults);let index=0;
     if(mode!=='zero'){
       S.games=1000;
       // 10/22 に足したキー（周期3種）は旧データには無いので埋めない。控えは旧データを読んだ直後と同じにする
-      for(const [name,value] of Object.entries(S.bzBase?Object.assign({},S,S.bzBase):S))if(!['cycleD','cycleBz','cycleFuku'].includes(name)&&value&&typeof value==='object'&&!Array.isArray(value)){
+      for(const [name,value] of Object.entries(S.bzBase?Object.assign({},S,S.bzBase):S))if(!['cycleD','cycleBz','cycleFuku','kareCut'].includes(name)&&value&&typeof value==='object'&&!Array.isArray(value)){
         for(const key of Object.keys(value))if(typeof value[key]==='number')value[key]=mode==='all'?1:index++%3;
       }
       for(const key of ['weakNormal','weakHigh','weakSuper','strongNormal','strongHigh'])S.bz[key+'D']=Math.max(S.bz[key+'D'],S.bz[key+'N']);

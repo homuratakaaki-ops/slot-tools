@@ -1,5 +1,5 @@
 // 出典: ちょんぼりすた様 https://chonborista.com/slot/kyoraku-slot/267264/
-// 2026-11-02 公開分を 2026-11-02 取得（第三者解析）。数値・文言の正本: docs/specs/ggo-checker-v02.md（テスト版 65de568 をネネ検収合格後に本番へ反映）。
+// 2026-11-06 取得（第三者解析）。正本: docs/specs/ggo-checker-v03.md
 // 初当り系カウント・示唆記録・参照表（推測タブなし）。
 (function(){
   'use strict';
@@ -64,7 +64,8 @@
     </section><section class="sec"><div class="sec-h">カウント系</div><div class="cgrid">${COUNTS.map(c=>ctx.crow('counts.'+c[0],c[1],c[3],0,v=>oneIn(v,g))).join('')}</div><div class="hint">${HINTS.counts}</div></section>`;
   }
   const REF_SECTIONS=[
-    [COUNTS.map(c=>c[1]).join('・')+'・出玉率',SETTINGS.map(s=>['設定'+s,COUNTS.map(c=>c[1]+' 1/'+c[2][s].toFixed(1)).join(' ／ ')+' ／ 出玉率 '+PAYOUT[s].toFixed(1)+'%']).concat(REF_NOTES.map(t=>['補足',t]))]
+    [COUNTS.map(c=>c[1]).join('・')+'・出玉率',SETTINGS.map(s=>['設定'+s,COUNTS.map(c=>c[1]+' 1/'+c[2][s].toFixed(1)).join(' ／ ')+' ／ 出玉率 '+PAYOUT[s].toFixed(1)+'%']).concat(REF_NOTES.map(t=>['補足',t]))],
+    ['天国選択率',SETTINGS.map((s,i)=>['設定'+s,['21.9%','23.0%','24.6%','28.1%','31.3%','31.6%'][i]]).concat([['補足','抽選契機は初回有利区間移行時・通常時ボーナス終了時・SJ終了時です。天国に入ったかどうかは、毎回確かめられるとは限りません。']])]
   ];
   function pageReference(){
     return pageStyle()+REF_SECTIONS.map((sec,i)=>`<section class="sec" id="ref${i+1}"><div class="sec-h">${sec[0]}</div><table class="ref-table"><tbody>${sec[1].map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('')}</tbody></table></section>`).join('');
@@ -91,7 +92,7 @@
     ['counts',...Object.keys(GROUPS)].forEach(key=>{
       // §9-108-4：知っている項目は検証（非負整数）、知らない項目は捨てずに保持。新しい項目は0で足す（保存キーは ggo-checker-v1 のまま）。
       out[key]=Object.assign({},DEF[key],out[key]||{});
-      Object.keys(out[key]).forEach(k=>{out[key][k]=integer(out[key][k]);});
+      Object.keys(DEF[key]).forEach(k=>{out[key][k]=integer(out[key][k]);});
     });
     if(out.img===undefined)out.img=DEF.img;
     if(out.iconChoice===undefined)out.iconChoice=DEF.iconChoice;

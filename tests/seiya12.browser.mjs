@@ -97,7 +97,7 @@ try{
     await tab(p);const keys=await run('return [...d.querySelectorAll("[data-c]")].map(e=>e.dataset.c);');
     for(const key of keys){await plus(key);const [group,id]=key.split('.');assert.equal((await state())[group][id],1);count++;}
   }
-  assert.equal(count,3+21);
+  assert.equal(count,3+21+6); // 11/6 追加解析：GFランプ6色
   await tab(0);
   assert.equal(await run(`return d.querySelector('[data-total="cz"] .num').textContent;`),'2','通常CZ合計は2種');
   await run(`d.querySelector('[data-total="cz"]').click();`);assert.equal((await state()).counts.czWho,1,'合計行は押しても加算しない');

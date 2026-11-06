@@ -106,12 +106,15 @@ check('示唆の行名・示唆文（不明行なし）・hint',()=>{
     ['atEnd.marin','魔鈴＆シャイナ','設定4以上濃厚'],['atEnd.saori','沙織','設定6濃厚'],['atEnd.ikki','一輝','復活濃厚（設定示唆ではない）'],
     ['erFirst.shaka','シャカ','高設定 期待度UP'],['erFirst.gemini','ジェミニ','設定4以上濃厚'],
     ['erSecond.mu','ムウ','高設定 期待度UP'],['erSecond.aiolos','アイオロス','高設定 期待度UP（強）'],
-    ['card.harisenbon','ハリセンボン座','設定2以上濃厚'],['card.same','サメ座','設定4以上濃厚'],['card.ebi','エビ座','設定5以上濃厚'],['card.ankou','アンコウ座','設定6濃厚']
+    ['card.harisenbon','ハリセンボン座','設定2以上濃厚'],['card.same','サメ座','設定4以上濃厚'],['card.ebi','エビ座','設定5以上濃厚'],['card.ankou','アンコウ座','設定6濃厚'],
+    // 11/6 追加解析（docs/specs/seiya12-checker-v02.md）：グランドフィナーレ中のランプ
+    ['gfLamp.white','白','デフォルト'],['gfLamp.blue','青','奇数設定期待度UP'],['gfLamp.yellow','黄','偶数設定期待度UP'],['gfLamp.green','緑','設定2以上濃厚'],['gfLamp.red','赤','設定4以上濃厚'],['gfLamp.rainbow','虹','設定6濃厚']
   ];
   const all=[...html.matchAll(/data-c="([^"]+)"/g)].map(m=>m[1]);
   assert.deepEqual(all,rows.map(r=>r[0]));
   for(const [id,name,mean] of rows){const seg=html.split(`data-c="${id}"`)[1].split('</div>')[0];assert.ok(seg.includes(`<b>${name}</b><small>${mean}</small>`),id);}
-  for(const s of ['黄金聖闘士バトル・千日戦争の継続バトル・サガバトル敗北時に出ることがあります。出現率はホール設定で変わるため、出ないことを低設定の根拠にしません。',
+  // 11/6 文言修正（夢爽指定）：「…出ないことを低設定の根拠にしません。」→「…出現率はホール設定で変わります。」
+  for(const s of ['黄金聖闘士バトル・千日戦争の継続バトル・サガバトル敗北時に出ることがあります。出現率はホール設定で変わります。',
     'AT・上位ATの終了時（黄金聖闘士バトル敗北後など）に出ます。一輝は復活の示唆で設定とは無関係です。',
     'エクストララウンド中の黄金聖闘士バトルに勝利したときに発生します。','通常時のカード演出で出る星座です。設定示唆のある4種だけ記録します。'])assert.ok(html.includes(s),s);
 });
@@ -121,34 +124,37 @@ check('参照タブ：6設定表・小役・トロフィー・調査中',()=>{
   tbl.forEach(([cz,at,p],i)=>assert.ok(html.includes(`<td>設定${i+1}</td><td>CZ合算 1/${cz.toFixed(1)} ／ AT初当り 1/${at.toFixed(1)} ／ 出玉率 ${p.toFixed(1)}%</td>`),'設定'+(i+1)));
   for(const [k,v] of [['リプレイ','1/11.3'],['15枚ベル','1/131.1'],['弱チェリー','1/99.9'],['スイカ','1/99.9'],['チャンス目（合算）','1/266.4'],['強チェリー','1/399.6']])assert.ok(html.includes(`<td>${k}</td><td>${v}</td>`),k);
   assert.ok(html.includes('小役確率（全設定共通の公表値）'));assert.doesNotMatch(html,/設定差なし|設定差はありません/);
-  for(const s of ['規定周期の振り分け','守護星座の加護','調査中（推定に使わない）','第三者の独自調査値'])assert.ok(html.includes(s),s);
+  // 11/6 文言修正：「調査中（推定に使わない）」→「調査中」
+  for(const s of ['規定周期の振り分け','守護星座の加護','調査中','第三者の独自調査値'])assert.ok(html.includes(s),s);assert.ok(!html.includes('推定に使わない'));
   assert.doesNotMatch(html,/メーカー公式|公式発表/);
 });
 check('テンプレ・detail が全セクション・全行を網羅',()=>{
   const S=fresh();S.gameLog=[5000,3000];
   for(const key of c.mergeKeys)for(const id of Object.keys(S[key]))S[key][id]=1;
   const t=c.template(ctx(S)),detail=c.card.detail(ctx(S));
-  assert.deepEqual(clone(detail.map(s=>s.title)),['カウント系','トロフィー','AT終了画面','ER 1人目','ER 2人目','星座']);
+  assert.deepEqual(clone(detail.map(s=>s.title)),['カウント系','トロフィー','AT終了画面','ER 1人目','ER 2人目','星座','GFランプ']); // GFランプは 11/6 追加
   for(const sec of detail)for(const item of sec.items){assert.ok([...item.label].length<=10,item.label);assert.ok(item.value>0||item.text,item.label);}
   assert.deepEqual(clone(detail.find(s=>s.title==='AT終了画面').items.map(i=>i.label)),['キャラなし','青銅3人','青銅4人','左向き青銅4','青銅5一輝','魔鈴シャイナ','沙織','一輝']);
   assert.deepEqual(clone(detail[0].items.map(i=>i.text)),['通常CZ合計 ×2 1/4000.0','CZ フーアーユー ×1 (50%)','CZ 影ノ襲来 ×1 (50%)','AT初当り ×1 1/8000.0']);
-  for(const s of ['■カウント系','■トロフィー','■AT終了画面','■エクストララウンド キャラ紹介（1人目）','■エクストララウンド キャラ紹介（2人目）','■カード演出の星座'])assert.ok(t.includes(s),s);
+  for(const s of ['■カウント系','■トロフィー','■AT終了画面','■エクストララウンド キャラ紹介（1人目）','■エクストララウンド キャラ紹介（2人目）','■カード演出の星座','■グランドフィナーレ中のランプ'])assert.ok(t.includes(s),s);
   for(const key of Object.keys(S).filter(k=>k!=='counts'&&S[k]&&typeof S[k]==='object'&&!Array.isArray(S[k])))for(const id of Object.keys(S[key])){
     const label=pages(S)[1]().split(`data-c="${key}.${id}"`)[1].match(/<b>(.*?)<\/b>/)[1];assert.ok(t.includes(label+'▶1回'),key+'.'+id);
   }
-  assert.ok(t.startsWith('設定判別メモ｜L聖闘士星矢 黄金十二宮\n累計通常G 8000G（2件） / 確定演出12回'));
+  // 確定演出は12項目＋GFランプの緑・赤・虹（11/6）で15回
+  assert.ok(t.startsWith('設定判別メモ｜L聖闘士星矢 黄金十二宮\n累計通常G 8000G（2件） / 確定演出15回'));
   assert.ok(t.endsWith('by slot-tools.jp\n解析出典:ちょんぼりすた様'));assert.equal(c.compactTemplate(ctx(S)),t);
   assert.ok(!c.template(ctx(fresh())).includes('■'));
-  const b=c.card.bottom(ctx(S));assert.equal(b.startY,760);assert.equal(b.rowGap,44);assert.deepEqual(Array.from(b.columns,col=>col.x),[70,560]);
-  const rows=b.columns.flatMap(col=>col.items);assert.ok(rows.length<=10);assert.ok(b.columns.every(col=>760+44*(col.items.length-1)<=936));
-  assert.deepEqual(clone(rows.map(r=>r.text)),['確定演出 虹(6濃厚) ×1','トロフィー 銅×1・銀×1・金×1・クマノミ柄×1・虹×1','終了画面 魔鈴シャイナ×1・沙織×1','星座 ハリセンボン×1・サメ×1・エビ×1・アンコウ×1','ER1人目 シャカ×1・ジェミニ×1','ER2人目 ムウ×1・アイオロス×1','AT初当り 1回 1/8000.0']);
+  // 11/6：左右の列のあいだに空の列（x=540）。列幅を超える行は「・」の後で折り返す（各列5行以内、§9-102）。
+  const b=c.card.bottom(ctx(S));assert.equal(b.startY,760);assert.equal(b.rowGap,44);assert.deepEqual(Array.from(b.columns,col=>col.x),[70,540,560]);assert.equal(b.columns[1].items.length,0);
+  const rows=b.columns.flatMap(col=>col.items);assert.ok(b.columns.every(col=>col.items.length<=5));assert.ok(b.columns.every(col=>760+44*(col.items.length-1)<=936));
+  assert.deepEqual(clone(rows.map(r=>r.text)),['確定演出 虹(6濃厚) ×1','トロフィー 銅×1・銀×1・金×1・','　クマノミ柄×1・虹×1','終了画面 魔鈴シャイナ×1・沙織×1','星座 ハリセンボン×1・サメ×1・エビ×1・アンコウ×1','ER1人目 シャカ×1・ジェミニ×1','ER2人目 ムウ×1・アイオロス×1','GFランプ 白×1・青×1・黄×1・緑×1・','　赤×1・虹×1','AT初当り 1回 1/8000.0']);
   assert.equal(c.card.footerTags,'#聖闘士星矢 #設定判別');assert.equal(c.card.title,'L聖闘士星矢 黄金十二宮');
 });
-check('normalize: 旧データ補完・不正値・対象グループの未知キー除外・冪等',()=>{
+check('normalize: 旧データ補完・不正値・未知キーは型ごと保持（§9-108-4）・冪等',()=>{
   const S={startGames:-4,currentGames:'8000.9',gameLog:['8000.9',-4,'x',120],counts:{czWho:'3.8',at:-2,czKage:Infinity},trophy:{gold:NaN,future:4.8},futureRoot:'keep'};
   const a=c.normalizeState(S),b=c.normalizeState(clone(a));assert.deepEqual(clone(a),clone(b));
   assert.equal(a.counts.czWho,3);assert.equal(a.counts.at,0);assert.equal(a.counts.czKage,0);assert.equal(a.counts.czUnknown,undefined);
-  assert.equal(a.trophy.gold,0);assert.equal(a.trophy.future,undefined);assert.deepEqual(clone(a.gameLog),[8000,120]);assert.equal(a.futureRoot,'keep');
+  assert.equal(a.trophy.gold,0);assert.equal(a.trophy.future,4.8);assert.deepEqual(clone(a.gameLog),[8000,120]);assert.equal(a.futureRoot,'keep');
   for(const key of c.mergeKeys)for(const id of Object.keys(c.defaults[key]))assert.ok(Number.isInteger(a[key][id])&&a[key][id]>=0,key+'.'+id);
   assert.deepEqual(clone(c.normalizeState({})),clone(c.defaults));
   const old={currentGames:500,counts:{czWho:2}};const o=c.normalizeState(clone(old));assert.deepEqual(clone(o.gameLog),[]);
@@ -161,7 +167,7 @@ check('HTML: 公開（index可・checkers.html／sitemap 掲載）・推測タ�
   const html=read('seiya12-checker.html');
   assert.deepEqual([...html.matchAll(/<button data-p="\d"[^>]*>(.*?)<\/button>/g)].map(m=>m[1]),['入力','示唆','参照','カード']);
   assert.ok(!html.includes('checker-bayes.js'));
-  for(const s of ['checker-engine.js?v=20261102-orphan','checker-data/seiya12.js?v=20261102-seiya','CheckerEngine.mount(CheckerConfigs.seiya12);','seiya12-guide.html'])assert.ok(html.includes(s),s);
+  for(const s of ['checker-engine.js?v=20261102-orphan','checker-data/seiya12.js?v=20261106-addl','CheckerEngine.mount(CheckerConfigs.seiya12);','seiya12-guide.html'])assert.ok(html.includes(s),s);
   assert.equal(html.match(/<style>[\s\S]*?<\/style>/)[0],read('paripi-checker.html').match(/<style>[\s\S]*?<\/style>/)[0],'4タブのスタイル');
   // 11/2 公開（PR #83）。導線なしの固定を公開状態の検査に置き換えた。
   {const id='seiya12';const list=read('checkers.html').split('<div class="section-label">スマスロ・AT機</div>')[1];assert.ok(list.includes(`<a class="checker-main" href="${id}-checker.html">`)&&list.includes(`<a class="checker-guide" href="${id}-guide.html">使い方</a>`),'checkers.html に掲載');
@@ -182,7 +188,10 @@ check('削除した不明5項目（CZ種別・トロフィー色・AT終了画�
  const old=fresh();old.counts.czWho=3;old.counts.czKage=1;old.atEnd.none=3;old.atEnd.saori=1;old.trophy.bronze=2;
  const clean=clone(old);old.counts.czUnknown=99;old.trophy.unknown=99;old.atEnd.unknown=99;old.erFirst.unknown=99;old.erSecond.unknown=99;
  const out=S=>[pages(S)[0](),pages(S)[1](),c.card.blocks(ctx(S)),c.card.bottom(ctx(S)),c.card.detail(ctx(S)),c.template(ctx(S))];
- assert.deepEqual(clone(out(old)),clone(out(clean)));c.normalizeState(old);assert.deepEqual(clone(old),clean);
+ // 11/6（§9-108-4）：知らないキーは保存に型ごと残す。出力には出さない。
+ assert.deepEqual(clone(out(old)),clone(out(clean)));c.normalizeState(old);
+ for(const [g,k] of [['counts','czUnknown'],['trophy','unknown'],['atEnd','unknown'],['erFirst','unknown'],['erSecond','unknown']]){assert.equal(old[g][k],99);delete old[g][k];}
+ assert.deepEqual(clone(old),clean);
  for(const key of c.mergeKeys)assert.deepEqual(Object.keys(old[key]),Object.keys(c.defaults[key]));
  for(const key of c.mergeKeys)assert.ok(!('unknown' in c.defaults[key])&&!('czUnknown' in c.defaults[key]),key+' に不明行なし');
  assert.doesNotMatch(read('checker-data/seiya12.js')+read('seiya12-guide.html'),/不明/);

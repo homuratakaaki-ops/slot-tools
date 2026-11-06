@@ -26,7 +26,12 @@ const baseline=(()=>{
 const clone=v=>JSON.parse(JSON.stringify(v));
 // 10/22 設定別解析の反映で足したキー。旧版との比較では、値を確かめてから外す
 const ADDED_1022=['cycleD','cycleBz','cycleFuku','czTenjo','rareBzBase'];
-const dropAdded=S=>{const c=JSON.parse(JSON.stringify(S));if(c&&typeof c==='object')for(const k of ADDED_1022)delete c[k];return c;};
+const dropAdded=S=>{const c=JSON.parse(JSON.stringify(S));if(c&&typeof c==='object'){for(const k of ADDED_1022)delete c[k];if('kareCut' in c){assert.equal(JSON.stringify(c.kareCut),'{"entalion":0}','kareCut は0');delete c.kareCut;}}return c;};
+// 11/6 追加解析で足した「狩れカットイン」：記録 kareCut（上の dropAdded で外す）・テンプレ「6確」の後の2行・詳細カードの最後の1項目。
+// 旧版や原文と比べるこの検査では、0であることを確かめてから外す（足した形そのものは tests/addl-1106b.verify.mjs が見る）。
+const KARE_TPL='■狩れカットイン\nｴﾝﾀﾗｲｵﾝ▶︎ 0回\n\n';
+const dropKareTpl=t=>{assert.ok(t.includes('回\n\n'+KARE_TPL+'■エンディング'),'6確の後に狩れカットインの2行');return t.replace(KARE_TPL,'');};
+const dropKareDetail=d=>{const c=JSON.parse(JSON.stringify(d)),last=c.at(-1);assert.equal(last.title,'盟勇クエスト討伐3G目の狩れカットイン');assert.equal(JSON.stringify(last.items.map(x=>x.value)),'[0]');c.pop();return c;};
 // 新キーの無いデータを読んだとき：周期3種は0、天井0、控えは読み込み時点のレア役BZ当選数
 const checkAdded=S=>{for(const k of ['cycleD','cycleBz','cycleFuku'])assert.equal(JSON.stringify(S[k]),'{"c1":0,"c2":0,"c3":0,"c4":0,"c5":0}',k);assert.equal(S.czTenjo,0);assert.equal(S.rareBzBase,Object.entries(S.bz).filter(([k])=>k.endsWith('N')).reduce((a,[,v])=>a+v,0),'rareBzBase');};
 
@@ -70,10 +75,10 @@ test('指示の例と同じ操作で、出力が例とバイト一致する',()=
 test('空のAT間メモは 0078fc9 の出力とバイト一致（本文は v04）',()=>{
   const {config}=load();
   const S=clone(config.defaults);
-  bytes(config.template(ctx(clone(S))),baseline.template(ctx(legacyState(S))));
+  bytes(dropKareTpl(config.template(ctx(clone(S)))),baseline.template(ctx(legacyState(S))));
   let section='';
   const filled=v04.split('\n').map(line=>{if(line.startsWith('■'))section=line;return line.replace(/▶︎ $/,'▶︎ '+(section==='■クエスト成功率'?'0/0':'0回'));}).join('\n');
-  bytes(config.template(ctx(clone(S))).split('_______\n\n')[1].split('\n\nby slot-tools.jp')[0],filled);
+  bytes(dropKareTpl(config.template(ctx(clone(S)))).split('_______\n\n')[1].split('\n\nby slot-tools.jp')[0],filled);
   assert.equal(block(config.template(ctx(clone(S)))),null);
 });
 
@@ -83,7 +88,7 @@ test('チェックOFF なら イベントがあっても 0078fc9 の出力とバ
   off.actions.bzQuest(ctx(S),{d:'bzT1',q:'t3',r:'miss'});
   off.actions.atEvent(ctx(S),{t:'eye',c:'bahari'});
   assert.ok(S.atLog.sessions[0].events.length>0);
-  bytes(off.template(ctx(clone(S))),baseline.template(ctx(legacyState(S))));
+  bytes(dropKareTpl(off.template(ctx(clone(S)))),baseline.template(ctx(legacyState(S))));
   assert.equal(block(off.template(ctx(clone(S)))),null);
   // 明示ON・既定（キーなし）はどちらも出す
   for(const prefs of [{tplAtLog:true},undefined]){
@@ -181,7 +186,7 @@ test('保存データ・集計・カードは 0078fc9 と同じ',()=>{
   checkAdded(config.defaults);
   assert.equal(comparable(dropAdded(config.defaults)),comparable(baseline.defaults));
   // vm の箱が違うと prototype が違うので、比較は JSON で行う
-  assert.equal(JSON.stringify(config.mergeKeys.filter(k=>!ADDED_1022.includes(k))),JSON.stringify(baseline.mergeKeys.filter(k=>!['bzT1','bzT2','questN1','questN2'].includes(k)).concat('bzBase')));
+  assert.equal(JSON.stringify(config.mergeKeys.filter(k=>!ADDED_1022.includes(k)&&k!=='kareCut')),JSON.stringify(baseline.mergeKeys.filter(k=>!['bzT1','bzT2','questN1','questN2'].includes(k)).concat('bzBase')));
   assert.equal(config.storageKey,baseline.storageKey);
   const raws=[null,{},{games:3,hits:[300]},
     {bzT1:{blue:2,raizex:1},questN1:{blue:1},questN:{blue:1},iconPending:['qBlue'],iconLog:[{icons:['rai'],group:'bzT1',quest:'raizex',result:'win'}]},
@@ -199,7 +204,7 @@ test('保存データ・集計・カードは 0078fc9 と同じ',()=>{
   S.hits=[300,520];S.cycle.c1=2;S.atEnd.jay=1;S.trophy.gold=1;
   config.actions.bzQuest(ctx(S),{d:'bzT1',q:'t3',r:'miss'});
   config.actions.atEvent(ctx(S),{t:'eye',c:'galeas'});
-  const card=c=>JSON.stringify(Object.fromEntries(['blocks','chart','bottom','detail'].map(k=>[k,c.card[k](ctx(clone(S)))])));
+  const card=c=>JSON.stringify(Object.fromEntries(['blocks','chart','bottom','detail'].map(k=>[k,k==='detail'&&c===config?dropKareDetail(c.card[k](ctx(clone(S)))):c.card[k](ctx(clone(S)))])));
   assert.equal(card(config),card(baseline));
 });
 

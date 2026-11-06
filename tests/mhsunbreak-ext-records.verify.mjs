@@ -9,6 +9,12 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
+// 11/6 追加解析で足した「狩れカットイン」：記録 kareCut・テンプレ「6確」の後の2行・詳細カードの最後の1項目。
+// 旧版や原文と比べるこの検査では、0であることを確かめてから外す（足した形そのものは tests/addl-1106b.verify.mjs が見る）。
+const dropKare=S=>{const c=JSON.parse(JSON.stringify(S));if(c&&typeof c==='object'&&'kareCut' in c){assert.equal(JSON.stringify(c.kareCut),'{"entalion":0}','kareCut は0');delete c.kareCut;}return c;};
+const KARE_TPL='■狩れカットイン\nｴﾝﾀﾗｲｵﾝ▶︎ 0回\n\n';
+const dropKareTpl=t=>{assert.ok(t.includes('回\n\n'+KARE_TPL+'■エンディング'),'6確の後に狩れカットインの2行');return t.replace(KARE_TPL,'');};
+const dropKareDetail=d=>{const c=JSON.parse(JSON.stringify(d)),last=c.at(-1);assert.equal(last.title,'盟勇クエスト討伐3G目の狩れカットイン');assert.equal(JSON.stringify(last.items.map(x=>x.value)),'[0]');c.pop();return c;};
 
 const root=new URL('../',import.meta.url);
 const read=p=>fs.readFileSync(new URL(p,root),'utf8');
@@ -142,8 +148,9 @@ test('a. 6通りが改修前（'+BASE+'）と一致（例外は atLog.schemaVers
     assert.equal(now.atLog.schemaVersion,2,name+': schemaVersion が 2 でない');
     assert.equal(comparable(stripSchema(now)),comparable(stripSchema(was)),name+': normalizeState が一致しない');
     assert.deepEqual(totals(now),totals(was),name+': 集計値が一致しない');
-    assert.deepEqual(cardJson(after,now),cardJson(before,was),name+': カードJSONが一致しない');
-    const tplWas=before.template(ctx(was)),tplNow=after.template(ctx(now));
+    const card=cardJson(after,now);card.detail=dropKareDetail(card.detail);
+    assert.deepEqual(card,cardJson(before,was),name+': カードJSONが一致しない');
+    const tplWas=before.template(ctx(was)),tplNow=dropKareTpl(after.template(ctx(now)));
     assert.deepEqual(Buffer.from(dropH(tplNow)),Buffer.from(dropH(tplWas)),name+': テンプレがH表示以外で一致しない');
     assert.deepEqual(Buffer.from(plainText(dropH(tplNow))),Buffer.from(plainText(dropH(tplWas))),name+': 収支帳用がH表示以外で一致しない');
     const modelWas=before.scenarioModel(was),modelNow=after.scenarioModel(now);

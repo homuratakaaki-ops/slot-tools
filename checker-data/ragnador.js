@@ -1,5 +1,5 @@
 // 出典: ちょんぼりすた様 https://chonborista.com/slot/universal-slot/266983/
-// 2026-10-30 公開・2026-10-31 更新分を 2026-11-01 取得（第三者解析）。正本: docs/specs/ragnador-checker-v02.md
+// 2026-11-06 取得（第三者解析）。正本: docs/specs/ragnador-checker-v03.md
 // 初当り系カウント・ボイス示唆・参照表（推測タブなし）。
 (function(){
   'use strict';
@@ -50,7 +50,7 @@
     atVoice:'AT終了時にサブ液晶をタッチすると発生します。高設定期待度UPのボイスはAT終了時のみ発生します。',
     czVoice:'CZ終了時にサブ液晶をタッチすると発生します。次回CZの対戦相手の示唆で、設定示唆ではありません。'
   };
-  const DEF={gameLog:[],games:0,counts:Object.fromEntries(COUNTS.map(c=>[c[0],0])),
+  const DEF={gameLog:[],games:0,counts:{...Object.fromEntries(COUNTS.map(c=>[c[0],0])),czKakutei:0},
     ...Object.fromEntries(Object.entries(GROUPS).map(([key,arr])=>[key,Object.fromEntries(arr.map(c=>[c[0],0]))])),img:null,iconChoice:null};
   function n(obj,key){return Number((obj||{})[key])||0;}
   // 分母＝当選ごとのG数の合計（§9-105）。今まわしている未当選区間は含めない。
@@ -81,6 +81,12 @@
       .glog-row{display:flex;align-items:center;gap:8px;margin-top:6px}.glog-last{flex:1;font-size:11px;color:var(--muted)}
     </style>`;
   }
+  // 確定CZの分母はCZ回数。超過時と未記録時には割合を出さない。
+  function kakutei(S){
+    const N=n(S.counts,'cz'),M=n(S.counts,'czKakutei');
+    return {N,M,percent:M>0&&M<=N?' '+(100*M/N).toFixed(1)+'%':''};
+  }
+  function kakuteiPct(S){const {N,M,percent}=kakutei(S);return M===0?'—':'CZ '+N+'回中 '+M+'回'+(percent?'（'+percent.trim()+'）':'');}
   function pageCounts(ctx){
     const S=ctx.S,g=freeGames(S),log=gameLog(S);
     return pageStyle()+`<section class="sec">
@@ -88,10 +94,12 @@
       <div class="inrow"><label>当選時のG数</label><input type="number" inputmode="numeric" id="gameLogIn" value="" placeholder="0"><button type="button" class="glog-btn" data-action="addGameLog" data-label="当選G追加">追加</button></div>
       <div class="glog-row"><span class="glog-last">${log.length?'最後に追加：'+log[log.length-1]+'G':'まだ登録がありません'}</span><button type="button" class="glog-btn" data-action="popGameLog" data-label="当選G取消" ${log.length?'':'disabled'}>最後の1件を取り消す</button></div>
       <div class="hint">${HINTS.games}</div>
-    </section><section class="sec"><div class="sec-h">カウント系</div><div class="cgrid">${COUNTS.map(c=>ctx.crow('counts.'+c[0],c[1],c[3],0,v=>oneIn(v,g))).join('')}</div><div class="hint">${HINTS.counts}</div></section>`;
+    </section><section class="sec"><div class="sec-h">カウント系</div><div class="cgrid">${COUNTS.map(c=>ctx.crow('counts.'+c[0],c[1],c[3],0,v=>oneIn(v,g))+(c[0]==='cz'?ctx.crow('counts.czKakutei','確定CZ','設1〜3:0.4%⇔設6:1.2%',0,()=>kakuteiPct(S)):'')).join('')}</div>${n(S.counts,'czKakutei')>n(S.counts,'cz')?'<div class="hint warn" data-fold="no">確定CZの回数がCZ回数を超えています。</div>':''}<div class="hint">${HINTS.counts}<details class="hint-fold"><summary>説明を見る</summary><div class="hint-body">CZ突入時の抽選で選ばれると、BGMが歌付きになり、勝敗にかかわらずATに当選します。CZ回数にも数えたうえで、確定CZだった回数をここで数えます。</div></details></div></section>`;
   }
   const REF_SECTIONS=[
-    [COUNTS.map(c=>c[1]).join('・')+'・出玉率',SETTINGS.map(s=>['設定'+s,COUNTS.map(c=>c[1]+' 1/'+c[2][s].toFixed(1)).join(' ／ ')+' ／ 出玉率 '+PAYOUT[s].toFixed(1)+'%']).concat(REF_NOTES.map(t=>['補足',t]))]
+    [COUNTS.map(c=>c[1]).join('・')+'・出玉率',SETTINGS.map(s=>['設定'+s,COUNTS.map(c=>c[1]+' 1/'+c[2][s].toFixed(1)).join(' ／ ')+' ／ 出玉率 '+PAYOUT[s].toFixed(1)+'%']).concat(REF_NOTES.map(t=>['補足',t]))],
+    ['確定CZ当選率',SETTINGS.map((s,i)=>['設定'+s,['0.4%','0.4%','0.4%','0.8%','1.2%','1.2%'][i]]).concat([['補足','CZ突入時に抽選。当選するとCZの結果にかかわらずATに突入します。']])],
+    ['玄武選択率（通常テーブル）',SETTINGS.map((s,i)=>['設定'+s,['1.6%','2.0%','2.3%','4.7%','5.5%','6.3%'][i]]).concat([['補足','設定差があるのは通常テーブルだけで、どのテーブルかは見た目では分かりません。']])]
   ];
   function pageReference(){
     return pageStyle()+REF_SECTIONS.map((sec,i)=>`<section class="sec" id="ref${i+1}"><div class="sec-h">${sec[0]}</div><table class="ref-table"><tbody>${sec[1].map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('')}</tbody></table></section>`).join('');
@@ -99,6 +107,8 @@
   function tplText(ctx){
     const S=ctx.S,g=freeGames(S);
     const lines=COUNTS.filter(c=>n(S.counts,c[0])>0).map(c=>`${c[1]}▶${n(S.counts,c[0])}回（${oneIn(n(S.counts,c[0]),g)}）`);
+    const {N,M,percent}=kakutei(S);
+    if(M>0)lines.splice(n(S.counts,'cz')>0?1:0,0,`確定CZ▶${M}回（CZ ${N}回中${percent}）`);
     let t=`設定判別メモ｜${TITLE}\n累計通常G ${logText(S)} / 確定演出${strongCount(S)}回\n_______\n`+section('カウント系',lines);
     Object.entries(GROUPS).forEach(([key,arr])=>{
       const total=groupTotal(S,key);
@@ -108,7 +118,10 @@
   }
   function detail(ctx){
     const S=ctx.S,g=freeGames(S);
-    return [{title:'カウント系',items:COUNTS.map(c=>({label:c[1],value:n(S.counts,c[0]),hot:false,text:c[1]+' ×'+n(S.counts,c[0])+' '+oneIn(n(S.counts,c[0]),g),show:n(S.counts,c[0])>0}))},
+    const {N,M,percent}=kakutei(S);
+    const items=COUNTS.map(c=>({label:c[1],value:n(S.counts,c[0]),hot:false,text:c[1]+' ×'+n(S.counts,c[0])+' '+oneIn(n(S.counts,c[0]),g),show:n(S.counts,c[0])>0}));
+    items.splice(1,0,{label:'確定CZ',value:M,hot:false,text:`確定CZ ${M}/${N}${percent}`,show:M>0});
+    return [{title:'カウント系',items},
       ...Object.entries(GROUPS).map(([key,arr])=>({title:DETAIL_TITLES[key],percent:true,denominator:groupTotal(S,key),items:arr.map(c=>({label:c[1],value:n(S[key],c[0]),hot:c[3]>0}))}))];
   }
   function normalizeState(out){
@@ -116,7 +129,9 @@
     out.games=integer(out.games);
     out.gameLog=Array.isArray(out.gameLog)?out.gameLog.map(integer).filter(v=>v>0):[];
     ['counts',...Object.keys(GROUPS)].forEach(key=>{
-      out[key]=Object.fromEntries(Object.keys(DEF[key]).map(k=>[k,integer((out[key]||{})[k])]));
+      // §9-108-4：知っている項目は検証（非負整数）、知らない項目は捨てずに型ごと保持。新しい項目は0で足す。
+      out[key]=Object.assign({},DEF[key],out[key]||{});
+      Object.keys(DEF[key]).forEach(k=>{out[key][k]=integer(out[key][k]);});
     });
     if(out.img===undefined)out.img=DEF.img;
     if(out.iconChoice===undefined)out.iconChoice=DEF.iconChoice;

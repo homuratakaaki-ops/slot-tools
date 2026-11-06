@@ -62,9 +62,11 @@ for(const [id,E] of Object.entries(EXPECTED)){
       assert.ok(input.includes(`data-c="counts.${key}"><b>${label}</b><small>${target}</small>`),id+' '+key);
     });
     rows.forEach((r,i)=>{assert.equal(r[0],String(i+1));assert.ok(ref.includes(`<td>設定${i+1}</td>`)&&ref.includes('出玉率 '+r[r.length-1]),id+' payout '+(i+1));});
-    assert.deepEqual(Object.keys(c.defaults.counts),E.counts.map(x=>x[0]));
+    // ラグナドールの確定CZ（11/6 追加解析）は目安なしの回数だけなので、この表の対象外。
+    assert.deepEqual(Object.keys(c.defaults.counts).filter(k=>!(id==='ragnador'&&k==='czKakutei')),E.counts.map(x=>x[0]));
     if(!['ragnador','garo','ggo','vivy'].includes(id))assert.ok(input.startsWith(input.match(/^<style>[\s\S]*?<\/style>/)[0]+`<div class="hint">${PENDING}</div>`),'入力タブ先頭の調査中 hint');
-    assert.ok(input.includes(`<div class="hint">${E.hint}</div>`));
+    // ラグナドールは 11/6 の追加解析で、この説明の後ろに確定CZの「説明を見る」が付いた。
+    assert.ok(input.includes(`<div class="hint">${E.hint}`+(id==='ragnador'?'<details class="hint-fold">':'</div>')));
     assert.ok(input.includes(`<div class="hint">${GAMES_HINT}</div>`),'当選ごとのG hint');
     assert.ok(input.includes('<label>当選時のG数</label><input type="number" inputmode="numeric" id="gameLogIn" value=""'));
     assert.ok(input.includes('data-action="addGameLog"')&&input.includes('data-action="popGameLog" data-label="当選G取消" disabled>最後の1件を取り消す'));
@@ -85,7 +87,7 @@ for(const [id,E] of Object.entries(EXPECTED)){
       // Vivy はなな様テンプレ（11/2）。初当りはヘッダー行に出る（vivy-nana.verify で本文を検査）。
       assert.ok(c.template(ctx(S)).includes(id==='vivy'?`${label}${v}回 ${x}`:`${label}▶${v}回（${x}）`));
       assert.equal(c.card.blocks(ctx(S))[i][1],x);
-      assert.equal(c.card.detail(ctx(S))[0].items[i].text,`${label} ×${v} ${x}`);
+      assert.equal(c.card.detail(ctx(S))[0].items.filter(item=>!(id==='ragnador'&&item.text.startsWith('確定CZ ')))[i].text,`${label} ×${v} ${x}`);
       assert.equal(c.card.bottom(ctx(S)).columns[0].items[i+(id==='garo'?2:['ragnador','vivy'].includes(id)?1:0)].text,`${label} ${v}回 ${x}`);
     });
     const blocks=c.card.blocks(ctx(S));assert.deepEqual(clone(blocks[blocks.length-1]),['通常G','3000G']);assert.ok(blocks.length<=4);
@@ -120,7 +122,7 @@ for(const [id,E] of Object.entries(EXPECTED)){
     const first=E.counts[0][0];
     const old={currentGames:'800.7',startGames:-3,gameLog:['800.7',-3,'x',0,250],counts:{[first]:'4.9',future:3.2},futureRoot:'keep'};
     const a=c.normalizeState(clone(old)),b=c.normalizeState(clone(a));
-    assert.deepEqual(clone(a),clone(b));assert.equal(a.counts[first],4);assert.equal(a.counts.future,['ragnador','garo'].includes(id)?undefined:id==='vivy'?3.2:3/* ggo・vivy は公開後の反映なので §9-108-4（知らない項目は保持）。vivy は 11/2 のなな様テンプレ反映で型ごと保持、ggo は次の更新で直す（IDEAS.md 保留） */);assert.equal(a.futureRoot,'keep');
+    assert.deepEqual(clone(a),clone(b));assert.equal(a.counts[first],4);assert.equal(a.counts.future,id==='garo'?undefined:3.2/* ragnador・ggo・vivy は公開後の反映なので §9-108-4（知らない項目は型ごと保持）。vivy は 11/2 のなな様テンプレ反映、ragnador・ggo は 11/6 の追加解析の反映で直した */);assert.equal(a.futureRoot,'keep');
     assert.deepEqual(clone(a.gameLog),[800,250]);
     assert.deepEqual(clone(c.normalizeState({counts:{}}).gameLog),[]);assert.deepEqual(clone(c.normalizeState({gameLog:'500'}).gameLog),[]);
     for(const [key] of E.counts)assert.ok(Number.isInteger(a.counts[key])&&a.counts[key]>=0);
@@ -135,7 +137,7 @@ for(const [id,E] of Object.entries(EXPECTED)){
     const html=read(id+'-checker.html');
     assert.deepEqual([...html.matchAll(/<button data-p="\d"[^>]*>(.*?)<\/button>/g)].map(m=>m[1]),['ragnador','garo','ggo','vivy'].includes(id)?['入力','示唆','参照','カード']:['入力','参照','カード']);
     assert.ok(html.includes('grid-template-columns:repeat('+(['ragnador','garo','ggo','vivy'].includes(id)?4:3)+',1fr)'));assert.ok(!html.includes('checker-bayes.js'));
-    for(const s of ['checker-engine.js?v=20261102-orphan',`checker-data/${id}.js?v=${id==='garo'?'20261102-garo':id==='ragnador'?'20261101-voice':id==='vivy'?'20261102-nana':id==='ggo'?'20261102-suggest':'20261028-glog'}`,`CheckerEngine.mount(CheckerConfigs.${id});`,`${id}-guide.html`,`<div class="hd-title">${E.header||E.title}<small>`])assert.ok(html.includes(s),s);
+    for(const s of ['checker-engine.js?v=20261102-orphan',`checker-data/${id}.js?v=${id==='garo'?'20261102-garo':id==='ragnador'?'20261106-addl':id==='vivy'?'20261102-nana':id==='ggo'?'20261106-addl':'20261028-glog'}`,`CheckerEngine.mount(CheckerConfigs.${id});`,`${id}-guide.html`,`<div class="hd-title">${E.header||E.title}<small>`])assert.ok(html.includes(s),s);
     // 11/2 に5機種を公開（PR #83）。牙狼は示唆追加後にネネ検収合格（11/2）で戻した。
     const pub=true;
     if(!pub)for(const p of ['checkers.html','index.html','sitemap.xml'])assert.ok(!read(p).includes(id+'-checker')&&!read(p).includes(id+'-guide'),p+' に導線なし');

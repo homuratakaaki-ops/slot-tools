@@ -225,7 +225,8 @@ const EXPECTED={
 const TITLES={"bonusCard":"ボーナス終了画面のカード","atEnd":"AT終了画面","trophy":"コパンダトロフィー","payout":"獲得枚数表示","ending":"エンディング中のキャラ"},SHORT={"bonusCard":"終了画面カード","atEnd":"AT終了画面","trophy":"トロフィー","payout":"枚数表示","ending":"ED中キャラ"},HINTS={"bonusCard":"ボーナス終了画面で出現したカードを記録します。示唆内容は調査中です。出現したカードの履歴はメニュー画面で確認できます。","atEnd":"AT終了画面は全9種類です。示唆内容は調査中のため、記録のみです。","trophy":"AT終了時に出現することがあります。出現率はホールが調整できるため、出ないことは設定の根拠になりません。示唆内容は出典で推測とされているため、確定演出には数えません。","payout":"AT中の獲得枚数表示が特定の数字になると設定を示唆します。","ending":"エンディング中にレア役・共通ベルが成立したときPUSHボタンを押すとキャラが出現します。1体ならキャラの種類、2体以上なら体数で示唆します。"};
 let checks=0;
 function check(name,fn){fn();checks++;console.log('PASS '+name);}
-const FROZEN={vivy:'e2e720a'};
+// GGO は 11/6 の追加解析（天国選択率の参照表など）で本番が変わった。この検査は反映前の版で見て、新しい版は tests/addl-1106.verify.mjs で見る。
+const FROZEN={vivy:'e2e720a',ggo:'7ae3526'};
 const readId=(id,p)=>FROZEN[id]?execFileSync('git',['show',FROZEN[id]+':'+p],{cwd:root,encoding:'utf8'}):read(p);
 function load(id,inspect=false,current=false){const box={window:{}};vm.createContext(box);let src=current?read('checker-data/'+id+'.js'):readId(id,'checker-data/'+id+'.js');if(inspect)src=src.replace('  const DEF=','  window.__groups=GROUPS;\n  const DEF=');vm.runInContext(src,box);return box.window;}
 // 反映前の本番（テスト版 65de568 の時点の main）。GGO のカード本体と既存データの互換を比べる。
@@ -286,20 +287,19 @@ for(const [id,groups] of Object.entries(EXPECTED)){
    // PR #85（エンジンの見出し取り残し修正）で engine の ?v だけ変わる。
    const reverted=html.replace('checker-engine.js?v=20261102-orphan','checker-engine.js?v=20260924').replace('repeat(4,1fr)','repeat(3,1fr)').replace('<button data-p="1">示唆</button><button data-p="2">参照</button><button data-p="3">カード</button>','<button data-p="1">参照</button><button data-p="2">カード</button>').replace('checker-data/'+id+'.js?v=20261102-suggest',old.match(new RegExp('checker-data/'+id+'\\.js\\?v=[^" ]+'))[0]);assert.equal(reverted,old);
    const guide=read(id+'-guide.html');
-   assert.ok(guide.includes('<h2>示唆タブ</h2>')&&guide.includes('「入力」「示唆」「参照」「カード」')&&guide.includes('2026年11月2日確認'));assert.ok(!guide.includes('設定示唆（終了画面・トロフィーなど）は出典で調査中'));
+   assert.ok(guide.includes('<h2>示唆タブ</h2>')&&guide.includes('「入力」「示唆」「参照」「カード」')&&guide.includes(id==='ggo'?'2026年11月6日確認':'2026年11月2日確認'));assert.ok(!guide.includes('設定示唆（終了画面・トロフィーなど）は出典で調査中'));
    for(const h of Object.values(HINTS).filter((h,i)=>Object.keys(HINTS)[i] in groups))assert.ok(guide.includes(h),h);
    const tmp=fs.mkdtempSync(path.join(process.env.CHECKER_ARTIFACTS||os.tmpdir(),'ggovivy-syntax-'));
    for(const p of [id+'-checker.html',id+'-guide.html','checker-data/'+id+'.js']){const src=read(p);assert.ok(!src.includes('\r'));assert.doesNotMatch(src,/\(\?<([=!])/);assert.doesNotMatch(src,/濃厚示唆|最強|設定差なし/);if(p.endsWith('.js'))execFileSync(process.execPath,['--check',path.join(root,p)]);else for(const [i,m] of [...src.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)].entries())if(!/\bsrc=/.test(m[1])){const f=path.join(tmp,id+i+'.mjs');fs.writeFileSync(f,m[2]);execFileSync(process.execPath,['--check',f]);}}
  });
 }
 check('vivy: current vivy.js (なな様テンプレ対応後) keeps the same suggest-tab master',()=>{const w=load('vivy',true,true);assert.deepEqual(clone(w.__groups),EXPECTED.vivy);for(const g of Object.keys(EXPECTED.vivy))assert.ok(w.CheckerConfigs.vivy.mergeKeys.includes(g));});
+check('ggo: current ggo.js (追加解析の反映後) keeps the same suggest-tab master',()=>{const w=load('ggo',true,true);assert.deepEqual(clone(w.__groups),EXPECTED.ggo);for(const g of Object.keys(EXPECTED.ggo))assert.ok(w.CheckerConfigs.ggo.mergeKeys.includes(g));});
 check('test version removed (§9-108-2) / NEW欄 2 lines / no links to -test',()=>{
  // 11/2 に Vivy のなな様テンプレ対応で別のテスト版（vivy-test、?v=20261102-nana-test）を作り直した。示唆タブのテスト版（?v=20261102-test）が残っていないことだけを見る。
- // 11/6 の追加解析テスト版だけは旧テスト版削除チェックから除外する。
- const addl1106=fs.existsSync(path.join(root,'ggo-test-checker.html'))&&read('ggo-test-checker.html').includes('checker-data/ggo-test.js?v=20261106-test');
- for(const p of ['ggo-test-checker.html','checker-data/ggo-test.js'].filter(()=>!addl1106))assert.ok(!fs.existsSync(path.join(root,p)),p+' は削除');
+ for(const p of ['ggo-test-checker.html','checker-data/ggo-test.js'])assert.ok(!fs.existsSync(path.join(root,p)),p+' は削除');
  if(fs.existsSync(path.join(root,'vivy-test-checker.html')))assert.ok(!read('vivy-test-checker.html').includes('20261102-test"'),'示唆タブのテスト版は削除');
- for(const p of fs.readdirSync(root).filter(p=>p.endsWith('.html')&&p!=='vivy-test-checker.html'&&!(addl1106&&p==='ggo-test-checker.html')))assert.doesNotMatch(read(p),/(?:href|src)=["'][^"']*(?:ggo|vivy)-test/);
+ for(const p of fs.readdirSync(root).filter(p=>p.endsWith('.html')&&p!=='vivy-test-checker.html'))assert.doesNotMatch(read(p),/(?:href|src)=["'][^"']*(?:ggo|vivy)-test/);
  const news=read('index.html').split('<div class="section-label">NEW</div>')[1].split('</section>')[0];
  assert.equal((news.match(/<p>/g)||[]).length,8);
  const ps=news.match(/<p>.*<\/p>/g);

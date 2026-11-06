@@ -212,7 +212,8 @@ assert.ok(checkerHtml.includes(DATA+'?v=20261026'));
 if(PAGE==='/paripi-checker.html'){
   const news=read('index.html').split('<div class="section-label">NEW</div>')[1].split('</section>')[0];
   assert.equal((news.match(/<p>/g)||[]).length,8);
-  assert.ok(news.includes('｜<a href="paripi-checker.html">パリピ孔明 イイネ下3桁の示唆・士気高揚ゾーン小役別ボーナス率を追加</a></p>'));
+  // 11/6 の追加解析5行で8行上限から外れた（§9-92）。パリピ孔明の行が残っているあいだだけ文言を見る。
+  if(news.includes('href="paripi-checker.html"'))assert.ok(news.includes('｜<a href="paripi-checker.html">パリピ孔明 イイネ下3桁の示唆・士気高揚ゾーン小役別ボーナス率を追加</a></p>'));
 }
 console.log('PASS 5: ?v=20261026・NEW欄8行');
 

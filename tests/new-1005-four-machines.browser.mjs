@@ -99,7 +99,8 @@ async function measure(name){
   assert.ok(r.buttons.every(b=>b.height>=44),name+' button below 44px: '+JSON.stringify(r.buttons.filter(b=>b.height<44)));
   pass(name+' viewport',{width:r.width,minButtonHeight:Math.min(...r.buttons.map(b=>b.height)),overflow:0,ndLabels:r.ndLabels});
   if(r.ndLabels.length){
-    assert.deepEqual(r.ndLabels.map(l=>l.text),['通常','高確','超高確','通常','高確']);
+    // 11/6 追加解析：各行の下に6設定の目安（設1⇔設6）を足した。行名の1行判定は従来どおり行名（最初の子）だけで見る。
+    assert.deepEqual(r.ndLabels.map(l=>l.text),['通常設1:9.8%⇔設6:16.4%','高確設1:33.2%⇔設6:42.2%','超高確設1:66.8%⇔設6:78.9%','通常設1:33.2%⇔設6:42.2%','高確設1:66.8%⇔設6:76.6%']);
     if(r.ndLabels.some(l=>l.lineCount!==1))visualFindings.push({name:name+' n/d single-line labels',status:'FAIL',detail:r.ndLabels});
     else pass(name+' n/d single-line labels',r.ndLabels);
   }
@@ -327,14 +328,18 @@ try{
   await tab(1);
   const labels=await frame(`return [...d.querySelectorAll('.crow[data-c]')].map(e=>[e.dataset.c,e.querySelector('.nm').textContent,e.querySelector('.mn').textContent]);`);
   // Keep the historical instruction sheet intact; apply the approved wording rule to expectations only.
-  assert.deepEqual(labels,groups.flatMap(g=>g.rows.map(r=>[g.key+'.'+r[0],r[1],r[2].replace(/設定([0-9０-９・]*(?:以上)?)確定演出/g,'設定$1濃厚')])));
-  assert.equal(labels.length,31);assert.equal(await frame('return d.querySelectorAll("#nav button").length;'),4);
-  pass('MH 31 exact hint labels/sublabels and 4 tabs');
+  // 11/6 追加解析：示唆タブの最後に「盟勇クエスト討伐3G目の狩れカットイン」のエンタライオン1行を足した（docs/specs/mhsunbreak-addl-1106-v01.md）。
+  assert.deepEqual(labels.at(-1),['kareCut.entalion','エンタライオン','討伐成功＋設定6濃厚']);
+  assert.deepEqual(labels.slice(0,-1),groups.flatMap(g=>g.rows.map(r=>[g.key+'.'+r[0],r[1],r[2].replace(/設定([0-9０-９・]*(?:以上)?)確定演出/g,'設定$1濃厚')])));
+  assert.equal(labels.length,32);assert.equal(await frame('return d.querySelectorAll("#nav button").length;'),4);
+  pass('MH 31 exact hint labels/sublabels + 11/6 kareCut row and 4 tabs');
   await tab(3);
   const zero=await copy();
   const original=fs.readFileSync(path.join(root,'docs/specs/mhsunbreak-nana-template-v04.txt'),'utf8');
   const expected='設定判別メモ｜スマスロ モンスターハンターライズ：サンブレイク\n通常 0G / AT0回\n_______\n\n'+original.split('■').map(section=>section.replace(/▶︎ (?=\r?\n)/g,'▶︎ '+(section.startsWith('クエスト成功率')?'0/0':'0回'))).join('■')+'\n\nby slot-tools.jp\nﾃﾝﾌﾟﾚ:鈴白なな様 @nana_szsr\n解析出典:ちょんぼりすた様';
-  assert.equal(zero,expected);assert.equal((original.match(/▶︎ (?=\r?\n)/g)||[]).length,34);
+  // 11/6 追加解析（夢爽承認、§9-52/§9-95）：「6確」の後に「■狩れカットイン」2行。それ以外は原文のまま。
+  const approved=expected.replace(/(6確　　▶︎ 0回\n\n)(?=■エンディング)/,'$1■狩れカットイン\nｴﾝﾀﾗｲｵﾝ▶︎ 0回\n\n');assert.notEqual(approved,expected);
+  assert.equal(zero,approved);assert.equal((original.match(/▶︎ (?=\r?\n)/g)||[]).length,34);
   fs.writeFileSync(path.join(artifacts,'mhsunbreak-zero-template.txt'),zero);
   const plain=await copy(true);assert.ok(plain.includes('1周期→ 0回'));assert.ok(plain.includes('→BZ突入時に告知される'));assert.ok(!/[▶↪①-⑤\uFE0E\uFE0F]|\p{Emoji_Presentation}/u.test(plain));
   pass('MH zero-template bytes (34 filled lines) and plain-copy substitutions');

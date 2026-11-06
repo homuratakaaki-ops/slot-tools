@@ -110,3 +110,5 @@
 - ランプ訂正画面「押した契機は未確認のまま保持し、推測には使いません。」：次回BZレベルの推測表示に反映されないことの説明。
 - 「テーブル別の成功／回数・テンプレ・シナリオの候補には使いません。」（2か所）：記録がどの表示に反映されないかの説明。
 - トロフィー・AT終了画面「割合は表示しません。」、獲得枚数「カードの確定演出の欄には出しません。」：表示の動きの説明。
+
+本番反映（2026-11-06、?v=20261106-addl）。テスト版（mhsunbreak-test-checker.html・checker-data/mhsunbreak-test.js）は削除。保存キーは本番のまま（mhsunbreak-checker-v1。-prefs・-pre-ext・-bztransfer-backup・-bak・タブ間ガードも本番名、画像の保存名も mhsunbreak_scenario_・mhsunbreak_check に戻した）。
