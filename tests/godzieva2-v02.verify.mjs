@@ -110,7 +110,7 @@ check('本番差分限定・削除・全ページ導線なし・NEW8行',()=>{
   const guide=read('godzieva2-guide.html');
   const proposals=git('show',BASE+':docs/specs/godzieva2-checker-v03.md').split('## 本番ガイドの反映案')[1].split('### ').slice(1);
   for(const proposal of proposals){const [title,...body]=proposal.split('\n');assert.ok(guide.includes('<h3>'+title+'</h3>'));assert.ok(guide.includes('<p>'+body.join('\n').trim()+'</p>'));}
-  assert.ok(guide.includes('2026年11月2日確認'));assert.ok(!guide.includes('ボーナス▶︎'));
+  assert.ok(guide.includes('2026年11月6日確認')); // 11/6 追加解析の反映で確認日を更新assert.ok(!guide.includes('ボーナス▶︎'));
 });
 check('構文・LF・後読みなし',()=>{
   const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'gz2-v02-syntax-'));
