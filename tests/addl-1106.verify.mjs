@@ -109,7 +109,7 @@ check('文言：内部の計算の扱いの文がない・新しい文がある�
  assert.ok(src.seiya12.includes("trophy:'黄金聖闘士バトル・千日戦争の継続バトル・サガバトル敗北時に出ることがあります。出現率はホール設定で変わります。'"));
  assert.ok(src.ragnador.includes('設定差があるのは通常テーブルだけで、どのテーブルかは見た目では分かりません。'));
  // 確定CZの「確定」の意味（ネネ指定 11/6）。画面には該当の文が無いので、ガイドだけ。
- {const guide=read('ragnador-guide.html');assert.ok(guide.includes('CZ結果にかかわらずATに当選する抽選です。確定CZの『確定』は、AT当選が確定するという意味です。設定が確定するわけではありませんが、確定CZの当選率には設定差があります。'));assert.ok(!guide.includes('設定の示唆ではありません')&&!src.ragnador.includes('設定の示唆ではありません'));}
+ {const guide=read('ragnador-guide.html');assert.ok(guide.includes('CZ結果にかかわらずATに当選する抽選です。確定CZの『確定』は、ATに当選するという意味です。設定の確定ではありませんが、確定CZの当選率には設定差があります。'));assert.ok(!guide.includes('設定の示唆ではありません')&&!src.ragnador.includes('設定の示唆ではありません'));}
  assert.ok(src.ggo.includes('抽選契機は初回有利区間移行時・通常時ボーナス終了時・SJ終了時です。天国に入ったかどうかは、毎回確かめられるとは限りません。'));
  const c=configs.seiya12,bottom=S=>c.card.bottom({S}),texts=col=>Array.from(col.items,r=>r.text);
  // 記録のある色をすべて出す（白・青・黄も）。0件なら行を出さない。

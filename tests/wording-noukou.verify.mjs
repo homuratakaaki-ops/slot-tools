@@ -13,10 +13,7 @@ const allowed=[
   ['checker-data/aobuta.js','当選が確定する小役は判別材料にならないため'],
   ['juggler-guide.html','設定6であることが確定したという意味ではありません'],
   ['tokyo-ghoul-guide.html','1キャラごとに示唆が確定しています'],
-  ['tokyo-ghoul-guide.html','示唆内容が確定していないパターンは収録していません'],
-  // ラグナドールの確定CZ（ネネ指定 11/6）：「確定」の意味の説明。同じ行に2件あるので、位置で照合する。
-  ['ragnador-guide.html','AT当選が確定するという意味です'],
-  ['ragnador-guide.html','設定が確定するわけではありません']
+  ['tokyo-ghoul-guide.html','示唆内容が確定していないパターンは収録していません']
 ];
 const counts=allowed.map(()=>0);
 const violations=[];
@@ -29,7 +26,7 @@ for(const file of files){
     if(line.trim().startsWith('//'))continue;
     for(const match of line.matchAll(/が確定(?!演出)/g)){
       occurrences++;
-      const entries=allowed.flatMap(([name,phrase],i)=>{const start=line.indexOf(phrase);return name===file&&start>=0&&match.index>=start&&match.index+match[0].length<=start+phrase.length?[i]:[];});
+      const entries=allowed.flatMap(([name,phrase],i)=>name===file&&line.includes(phrase)?[i]:[]);
       if(entries.length!==1)violations.push(`${file}:${index+1}:${match.index+1} ${line.trim()}`);
       else counts[entries[0]]++;
     }
