@@ -202,7 +202,7 @@ test('猛焔一閃直撃のhint・参照クエリ',()=>{
   // 11/6 追加解析：この後ろに段階別・実質確率の表と注記が続く（夢爽 11/6）。
   assert.ok(src.includes('専用の記録ボタンはありません。出現率は設1:1/16281.7⇔設6:1/4263.1（一撃）。${MOU_TABLE}${MOU_SECOND}${MOU_RATE}どちらの抽選で当たったかは見た目で分からないため、段階1の値がそのまま当選率になるわけではありません。</div>'));
   const html=fs.readFileSync(new URL('mhsunbreak-checker.html',root),'utf8');
-  assert.ok(html.includes('<script src="checker-data/mhsunbreak.js?v=20261106-addl"></script>'));
+  assert.ok(html.includes('<script src="checker-data/mhsunbreak.js?v=20261107-wording"></script>'));
 });
 
 test('共通ファイルは変更しない',()=>{

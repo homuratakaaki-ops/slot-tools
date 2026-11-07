@@ -152,7 +152,7 @@
     return `<section class="sec">
     <div class="sec-h">通常回転数</div>
     <div class="inrow"><label>通常回転数</label><input type="number" inputmode="numeric" id="gIn" value="${g||''}" placeholder="0"></div>
-    <div class="hint">通常時のゲーム数を入力してください。確認手段（アプリ等）と分母条件が未確認のため、現時点で1/x表示は行いません。</div>
+    <div class="hint">通常時のゲーム数を入力してください。現時点では1/xは表示せず、回数だけを表示します。</div>
   </section>
   <section class="sec">
     <div class="sec-h">初当り<span class="sub">通常 ${g||0}G</span></div>

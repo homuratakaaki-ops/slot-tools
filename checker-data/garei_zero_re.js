@@ -303,7 +303,7 @@
       <div class="sec-h">回転数<span class="sub">通常回転 <b style="color:${neg?'#ff5c5c':'#6fd8ff'}">${freeText(S)}</b></span></div>
       <div class="inrow"><label>打ち始めの回転数</label><input type="number" inputmode="numeric" data-number-key="startGames" value="${S.startGames||''}" placeholder="0"></div>
       <div class="inrow" style="margin-top:6px"><label>現在の回転数</label><input type="number" inputmode="numeric" data-number-key="currentGames" value="${S.currentGames||''}" placeholder="0"></div>
-      <div class="hint ${neg?'hot':''}">データカウンターのG数を入力します。設定推定の分母になります。${neg?' 現在G数が打ち始めG数を下回っています。':''}</div>
+      <div class="hint ${neg?'hot':''}">データカウンターのG数を入力します。打ち始めG数との差で確率を出します。${neg?' 現在G数が打ち始めG数を下回っています。':''}</div>
     </section>
     <section class="sec"><div class="sec-h">カウント系</div>
       <div class="cgrid">
@@ -317,18 +317,18 @@
         ${ctx.crow('counts.cz','CZ突入（超自然災害モード）','設1:1/287.2⇔設6:1/197.8',1,v=>oneIn(v,g))}
         ${ctx.crow('counts.art','ART当選（喰霊チャンス）','設1:1/468.6⇔設6:1/279.8',1,v=>oneIn(v,g))}
       </div>
-      <div class="hint">小役の見分け方は次のとおりです。スイカは左リール上段にスイカまたは⑪番のBARが停止した際、中リールに赤7目安でスイカを狙って成立を確認します。左上段にBARが停止した場合は取りこぼしに注意してください。弱チェリーは左リール角チェリー停止かつ右リール中段ベル停止。強チェリーは左リール角チェリー停止かつ右リール中段ベル以外停止です。CZ当選率は通常滞在時のみ記録します。強チャンス目からのCZ当選も通常滞在時のみ記録します。強チャンス目は、スイカを狙ってスイカが揃わなかったときです。CZ突入とART当選は契機を問わず、発生したすべての回数を記録してください。ART当選はCZ・ボーナスの結果に連動するため、表示のみで設定推定には使いません。</div>
+      <div class="hint">小役の見分け方は次のとおりです。スイカは左リール上段にスイカまたは⑪番のBARが停止した際、中リールに赤7目安でスイカを狙って成立を確認します。左上段にBARが停止した場合は取りこぼしに注意してください。弱チェリーは左リール角チェリー停止かつ右リール中段ベル停止。強チェリーは左リール角チェリー停止かつ右リール中段ベル以外停止です。CZ当選率は通常滞在時のみ記録します。強チャンス目からのCZ当選も通常滞在時のみ記録します。強チャンス目は、スイカを狙ってスイカが揃わなかったときです。CZ突入とART当選は契機を問わず、発生したすべての回数を記録してください。ART当選はCZ・ボーナスの結果に連動するため、回数の表示だけです。</div>
     </section>
     <section class="sec"><div class="sec-h">特定ボーナス<span class="sub">計${sum(S.specialBonus)}回</span></div>
       <div class="cgrid">${SPECIAL_BONUS.map(c=>ctx.crow('specialBonus.'+c[0],c[1],c[2],c[3])).join('')}</div>
-      <div class="hint">当選契機はWINランプの色で見ます。ボーナス当選契機はボーナス成立時のWINランプの色で判別できます（色と契機の対応は参照タブに一覧があります）。強チェリー＋RBは設定4以上濃厚として推定に使います。奇数優遇・偶数優遇の2行は振り分けの数値が公表されていないため、記録のみで推定には使いません。</div>
+      <div class="hint">当選契機はWINランプの色で見ます。ボーナス当選契機はボーナス成立時のWINランプの色で判別できます（色と契機の対応は参照タブに一覧があります）。強チェリー＋RBが出ると、設定1〜3を候補から外します。奇数優遇・偶数優遇の2行は振り分けの数値が公表されていないため、記録のみです。</div>
     </section>`;
   }
   function pageSuggest(ctx){
     const S=ctx.S;
     return pageStyle()+`<section class="sec"><div class="sec-h">ステージチェンジ演出<span class="sub">計${sum(S.stageChange)}回</span></div>
       <div class="cgrid">${STAGE_CHANGE.map(c=>ctx.crow('stageChange.'+c[0],c[1],c[2],c[3])).join('')}</div>
-      <div class="hint">通常時のステージチェンジで上記4パターンが出たときだけ記録します。レア役成立時の炎背景も示唆内容は同じです。白叡・乱紅蓮は振り分けの数値が公表されていないため、記録のみで推定には使いません。</div>
+      <div class="hint">通常時のステージチェンジで上記4パターンが出たときだけ記録します。レア役成立時の炎背景も示唆内容は同じです。白叡・乱紅蓮は振り分けの数値が公表されていないため、記録のみです。</div>
     </section>
     <section class="sec"><div class="sec-h">BB終了画面<span class="sub">計${sum(S.bbScreens)}回</span></div>
       <div class="cgrid">${BB_SCREENS.map(c=>ctx.crow('bbScreens.'+c[0],c[1],c[2],c[3],v=>ctx.pct(v,sum(S.bbScreens)))).join('')}</div>
@@ -339,7 +339,7 @@
     </section>
     <section class="sec"><div class="sec-h">RB中のキャラ紹介<span class="sub">計${sum(S.rbChars)}回</span></div>
       <div class="cgrid">${RB_CHARS.map(c=>ctx.crow('rbChars.'+c[0],c[1],c[2],c[3])).join('')}</div>
-      <div class="hint">出たキャラをそれぞれ記録します。1回のREGで複数のキャラが紹介されるため、出現したキャラをそれぞれ記録します。黄泉悪霊化（紫）と冥（紫）が同一REG内で揃った場合は、個別の2行に加えて「黄泉悪霊化＋冥（同一REG）」も押してください。この組み合わせは出典が「設定4以上濃厚!?」の暫定表記のため、記録のみで設定推定には使いません。1回1キャラの振り分けではないため割合は表示しません。</div>
+      <div class="hint">出たキャラをそれぞれ記録します。1回のREGで複数のキャラが紹介されるため、出現したキャラをそれぞれ記録します。黄泉悪霊化（紫）と冥（紫）が同一REG内で揃った場合は、個別の2行に加えて「黄泉悪霊化＋冥（同一REG）」も押してください。この組み合わせは出典が「設定4以上濃厚!?」の暫定表記のため、記録のみです。1回1キャラの振り分けではないため割合は表示しません。</div>
     </section>
     <section class="sec"><div class="sec-h">獲得枚数表示<span class="sub">計${sum(S.over)}回</span></div>
       <div class="cgrid">${OVER.map(c=>ctx.crow('over.'+c[0],c[1],c[2],c[3],v=>ctx.pct(v,sum(S.over)))).join('')}</div>

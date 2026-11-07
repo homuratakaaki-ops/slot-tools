@@ -1,3 +1,24 @@
+// 2026-11-07: 指定文言・参照クエリだけをファイル別の期待値へ適用し、全文一致を維持する。
+const wordingChanges={
+  "checker-data/aobuta.js":[["確認手段（アプリ等）と分母条件が未確認のため、現時点で1/x表示は行いません。","現時点では1/xは表示せず、回数だけを表示します。"]],
+  "checker-data/mieruko.js":[["確認手段と分母条件が未確認のため、現時点で1/x表示は行いません。","現時点では1/xは表示せず、回数だけを表示します。"]],
+  "checker-data/kabaneri2.js":[["実測の1/x表示は行いません。出典の確率がどの区間（通常時だけか、ST中も含むか）を分母にしているか明示されていないためです（AGENTS.md §9-70）。下段ベルはST中にも成立するため、上の通常回転数を分母にしても解析値と条件が揃いません。回数だけを記録してください。","回数だけを記録してください。1/xは表示しません。下段ベルはST中にも成立するため、通常回転数で割った値は、解析値と比べられません。"]],
+  "checker-data/juuou.js":[["の分母は0として扱い、確率表示は行いません。","の確率は表示しません。"]],
+  "checker-data/otome5.js":[["（解析の分母定義に合わせるため）",""]],
+  "checker-data/enen2.js":[["（通常時は混ぜない。解析の分母定義に合わせるため）","（通常時は混ぜない）"],["分母用","炎炎激闘当選率を見るための回数"],["'罠中 小V成立','炎炎激闘当選率を見るための回数","'罠中 小V成立','十字目変換の発生率を見るための回数"]],
+  "checker-data/jashinchan.js":[["ホール側で出現バランスを変更できるカスタムが搭載されているため、出現頻度そのものは設定推測に使えません。","出現バランスを変更できるカスタムが搭載されており、出現頻度はホールの設定で変わります。"],["設定推測には使わず記録のみです","記録のみです"],["確率の算出には使わず、稼働メモとして保存します。","稼働メモとして保存します（確率は出しません）。"],["AT中の消化分を含む総回転数のため、確率の算出には使わず回数のみ記録します","回数だけを記録します（AT中の消化分を含むため、1/xは出しません）"]],
+  "checker-data/milliongod.js":[["未入力の場合、15枚役は設定推定に使われません。","入力すると、15枚役が設定推測の％に反映されます。"]],
+  "checker-data/monkey5.js":[["5枚役の設定推定に使う分母になります","打ち始めとの差（自遊技G）で5枚役の1/xを出します"]],
+  "checker-data/karakuri2.js":[["分母用","直撃当選率を見るための回数"]],
+  "checker-data/taktop.js":[["分母用","報酬チャンス当選率を見るための回数"]],
+  "aobuta-checker.html":[["checker-data/aobuta.js?v=20260924","checker-data/aobuta.js?v=20261107-wording"]],
+  "jashinchan-checker.html":[["checker-data/jashinchan.js?v=20260924-2","checker-data/jashinchan.js?v=20261107-wording"]],
+  "juuou-checker.html":[["checker-data/juuou.js?v=20261004-2","checker-data/juuou.js?v=20261107-wording"]],
+  "mieruko-checker.html":[["checker-data/mieruko.js?v=20260924","checker-data/mieruko.js?v=20261107-wording"]],
+  "milliongod-checker.html":[["checker-data/milliongod.js?v=20260925","checker-data/milliongod.js?v=20261107-wording"]],
+  "monkey5-checker.html":[["checker-data/monkey5.js?v=20260924","checker-data/monkey5.js?v=20261107-wording"]]
+};
+const wordingExpected=(file,s)=>(wordingChanges[file]||[]).reduce((text,[before,after])=>text.split(before).join(after),s);
 // Run explicitly: node tests/magireco-remove-estimate.verify.mjs
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -72,7 +93,7 @@ const changed=['mogumogu-checker.html','checker-data/mogumogu.js','mogumogu-guid
   'checker-data/vvv2.js','vvv2-checker.html',
   'enen2-checker.html','kabaneri2-checker.html','karakuri2-checker.html','otome5-checker.html',
   'sao2-checker.html','taktop-checker.html','yajikita-checker.html','yoshimune-checker.html'];
-for(const file of tracked.filter(f=>!changed.includes(f)))assert.deepEqual(Buffer.from(beforeOrphan(read(file))),Buffer.from(baseline(file)),file);
+for(const file of tracked.filter(f=>!changed.includes(f)))assert.deepEqual(Buffer.from(beforeOrphan(read(file))),Buffer.from(wordingExpected(file,baseline(file))),file);
 const news=s=>s.split('<div class="section-label">NEW</div>')[1].split('</section>')[0].match(/<p>.*?<\/p>/g);
 const b=news(read('index.html'));
 // §9-92 で NEW欄は公開のたびに更新され行がずれるため、基準との行単位の差分は固定しない。

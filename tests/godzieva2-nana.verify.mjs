@@ -134,7 +134,7 @@ check('詳細カード既存項目45行（v04、40行超は共通エンジンが
 check('HTML・ガイド・LF・後読みなし・構文・公開（index可・checkers.html／sitemap／NEW欄）',()=>{
   assert.equal(c.storageKey,'godzieva2-checker-v1');assert.equal(c.uiV2,true);assert.equal(c.nanaCollab,true);assert.equal(c.pages(ctx(fresh()),()=>'').length,4);
   const html=read('godzieva2-checker.html'),guide=read('godzieva2-guide.html');assert.deepEqual([...html.matchAll(/<button data-p="\d"[^>]*>(.*?)<\/button>/g)].map(m=>m[1]),['入力','示唆','参照','カード']);
-  for(const text of ['grid-template-columns:repeat(4,1fr)','checker-data/godzieva2.js?v=20261106-addl','checker-engine.js?v=20261102-orphan','← 機種選択','使い方','G-QCKV9H0DT1'])assert.ok(html.includes(text),text);
+  for(const text of ['grid-template-columns:repeat(4,1fr)','checker-data/godzieva2.js?v=20261107-wording','checker-engine.js?v=20261102-orphan','← 機種選択','使い方','G-QCKV9H0DT1'])assert.ok(html.includes(text),text);
   assert.ok(!html.includes('checker-bayes.js'));
   // 11/1 公開（ネネ①②③・％再確認合格、360px 夢爽合格）。導線なしの固定を公開状態の検査に置き換えた。
   const list=read('checkers.html').split('<div class="section-label">スマスロ・AT機</div>')[1];

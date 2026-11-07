@@ -42,7 +42,7 @@
       .gcell input{flex:1;min-width:0;width:auto;font-family:var(--seg);font-size:20px;text-align:right;color:var(--gold);background:#0d0a12;border:1px solid var(--line);border-radius:8px;padding:6px 8px}
   </style>
   ${gamePair('通常ゲーム数','','gamesMysloStart','gamesMyslo',S)}
-  ${denomWarn(S)?'<div class="hint warn">通常ゲーム数の現在が開始を下回っています。通常時の分母は0として扱い、確率表示は行いません。入力を確認してください。</div>':''}
+  ${denomWarn(S)?'<div class="hint warn">通常ゲーム数の現在が開始を下回っています。通常時の確率は表示しません。入力を確認してください。</div>':''}
   <div class="hint">マイスロの通常ゲーム数を入力します。途中から打ち始めた場合や途中から数え始めた場合は、その時点の数値を開始欄に入れてください。差分があなたのカウント区間になります。実機での確認方法が分かり次第、入力方法を追加します。</div>
 </section>`;}
   function initialSection(ctx){const S=ctx.S;return `<section class="sec">

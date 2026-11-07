@@ -16,7 +16,7 @@ function check(name,fn){try{fn();checks++;console.log('PASS '+name);}catch(e){fa
 const PENDING='設定示唆（終了画面・トロフィーなど）は出典で調査中です。公表され次第この機種に追加します。';
 const THIRD='当ページの解析値は第三者の独自調査値です。';
 // 分母＝当選ごとのG合計（§9-70/§9-105、ネネ検収 2026-10-28 の指摘で打ち始めG〜現在Gの差から変更）。
-const GAMES_HINT='当選するたびに、その当選までのG数（ホールのデータカウンターの当選G、または台メニューのAT間G）を入力して追加します。合計が設定推定の分母になります。今まわしている未当選区間のG数は分母に含めません。';
+const GAMES_HINT='当選するたびに、その当選までのG数（ホールのデータカウンターの当選G、または台メニューのAT間G）を入力して追加します。当選ごとのG数を合計して、1/xを出します。今まわしている未当選区間のG数は分母に含めません。';
 const EXPECTED={
   ragnador:{title:'スマスロ ラグナドール',url:'https://chonborista.com/slot/universal-slot/266983/',
     counts:[['cz','CZ',[172.8,167.2,161.8,145.0,143.0,142.4]],['at','AT初当り',[326.4,317.2,307.7,271.2,260.8,258.3]]],
@@ -137,7 +137,7 @@ for(const [id,E] of Object.entries(EXPECTED)){
     const html=read(id+'-checker.html');
     assert.deepEqual([...html.matchAll(/<button data-p="\d"[^>]*>(.*?)<\/button>/g)].map(m=>m[1]),['ragnador','garo','ggo','vivy'].includes(id)?['入力','示唆','参照','カード']:['入力','参照','カード']);
     assert.ok(html.includes('grid-template-columns:repeat('+(['ragnador','garo','ggo','vivy'].includes(id)?4:3)+',1fr)'));assert.ok(!html.includes('checker-bayes.js'));
-    for(const s of ['checker-engine.js?v=20261102-orphan',`checker-data/${id}.js?v=${id==='garo'?'20261102-garo':id==='ragnador'?'20261106-addl':id==='vivy'?'20261102-nana':id==='ggo'?'20261106-addl':'20261028-glog'}`,`CheckerEngine.mount(CheckerConfigs.${id});`,`${id}-guide.html`,`<div class="hd-title">${E.header||E.title}<small>`])assert.ok(html.includes(s),s);
+    for(const s of ['checker-engine.js?v=20261102-orphan',`checker-data/${id}.js?v=20261107-wording`,`CheckerEngine.mount(CheckerConfigs.${id});`,`${id}-guide.html`,`<div class="hd-title">${E.header||E.title}<small>`])assert.ok(html.includes(s),s);
     // 11/2 に5機種を公開（PR #83）。牙狼は示唆追加後にネネ検収合格（11/2）で戻した。
     const pub=true;
     if(!pub)for(const p of ['checkers.html','index.html','sitemap.xml'])assert.ok(!read(p).includes(id+'-checker')&&!read(p).includes(id+'-guide'),p+' に導線なし');

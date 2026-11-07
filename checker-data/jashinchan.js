@@ -332,15 +332,15 @@
     return `<section class="sec">
     <div class="sec-h">総回転数</div>
     <div class="inrow"><label>本日の総ゲーム数</label><input type="number" inputmode="numeric" id="gIn" value="${S.games||''}" placeholder="0"></div>
-    <div class="hint">総ゲーム数はデータカウンターの値を入れます。実機では総ゲーム数を確認できないため、ホールのデータカウンター等の数値を参考値として入力してください。確率の算出には使わず、稼働メモとして保存します。</div>
+    <div class="hint">総ゲーム数はデータカウンターの値を入れます。実機では総ゲーム数を確認できないため、ホールのデータカウンター等の数値を参考値として入力してください。稼働メモとして保存します（確率は出しません）。</div>
   </section>
   <section class="sec">
     <div class="sec-h">初当り</div>
     <div class="cgrid">
-      ${ctx.crow('cz.bonus','ボーナス回数','AT中の消化分を含む総回転数のため、確率の算出には使わず回数のみ記録します',0)}
+      ${ctx.crow('cz.bonus','ボーナス回数','回数だけを記録します（AT中の消化分を含むため、1/xは出しません）',0)}
       ${ctx.crow('cz.at','AT回数','AT当選回数の記録',0)}
-      ${ctx.crow('cz.direct','AT直撃','高設定ほど発生しやすいとされますが数値が未公表のため、設定推測には使わず記録のみです',0)}
-      ${ctx.crow('cz.returnAt','AT引き戻し','高設定ほど発生しやすいとされますが数値が未公表のため、設定推測には使わず記録のみです',0)}
+      ${ctx.crow('cz.direct','AT直撃','高設定ほど発生しやすいとされますが数値が未公表のため、記録のみです',0)}
+      ${ctx.crow('cz.returnAt','AT引き戻し','高設定ほど発生しやすいとされますが数値が未公表のため、記録のみです',0)}
     </div>
   </section>`;
   }
@@ -350,7 +350,7 @@
     <div class="cgrid">${AT_SCREENS.map(c=>ctx.crow('screens.'+c[0],c[1],c[2],c[3]>0,n=>ctx.pct(n,sum(ctx.S.screens)))).join('')}</div></section>
   <section class="sec"><div class="sec-h">クジラッキー<span class="sub">計${kujiN}回</span></div>
     <div class="cgrid">${KUJILUCKY.map(c=>ctx.crow('atcz.'+c[0],c[1],c[2],1)).join('')}</div>
-    <div class="hint">初当りの小悪魔ボーナスを除くボーナス終了画面で出現します。ホール側で出現バランスを変更できるカスタムが搭載されているため、出現頻度そのものは設定推測に使えません。</div></section>`;
+    <div class="hint">初当りの小悪魔ボーナスを除くボーナス終了画面で出現します。出現バランスを変更できるカスタムが搭載されており、出現頻度はホールの設定で変わります。</div></section>`;
   }
   function pageChars(ctx){
     const pending=pendingLabels(ctx.S);

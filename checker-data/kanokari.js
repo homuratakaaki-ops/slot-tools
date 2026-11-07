@@ -254,7 +254,7 @@
     return `<section class="sec">
     <div class="sec-h">通常回転数</div>
     <div class="inrow"><label>通常回転数</label><input type="number" inputmode="numeric" id="gIn" value="${g||''}" placeholder="0"></div>
-    <div class="hint">通常時のゲーム数を入力してください。確認手段と分母条件が未確認のため、現時点で1/x表示は行いません。</div>
+    <div class="hint">通常時のゲーム数を入力してください。現時点では1/xは表示せず、回数だけを表示します。</div>
   </section>
   <section class="sec">
     <div class="sec-h">初当り<span class="sub">通常 ${g||0}G</span></div>
@@ -415,7 +415,7 @@
     <div class="kk-sub">除外の理由（出た示唆）</div>
     ${exLines.length?`<ul class="kk-list">${exLines.map(x=>`<li>${x}</li>`).join('')}</ul>`:'<div class="hint" data-fold="no">なし</div>'}
     ${skipped.length?`<div class="kk-sub">不採用</div><ul class="kk-list">${skipped.map(x=>`<li>${x}</li>`).join('')}</ul>`:''}
-    <div class="hint">割合に使うのは、終了画面（店のカスタムなしを確認できたときだけ）・RB中のキャラ紹介・攻略キャラの初回シナリオ・エンディング中のボイス（強チャンス目で記録した分だけ）の4つです。センチメートル・獲得枚数表示・同一シナリオの連続などの濃厚／否定は、出たときにその設定を候補から外すだけで、出なかったことでは減点しません。CZ当選・初当りの確率は計算に入れていません（初当りタブの参考値のみ）。記録が少ないうちは割合が大きく動きます。</div>
+    <div class="hint">％に反映されるのは、終了画面（店のカスタムなしを確認できたときだけ）・RB中のキャラ紹介・攻略キャラの初回シナリオ・エンディング中のボイス（強チャンス目で記録した分だけ）の4つです。センチメートル・獲得枚数表示・同一シナリオの連続などの濃厚／否定は、出たときにその設定を候補から外すだけで、出なかったときは、％も候補も変わりません。CZ当選・初当りの確率は％に反映されません（初当りタブに参考値を表示）。記録が少ないうちは割合が大きく動きます。</div>
     </section>`;
   }
 
@@ -426,14 +426,14 @@
     return shisaStyle()+`<section class="sec">
     <div class="sec-h">終了画面<span class="sub">計${scN}回</span></div>
     ${switchRow('店のカスタム','kkEndCustom',END_CUSTOM,S.endCustom)}
-    <div class="hint" data-fold="no">終了画面の振り分けは店のカスタム設定で変わります。カスタムなしを確認できたときだけ推測に使います</div>
+    <div class="hint" data-fold="no">終了画面の振り分けは店のカスタム設定で変わります。「カスタムなし」を選んだときだけ、％に反映されます</div>
     <div class="cgrid">${END_SCREEN.map(c=>ctx.crow('screens.'+c[0],c[1],c[2],c[3]>0,v=>ctx.pct(v,scN))).join('')}</div>
     <div class="hint">終了画面は出るたびに記録します。かのかりBONUSと1GレンCHANCEの終了画面が対象です。画面上部に枠がなければデフォルトで、告知モードにより全6種類に変化します。銀枠はKNKRの文字、金枠はヒロイン4人の画面です。</div>
   </section>
   <section class="sec">
     <div class="sec-h">RB中のキャラ紹介<span class="sub">計${chN}回</span></div>
     <div class="cgrid">${REG_CHARA.map(c=>ctx.crow('chara.'+c[0],c[1],c[2],c[3]>0,v=>ctx.pct(v,chN))).join('')}</div>
-    <div class="hint">紹介順のコスプレ・水着・肺魚に注目。押し順ベル2回ごとにキャラが切り替わり、出るたびに全15パターンのいずれかが選ばれます。①〜⑤はコスプレが何人目から始まるか、⑦〜⑪は肺魚が何人目に出るか、⑥と⑫〜⑮は誰が水着かで見分けます。⑧〜⑪の「設定2否定」〜「設定5否定」は「設定n以上」に読み替えられないため、確定演出には数えず示唆として記録します。</div>
+    <div class="hint">紹介順のコスプレ・水着・肺魚に注目。押し順ベル2回ごとにキャラが切り替わり、出るたびに全15パターンのいずれかが選ばれます。①〜⑤はコスプレが何人目から始まるか、⑦〜⑪は肺魚が何人目に出るか、⑥と⑫〜⑮は誰が水着かで見分けます。⑧〜⑪の「設定2否定」〜「設定5否定」は「設定n以上」には読み替えられないため、示唆として記録します。</div>
   </section>
   <section class="sec">
     <div class="sec-h">1GレンCHANCE 攻略キャラ<span class="sub">初回${scenN}回</span></div>

@@ -134,7 +134,7 @@ check('13 ptMaxは当該周期のみ・cycle示唆・参考示唆・全消去',(
   hint(S,'sub_hito',1);const capped=c.untilWin(S);near(capped.avgPt,100);near(capped.avgCycles,1);assert.equal(capped.p50,100);assert.equal(capped.p80,100);
   hint(S,'sub_v3',2);eq(c.untilWin(S),capped);
   const T=fresh('reset');cyc(T,200);cyc(T,400);cyc(T,200);assert.equal(c.untilWin(T).avgPt,null);
-  assert.ok(read('vvv2-checker.html').includes('checker-data/vvv2.js?v=20261029-histedit'));
+  assert.ok(read('vvv2-checker.html').includes('checker-data/vvv2.js?v=20261107-wording'));
 });
 check('14 追加便E 到達pt集合・見出し・トースト',()=>{
   const cases=[fresh(),fresh(),fresh(),fresh(),fresh()];

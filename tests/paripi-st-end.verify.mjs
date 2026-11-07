@@ -1,3 +1,20 @@
+// 2026-11-07: 指定文言・参照クエリだけをファイル別の期待値へ適用し、全文一致を維持する。
+const wordingChanges={
+  "checker-data/aobuta.js":[["確認手段（アプリ等）と分母条件が未確認のため、現時点で1/x表示は行いません。","現時点では1/xは表示せず、回数だけを表示します。"]],
+  "checker-data/mieruko.js":[["確認手段と分母条件が未確認のため、現時点で1/x表示は行いません。","現時点では1/xは表示せず、回数だけを表示します。"]],
+  "checker-data/kabaneri2.js":[["実測の1/x表示は行いません。出典の確率がどの区間（通常時だけか、ST中も含むか）を分母にしているか明示されていないためです（AGENTS.md §9-70）。下段ベルはST中にも成立するため、上の通常回転数を分母にしても解析値と条件が揃いません。回数だけを記録してください。","回数だけを記録してください。1/xは表示しません。下段ベルはST中にも成立するため、通常回転数で割った値は、解析値と比べられません。"]],
+  "checker-data/takoslot.js":[["出典の確率の分母（通常プレイ数か総プレイ数か）が明示されていないため、実測の1/x表示は行いません（AGENTS.md §9-70）。","1/xは表示しません。"],["分母は0として扱い、確率表示は行いません。","確率は表示しません。"]],
+  "checker-data/juuou.js":[["の分母は0として扱い、確率表示は行いません。","の確率は表示しません。"]],
+  "checker-data/magireco.js":[["分母は0として扱い、確率表示は行いません。","確率は表示しません。"],["表示と記録だけに使います。","回数の表示だけです。"]],
+  "checker-data/otome5.js":[["（解析の分母定義に合わせるため）",""]],
+  "checker-data/enen2.js":[["（通常時は混ぜない。解析の分母定義に合わせるため）","（通常時は混ぜない）"],["分母用","炎炎激闘当選率を見るための回数"],["'罠中 小V成立','炎炎激闘当選率を見るための回数","'罠中 小V成立','十字目変換の発生率を見るための回数"]],
+  "checker-data/jashinchan.js":[["ホール側で出現バランスを変更できるカスタムが搭載されているため、出現頻度そのものは設定推測に使えません。","出現バランスを変更できるカスタムが搭載されており、出現頻度はホールの設定で変わります。"],["設定推測には使わず記録のみです","記録のみです"],["確率の算出には使わず、稼働メモとして保存します。","稼働メモとして保存します（確率は出しません）。"],["AT中の消化分を含む総回転数のため、確率の算出には使わず回数のみ記録します","回数だけを記録します（AT中の消化分を含むため、1/xは出しません）"]],
+  "checker-data/milliongod.js":[["未入力の場合、15枚役は設定推定に使われません。","入力すると、15枚役が設定推測の％に反映されます。"]],
+  "checker-data/monkey5.js":[["5枚役の設定推定に使う分母になります","打ち始めとの差（自遊技G）で5枚役の1/xを出します"]],
+  "checker-data/karakuri2.js":[["分母用","直撃当選率を見るための回数"]],
+  "checker-data/taktop.js":[["分母用","報酬チャンス当選率を見るための回数"]]
+};
+const wordingExpected=(file,s)=>(wordingChanges[file]||[]).reduce((text,[before,after])=>text.split(before).join(after),s);
 // Explicit release audit: node tests/paripi-st-end.verify.mjs [--browser]
 import fs from 'node:fs';
 import vm from 'node:vm';
@@ -73,7 +90,7 @@ assert.deepEqual(clone(c.normalizeState(clone(invalid))),clone(invalid));assert.
 console.log('PASS percentages share known-key total; zero games; template omission/header; legacy/unknown/negative/idempotent state');
 const checker=read('paripi-checker.html'),style=s=>s.match(/<style>([\s\S]*?)<\/style>/)[1];
 assert.doesNotMatch(checker,/noindex/);assert.ok(checker.includes('href="paripi-guide.html">使い方</a>'));
-assert.ok(checker.includes('checker-data/paripi.js?v=20261026"'));assert.ok(checker.includes('checker-engine.js?v=20261102-orphan'));
+assert.ok(checker.includes('checker-data/paripi.js?v=20261107-wording"'));assert.ok(checker.includes('checker-engine.js?v=20261102-orphan'));
 // mhsunbreak は BZ入口の手順3（PR #48）で自機種専用の1行を足した。その1行を除いて共有CSSの一致を見る。
 const mhOnly='.pick-row .pick-table-label,.pick-row .pick-result-label{display:inline-block;white-space:nowrap}\n';
 assert.equal(style(read('mhsunbreak-checker.html')).split(mhOnly).length-1,1);
@@ -118,7 +135,7 @@ for(const name of ['gameSection'])assert.equal(source.match(new RegExp('  functi
 // tenten.js は 10/21 のリールロック記録追加（tests/tenten-1021.verify.mjs で検証）で変更済み。
 // mogumogu.js は 10/21 のED中の巻物・CZ種別の内訳の追加（tests/mogumogu-1021.verify.mjs で検証）で変更済み。
 // tonski.js は 10/21 の333G到達時の女神の舞の記録追加（tests/tonski-1021.verify.mjs で検証）で変更済み。
-for(const p of ['checker-engine.js','checker-bayes.js',...fs.readdirSync(path.join(root,'checker-data')).filter(f=>f.endsWith('.js')&&!f.endsWith('-test.js')&&!['paripi.js','mhsunbreak.js','toaru2.js','kanokari.js','ricorico.js','garei_zero_re.js','mahoako.js','tenten.js','mogumogu.js','tonski.js','seiya12.js','ragnador.js','garo.js','ggo.js','godzieva2.js','vivy.js','vvv2.js'].includes(f)).map(f=>'checker-data/'+f)])assert.equal(beforeOrphan(read(p)),baseline(p),p+' unchanged');
+for(const p of ['checker-engine.js','checker-bayes.js',...fs.readdirSync(path.join(root,'checker-data')).filter(f=>f.endsWith('.js')&&!f.endsWith('-test.js')&&!['paripi.js','mhsunbreak.js','toaru2.js','kanokari.js','ricorico.js','garei_zero_re.js','mahoako.js','tenten.js','mogumogu.js','tonski.js','seiya12.js','ragnador.js','garo.js','ggo.js','godzieva2.js','vivy.js','vvv2.js'].includes(f)).map(f=>'checker-data/'+f)])assert.equal(beforeOrphan(read(p)),wordingExpected(p,baseline(p)),p+' 指定文言以外は不変');
 for(const p of ['checker-data/paripi.js','paripi-checker.html','paripi-guide.html','checkers.html','sitemap.xml','index.html','docs/ARCHITECTURE.md','tests/paripi-st-end.verify.mjs','tests/new-1005-four-machines.test.mjs','tests/new-1005-public.verify.mjs','tests/new-1005-four-machines.browser.mjs'])assert.ok(!read(p).includes('\r'),p+' LF');
 console.log('PASS input HTML / blocks / chart bytes vs c914173; common files and all other machine data unchanged; LF');
 

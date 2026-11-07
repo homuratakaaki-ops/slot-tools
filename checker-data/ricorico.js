@@ -328,14 +328,14 @@
     <div class="gsrc" data-gsrc="myslo" data-field-group="マイスロ"${src==='myslo'?'':' hidden'}>
       ${gamePair('通常ゲーム数','','gamesMysloStart','gamesMyslo',S)}
       ${gamePair('総ゲーム数','任意','gamesMysloTotalStart','gamesMysloTotal',S)}
-      ${src==='myslo'&&denomWarn(S)?`<div class="hint warn">通常ゲーム数の現在が開始を下回っています。通常時${hasTotal(S)&&!otherWarn(S)?'とそれ以外':''}の分母は0として扱い、確率表示は行いません。入力を確認してください。</div>`:''}
-      ${otherWarn(S)?'<div class="hint warn">総ゲーム数の差分が通常ゲーム数の差分を下回っています。それ以外の分母は0として扱い、確率表示は行いません。入力を確認してください。</div>':''}
+      ${src==='myslo'&&denomWarn(S)?`<div class="hint warn">通常ゲーム数の現在が開始を下回っています。通常時${hasTotal(S)&&!otherWarn(S)?'とそれ以外':''}の確率は表示しません。入力を確認してください。</div>`:''}
+      ${otherWarn(S)?'<div class="hint warn">総ゲーム数の差分が通常ゲーム数の差分を下回っています。それ以外の確率は表示しません。入力を確認してください。</div>':''}
       <div class="hint">マイスロの『通常ゲーム数』と『総ゲーム数』を入力します。途中から打ち始めた場合や、途中から数え始めた場合は、その時点の数値を開始欄に入れてください。差分があなたのカウント区間になります。総ゲーム数は任意で、入力するとCZ・RUSH・ボーナス中の共通ベルも確率表示できます。</div>
     </div>
     <div class="gsrc" data-gsrc="real" data-field-group="実機"${src==='real'?'':' hidden'}>
       <div class="inrow"><label>打ち始め時の通常総ゲーム数</label><input type="number" inputmode="numeric" data-number-key="gamesStart" value="${S.gamesStart||''}" placeholder="0"></div>
       <div class="inrow"><label>現在の通常総ゲーム数</label><input type="number" inputmode="numeric" data-number-key="gamesNow" value="${S.gamesNow||''}" placeholder="0"></div>
-      ${src==='real'&&denomWarn(S)?'<div class="hint warn">現在の通常総ゲーム数が打ち始めを下回っています。分母は0として扱い、確率表示は行いません。入力を確認してください。</div>':''}
+      ${src==='real'&&denomWarn(S)?'<div class="hint warn">現在の通常総ゲーム数が打ち始めを下回っています。確率は表示しません。入力を確認してください。</div>':''}
       <div class="hint">実機の通常総ゲーム数を開始と現在で入れます。実機サブ画面の『通常総ゲーム数』を、打ち始めた時点と現在の2回確認して入力してください。差分があなたの遊技分になります。朝イチから打っている場合は打ち始め0で構いません。</div>
     </div>
   </section>`;

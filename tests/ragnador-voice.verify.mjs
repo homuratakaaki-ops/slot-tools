@@ -90,7 +90,7 @@ check('HTML4タブ・noindex・クエリ・ガイド・LF・後読みなし・�
   assert.equal(c.storageKey,'ragnador-checker-v1');assert.equal(c.pages(ctx(fresh()),()=>'').length,4);
   const html=read('ragnador-checker.html'),guide=read('ragnador-guide.html');
   assert.deepEqual([...html.matchAll(/<button data-p="\d"[^>]*>(.*?)<\/button>/g)].map(m=>m[1]),['入力','示唆','参照','カード']);
-  for(const t of ['repeat(4,1fr)','checker-data/ragnador.js?v=20261106-addl'])assert.ok(html.includes(t));
+  for(const t of ['repeat(4,1fr)','checker-data/ragnador.js?v=20261107-wording'])assert.ok(html.includes(t));
   for(const kind of ['name="description"','property="og:description"'])assert.ok(html.split(kind)[1].split('>')[0].includes('ボイス示唆'));
   for(const t of [...TITLES,'2026年11月6日','母数','確定演出'])assert.ok(guide.includes(t));
   assert.ok(!c.pages(ctx(fresh()),()=>'')[0]().includes('調査中'));assert.ok(!guide.includes('調査中'));

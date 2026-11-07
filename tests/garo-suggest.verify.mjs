@@ -396,7 +396,7 @@ const EXPECTED={
   ]
 };
 const TITLES=["BONUS・金色になれ！終了画面","究極魔戒RUSH終了画面","トントントロフィー","獲得枚数表示","3000枚BONUS中のランプ","ステップアップの文字","設定示唆のアイテム"];
-const HINTS=["初当りBONUSと金色になれ！の終了画面で設定を示唆します。ザルバ（復活）は設定示唆ではないため記録しません。","究極魔戒RUSHの終了画面で設定を示唆します。","初当りBONUS終了時・金色になれ！敗北時・究極魔戒RUSH終了時に出現することがあります。出現頻度はホールが調整できるため、出ないことは設定の根拠になりません。","一定枚数の獲得時に表示される「○○○枚OVER」の一部で設定を示唆します。","3000枚BONUS中にレア役が成立するとPUSHボタンが促され、押すと筐体ランプの色で示唆します。","通常時に画面下部のステップアップUIに文字が出現すると、次回ボーナスの種類と設定を示唆します。","通常時のアイテム転送で出現します。規定G数は滞在モードの天井G数（111G・222G…）です。"];
+const HINTS=["初当りBONUSと金色になれ！の終了画面で設定を示唆します。ザルバ（復活）は設定示唆ではないため記録しません。","究極魔戒RUSHの終了画面で設定を示唆します。","初当りBONUS終了時・金色になれ！敗北時・究極魔戒RUSH終了時に出現することがあります。出現率はホール設定で変わります。","一定枚数の獲得時に表示される「○○○枚OVER」の一部で設定を示唆します。","3000枚BONUS中にレア役が成立するとPUSHボタンが促され、押すと筐体ランプの色で示唆します。","通常時に画面下部のステップアップUIに文字が出現すると、次回ボーナスの種類と設定を示唆します。","通常時のアイテム転送で出現します。規定G数は滞在モードの天井G数（111G・222G…）です。"];
 const SHORT={"dWhite":"ダイヤ白","dCyan":"ダイヤ水色","dGreen":"ダイヤ緑","dYellow":"ダイヤ黄","dOrange":"ダイヤオレンジ","gAll":"ロゴ全オレンジ","gAro":"ロゴARO橙","gRo":"ロゴRO橙","gO":"ロゴO橙","gRainbow":"ロゴ全虹","gNot2":"G青ARO黄","gNot3":"A青GRO黄","gNot4":"R青GAO黄"};
 const NOTICE="友・義・乱、魔導紀元史・金城グループマーク・プラント・尊士の剣・禁断のオブジェは、条件を満たしたと確認できたときだけ押してください。出ただけでは押しません。";
 const box={window:{}};vm.createContext(box);vm.runInContext(read('checker-data/garo.js'),box);
@@ -465,7 +465,7 @@ check('HTML4タブ・公開（index可）・クエリ・ガイド・LF・後読�
   assert.equal(c.storageKey,'garo-checker-v1');assert.equal(c.pages(ctx(fresh()),()=>'').length,4);
   const html=read('garo-checker.html'),guide=read('garo-guide.html');
   assert.deepEqual([...html.matchAll(/<button data-p="\d"[^>]*>(.*?)<\/button>/g)].map(m=>m[1]),['入力','示唆','参照','カード']);
-  for(const t of ['repeat(4,1fr)','checker-data/garo.js?v=20261102-garo'])assert.ok(html.includes(t));
+  for(const t of ['repeat(4,1fr)','checker-data/garo.js?v=20261107-wording'])assert.ok(html.includes(t));
   for(const t of [...TITLES,'2026年11月2日','分母','確定演出'])assert.ok(guide.includes(t));
   assert.ok(!c.pages(ctx(fresh()),()=>'')[0]().includes('調査中'));assert.ok(!guide.includes('調査中'));
   const tmp=fs.mkdtempSync(path.join(process.env.CHECKER_ARTIFACTS||os.tmpdir(),'garo-syntax-'));

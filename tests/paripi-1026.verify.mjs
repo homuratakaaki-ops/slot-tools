@@ -42,7 +42,7 @@ const CYCLE=['17.2','16.6','15.9','15.1','14.2','13.3'];
 const IINE_HINT='渋谷決戦ボーナス中に表示されるイイネポイントの下3桁を記録します。獲得枚数の『○○○ OVER』とは別の表示なので、両方出たら両方記録します。出典の『設定示唆が出ると勝利も濃厚!?』は暫定表記のため扱いません。';
 // 10/27 シオン指示：母数は「小役が揃って孔明前世へ移行した回数」（出典の定義に合わせる）
 const ROLE_HINT='士気高揚ゾーン中に小役が揃って孔明前世（ボーナス前兆）へ移行したとき、ボーナスに当選したら当選、当選せず戻ったらハズレで記録します。小役が揃っても前世へ移行しなかったときは押しません。役ごとに分けて押してください。既存の『突入／なし』とは別の記録です。';
-const STECHEN_HINT='CZ天井までの平均周期回数は設定1 17.2回⇔設定6 13.3回（設定2 16.6／3 15.9／4 15.1／5 14.2）。平均のみ公表で分布は未公表のため、推定には使いません。';
+const STECHEN_HINT='CZ天井までの平均周期回数は設定1 17.2回⇔設定6 13.3回（設定2 16.6／3 15.9／4 15.1／5 14.2）。平均のみ公表で分布は未公表のため、記録のみです。';
 
 // 示唆タブ：イイネ9行は獲得枚数の直後、ED中の1枚絵の前。全行が確定演出（hot）、割合なし
 const rows=[],shisa=c.pages(ctx(state(),rows),()=> '')[2]();
@@ -208,7 +208,7 @@ console.log('PASS 4: テンプレ v03 = v02 + 8行（位置固定）、全0出�
 
 // ---- 5. 公開まわり：?v=・NEW欄 ----
 const checkerHtml=read(PAGE.slice(1));
-assert.ok(checkerHtml.includes(DATA+'?v=20261026'));
+assert.ok(checkerHtml.includes(DATA+'?v=20261107-wording'));
 if(PAGE==='/paripi-checker.html'){
   const news=read('index.html').split('<div class="section-label">NEW</div>')[1].split('</section>')[0];
   assert.equal((news.match(/<p>/g)||[]).length,8);

@@ -274,7 +274,7 @@
     <div class="sec-h">回転数<span class="sub">自遊技 <b style="color:${neg?'#ff5c5c':'#6fd8ff'}">${freeText(S)}</b></span></div>
     <div class="inrow"><label>打ち始めの回転数</label><input type="number" inputmode="numeric" data-number-key="startGames" value="${S.startGames||''}" placeholder="0"></div>
     <div class="inrow" style="margin-top:6px"><label>現在の回転数</label><input type="number" inputmode="numeric" data-number-key="currentGames" value="${S.currentGames||''}" placeholder="0"></div>
-    <div class="hint ${neg?'hot':''}">データカウンターのG数を入力。5枚役の設定推定に使う分母になります${neg?'。現在G数が打ち始めG数を下回っています。':''}</div>
+    <div class="hint ${neg?'hot':''}">データカウンターのG数を入力。打ち始めとの差（自遊技G）で5枚役の1/xを出します${neg?'。現在G数が打ち始めG数を下回っています。':''}</div>
   </section>
   <section class="sec">
     <div class="sec-h">5枚役</div>

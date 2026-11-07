@@ -1,3 +1,15 @@
+
+// 2026-11-07: 指定された文言だけを過去版の期待値へ適用し、全文一致を維持する。
+const wordingExpected=s=>[
+  [
+    "合計が設定推定の分母になります。",
+    "当選ごとのG数を合計して、1/xを出します。"
+  ],
+  [
+    "設定推定の分母には使わず、当選ごとのG数の合計を使います。",
+    "このツールには、当選ごとのG数を入れてください。"
+  ]
+].reduce((text,[before,after])=>text.split(before).join(after),s);
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
@@ -24,8 +36,8 @@ for(const id of ['seiya12','ragnador','ggo']){
   for(const f of [`checker-data/${id}-test.js`,`${id}-test-checker.html`])assert.ok(!fs.existsSync(path.join(root,f)),f);
   // 本番JS＝検収したテスト版から、設定名と保存キーの1行ずつを本番に戻しただけ。
   const tested=git('show',`${BASE}:checker-data/${id}-test.js`).replace(new RegExp(`window\\.CheckerConfigs\\[(['"])${id}-test\\1\\]=\\{`),`window.CheckerConfigs.${id}={`).replace(`${id}-checker-v1-test`,`${id}-checker-v1`);
-  assert.equal(source,tested);assert.ok(!/-test\b|_test_/.test(source));
-  assert.equal(read(`${id}-checker.html`),git('show',`${BASE}:${id}-checker.html`).replace(new RegExp('checker-data/'+id+'\\.js\\?v=[^"\\s]+'),`checker-data/${id}.js?v=20261106-addl`));
+  assert.equal(source,wordingExpected(tested));assert.ok(!/-test\b|_test_/.test(source));
+  assert.equal(read(`${id}-checker.html`),git('show',`${BASE}:${id}-checker.html`).replace(new RegExp('checker-data/'+id+'\\.js\\?v=[^"\\s]+'),`checker-data/${id}.js?v=20261107-wording`));
   const defaults=clone(c.defaults);if(id==='seiya12')delete defaults.gfLamp;if(id==='ragnador')delete defaults.counts.czKakutei;
   assert.deepEqual(defaults,clone(b.defaults));
   // 公開APIのうち許可のない定義・関数は本番と同じ。
@@ -99,7 +111,8 @@ check('構文・LF・保護ファイル・テスト版への導線なし',()=>{
   for(const [i,m] of [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)].entries())if(!/\bsrc=/.test(m[1])){const f=path.join(dir,id+i+'.mjs');fs.writeFileSync(f,m[2]);execFileSync(process.execPath,['--check',f]);}
   for(const p of ['index.html','checkers.html','sitemap.xml'])assert.ok(!read(p).includes('-test-checker.html'));
  }
- assert.equal(git('diff',BASE,'--','checker-engine.js','checkers.html','sitemap.xml','AGENTS.md'),'');
+ assert.equal(read('AGENTS.md'),git('show',BASE+':AGENTS.md').trimEnd()+"\n\n## §9-109【画面の文言は使う人の言葉で書く】\n\n画面・ガイド・カード・テンプレに出る文言は、使う人が「何が起きるか」「どう受け取ればよいか」「どう入力すればよいか」を書く。ツール内部の計算の扱い（「推定には使いません」「根拠にしません」など）は画面に書かず、仕様書とコードのコメントに書く。例：×「出ないことを低設定の根拠にしません」→ ○「出現率はホール設定で変わります。」（2026-11-06 夢爽採用）\n％や候補に反映されるかどうかを書く必要があるときは、「％に反映されます／されません」「候補から外します」のように、使う人に見える表示の動きで書く。\n");
+ assert.equal(git('diff',BASE,'--','checker-engine.js','checkers.html','sitemap.xml'),'');
 });
 // 利用者向けの文言（夢爽 11/6）：ツール内部の計算の扱いを書いた文を残さない。
 check('文言：内部の計算の扱いの文がない・新しい文がある・星矢GFランプのサマリー行',()=>{

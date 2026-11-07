@@ -119,15 +119,15 @@
     return `<section class="sec">
     <div class="sec-h">伝導者の罠</div>
     <div class="cgrid">
-      ${ctx.crow('cz.trap','伝導者の罠 突入','分母用',0)}
+      ${ctx.crow('cz.trap','伝導者の罠 突入','炎炎激闘当選率を見るための回数',0)}
       ${ctx.crow('cz.trapHit','罠から炎炎激闘 当選','期待度約40%・5連続スルーで次回SPエピボ',0,n=>ctx.pct(n,ctx.S.cz.trap))}
-      ${ctx.crow('cz.smallv','罠中 小V成立','分母用。伝導者の罠中のみ記録',0)}
+      ${ctx.crow('cz.smallv','罠中 小V成立','十字目変換の発生率を見るための回数。伝導者の罠中のみ記録',0)}
       ${ctx.crow('cz.convert','罠中 十字目変換 発生','発生率 設1:42%⇔高設定:50%',1,n=>ctx.pct(n,ctx.S.cz.smallv))}
       ${ctx.crow('cz.convertBonus','変換からボーナス当選','期待度 設1:30%⇔高設定:40%',1,n=>ctx.pct(n,ctx.S.cz.convert))}
       ${ctx.crow('cz.giovanni','バトル ジョヴァンニ','伝導者バトル',0)}
       ${ctx.crow('cz.orochi','バトル オロチ','オロチ発展は期待度85%',0)}
     </div>
-    <div class="hint">⚠小V・変換のカウントは伝導者の罠中のみ行う（通常時は混ぜない。解析の分母定義に合わせるため）。</div>
+    <div class="hint">⚠小V・変換のカウントは伝導者の罠中のみ行う（通常時は混ぜない）。</div>
   </section>`;
   }
   function pageShisa(ctx){

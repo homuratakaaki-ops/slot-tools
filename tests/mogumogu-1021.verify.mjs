@@ -72,7 +72,7 @@ check('guide values, metadata, NEW 8 rows and cache query',()=>{
   [[354,3778,324],[349,3477,317],[341,3359,310],[331,3101,299],[330,2510,292],[324,2507,287]].forEach((r,i)=>assert.ok(g.includes(`<tr><td>設定${i+1}</td>${r.map(n=>`<td>1/${n}</td>`).join('')}</tr>`)));
   for(const n of ['青巻物','黄巻物','緑巻物','赤巻物','虹巻物'])assert.ok(g.includes(n));assert.ok(!g.includes('エンディング中の1枚絵'));
   for(const m of g.matchAll(/<meta (?:name="description"|property="og:description") content="([^"]+)"/g)){assert.ok(m[1].includes('巻物')&&m[1].includes('CZ内訳'));}
-  assert.ok(read('mogumogu-checker.html').includes('checker-data/mogumogu.js?v=20261021'));
+  assert.ok(read('mogumogu-checker.html').includes('checker-data/mogumogu.js?v=20261107-wording'));
   const news=read('index.html').split('<div class="section-label">NEW</div>')[1].split('</section>')[0];const links=[...news.matchAll(/<p>[^\n]+<\/p>/g)];assert.equal(links.length,8);/* 8行上限（§9-92）で 11/2 に消えた。残っているあいだだけ見る */if(news.includes('mogumogu-checker.html'))assert.ok(links.some(l=>l[0].includes('<a href="mogumogu-checker.html">モグモグ風林火山 ED中の巻物示唆・CZ種別の内訳を追加</a>')));   // 先頭行は後の更新で変わる（10/22 サンブレイク）
 });
 check('existing outputs unchanged except specified additions',()=>{

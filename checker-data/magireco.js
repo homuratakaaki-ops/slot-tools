@@ -219,7 +219,7 @@
         ${ctx.crow('counts.at','AT初当り',`設1:1/654.6⇔設6:1/416.7${rateSuffix(g,n(S.counts,'at'))}`,1)}
         ${ctx.crow('counts.bonus','ボーナス初当り',`設1:1/240.6⇔設6:1/184.3${rateSuffix(g,n(S.counts,'bonus'))}`,0)}
       </div>
-      <div class="hint">ボーナス初当りは記録のみです。AT初当りと連動して動くため、表示と記録だけに使います。</div>
+      <div class="hint">ボーナス初当りは記録のみです。AT初当りと連動して動くため、回数の表示だけです。</div>
     </section>
     <section class="sec"><div class="sec-h">弱チェリー<span class="sub">設1:1/60.0⇔設6:1/50.0${rateSuffix(cherryDenom(S),cherryHit(S))}</span></div>
       ${gameSrcOf(S)==='unimemo'
@@ -308,7 +308,7 @@
     <div class="gsrc" data-gsrc="real"${src==='real'?'':' hidden'}>
       <div class="inrow"><label>打ち始め時の通常ゲーム数</label><input type="number" inputmode="numeric" data-number-key="gamesStart" value="${S.gamesStart||''}" placeholder="0"></div>
       <div class="inrow"><label>現在の通常ゲーム数</label><input type="number" inputmode="numeric" data-number-key="gamesNow" value="${S.gamesNow||''}" placeholder="0"></div>
-      ${denomWarn(S)?'<div class="hint warn">現在の通常ゲーム数が打ち始めを下回っています。分母は0として扱い、確率表示は行いません。入力を確認してください。</div>':''}
+      ${denomWarn(S)?'<div class="hint warn">現在の通常ゲーム数が打ち始めを下回っています。確率は表示しません。入力を確認してください。</div>':''}
       <div class="hint">実機の通常ゲーム数を2回見て入れます。打ち始めた時点と現在の2回確認して入力してください。差分があなたの遊技分になります。朝イチから打っている場合は打ち始め0で構いません。</div>
     </div>
   </section>`;

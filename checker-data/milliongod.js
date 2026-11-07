@@ -265,7 +265,7 @@
       <div class="inrow"><label>打ち始めの回転数</label><input type="number" inputmode="numeric" data-number-key="startGames" value="${S.startGames||''}" placeholder="0"></div>
       <div class="inrow" style="margin-top:6px"><label>15枚役のカウント開始G数</label><button type="button" class="mini-btn" data-copy-number-from="startGames" data-copy-number-to="nav15StartGames" data-copy-number-flag="nav15StartSet">打ち始めと同じにする</button><input type="number" inputmode="numeric" data-number-key="nav15StartGames" data-number-set-flag="nav15StartSet" value="${hasNav15Start(S)?S.nav15StartGames:''}" placeholder="0"></div>
       <div class="inrow" style="margin-top:6px"><label>現在の回転数</label><input type="number" inputmode="numeric" data-number-key="currentGames" value="${S.currentGames||''}" placeholder="0"></div>
-      <div class="hint ${(neg||navNeg)?'hot':''}">データカウンターのG数を入力します。15枚役のカウント開始G数は、15枚役を数え始めた時点のG数を入力してください。未入力の場合、15枚役は設定推定に使われません。${neg?' 現在G数が打ち始めG数を下回っています。':''}${navNeg?' 現在G数が15枚役のカウント開始G数を下回っています。':''}</div>
+      <div class="hint ${(neg||navNeg)?'hot':''}">データカウンターのG数を入力します。15枚役のカウント開始G数は、15枚役を数え始めた時点のG数を入力してください。入力すると、15枚役が設定推測の％に反映されます。${neg?' 現在G数が打ち始めG数を下回っています。':''}${navNeg?' 現在G数が15枚役のカウント開始G数を下回っています。':''}</div>
     </section>
     <section class="sec"><div class="sec-h">カウント系</div>
       <div class="cgrid">

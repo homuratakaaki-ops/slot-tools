@@ -140,7 +140,7 @@
   <section class="sec">
     <div class="sec-h">報酬チャンス</div>
     <div class="cgrid">
-      ${ctx.crow('cz.rewardReach','0pt到達（999pt減算）','分母用',0)}
+      ${ctx.crow('cz.rewardReach','0pt到達（999pt減算）','報酬チャンス当選率を見るための回数',0)}
       ${ctx.crow('cz.rewardHit','報酬チャンス当選','設1:27.2%⇔設4:31.2%',1,n=>ctx.pct(n,ctx.S.cz.rewardReach))}
     </div>
   </section>
