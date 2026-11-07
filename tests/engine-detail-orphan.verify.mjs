@@ -95,10 +95,13 @@ check('all root HTML changes are exactly the engine query',()=>{
     if(file.endsWith('-test-checker.html')){assert.ok(now.includes('checker-engine.js?v=20261102-orphan'),file);count++;continue;}
     let base=git('show','d279952:'+file);
     if(file==='godzieva2-checker.html')base=base.replace('checker-data/godzieva2.js?v=20261101-nana4','checker-data/godzieva2.js?v=20261102-nana5');
-    if(file==='vivy-checker.html')base=base.replace('checker-data/vivy.js?v=20261102-suggest','checker-data/vivy.js?v=20261102-nana');
+    if(file==='vivy-checker.html')base=base.replace('checker-data/vivy.js?v=20261102-suggest','checker-data/vivy.js?v=20261107-wording');
     // 追加解析5機種の本番反映（11/6）は機種データの ?v だけが変わる。
     const addl=file.match(/^(seiya12|ragnador|ggo|godzieva2|mhsunbreak)-checker\.html$/);
     if(addl)base=base.replace(new RegExp('checker-data/'+addl[1]+'\\.js\\?v=[^"]+'),'checker-data/'+addl[1]+'.js?v=20261106-addl');
+    // 今回更新した28機種の参照クエリだけを期待値に反映する。
+    const wordingIds=["aobuta","enen2","garei_zero_re","garo","ggo","godzieva2","jashinchan","juuou","kabaneri2","kanokari","karakuri2","magireco","mahoako","mhsunbreak","mieruko","milliongod","mogumogu","monkey5","otome5","paripi","ragnador","ricorico","seiya12","takoslot","taktop","toaru2","vivy","vvv2"];
+    for(const id of wordingIds)base=base.replace(new RegExp('checker-data/'+id+'\\.js\\?v=[^"\\s]+'),'checker-data/'+id+'.js?v=20261107-wording');
     assert.equal(now,base.replaceAll('checker-engine.js?v=20260924','checker-engine.js?v=20261102-orphan'),file);count++;
   }
   assert.ok(count>=36,String(count));

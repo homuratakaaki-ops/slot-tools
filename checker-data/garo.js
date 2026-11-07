@@ -13,7 +13,7 @@
   ];
   const PAYOUT={1:97.5,2:98.8,3:101.2,4:104.6,5:110.5,6:114.9};
   const HINTS={
-    games:'当選するたびに、その当選までのG数（ホールのデータカウンターの当選G、または台メニューのAT間G）を入力して追加します。合計が設定推定の分母になります。今まわしている未当選区間のG数は分母に含めません。',
+    games:'当選するたびに、その当選までのG数（ホールのデータカウンターの当選G、または台メニューのAT間G）を入力して追加します。当選ごとのG数を合計して、1/xを出します。今まわしている未当選区間のG数は分母に含めません。',
     counts:"牙狼モード・魔界の通常CZを合算。『金色になれ！』は別段階で数えない。SUPER GARO BONUS・RUSH は初当りに含めない。"
   };
   const REF_NOTES=['当ページの解析値は第三者の独自調査値です。'];
@@ -87,7 +87,7 @@
   };
   const TITLES={"bonusEnd":"BONUS・金色になれ！終了画面","rushEnd":"究極魔戒RUSH終了画面","trophy":"トントントロフィー","payout":"獲得枚数表示","lamp":"3000枚BONUS中のランプ","stepup":"ステップアップの文字","item":"設定示唆のアイテム"};
   const DETAIL_TITLES={"bonusEnd":"BONUS終了","rushEnd":"RUSH終了","trophy":"トロフィー","payout":"枚数表示","lamp":"3000枚ランプ","stepup":"ステップアップ","item":"アイテム"};
-  const SUGGEST_HINTS={"bonusEnd":"初当りBONUSと金色になれ！の終了画面で設定を示唆します。ザルバ（復活）は設定示唆ではないため記録しません。","rushEnd":"究極魔戒RUSHの終了画面で設定を示唆します。","trophy":"初当りBONUS終了時・金色になれ！敗北時・究極魔戒RUSH終了時に出現することがあります。出現頻度はホールが調整できるため、出ないことは設定の根拠になりません。","payout":"一定枚数の獲得時に表示される「○○○枚OVER」の一部で設定を示唆します。","lamp":"3000枚BONUS中にレア役が成立するとPUSHボタンが促され、押すと筐体ランプの色で示唆します。","stepup":"通常時に画面下部のステップアップUIに文字が出現すると、次回ボーナスの種類と設定を示唆します。","item":"通常時のアイテム転送で出現します。規定G数は滞在モードの天井G数（111G・222G…）です。"};
+  const SUGGEST_HINTS={"bonusEnd":"初当りBONUSと金色になれ！の終了画面で設定を示唆します。ザルバ（復活）は設定示唆ではないため記録しません。","rushEnd":"究極魔戒RUSHの終了画面で設定を示唆します。","trophy":"初当りBONUS終了時・金色になれ！敗北時・究極魔戒RUSH終了時に出現することがあります。出現率はホール設定で変わります。","payout":"一定枚数の獲得時に表示される「○○○枚OVER」の一部で設定を示唆します。","lamp":"3000枚BONUS中にレア役が成立するとPUSHボタンが促され、押すと筐体ランプの色で示唆します。","stepup":"通常時に画面下部のステップアップUIに文字が出現すると、次回ボーナスの種類と設定を示唆します。","item":"通常時のアイテム転送で出現します。規定G数は滞在モードの天井G数（111G・222G…）です。"};
   const LAMP_LABELS={"dWhite":"ダイヤ白","dCyan":"ダイヤ水色","dGreen":"ダイヤ緑","dYellow":"ダイヤ黄","dOrange":"ダイヤオレンジ","gAll":"ロゴ全オレンジ","gAro":"ロゴARO橙","gRo":"ロゴRO橙","gO":"ロゴO橙","gRainbow":"ロゴ全虹","gNot2":"G青ARO黄","gNot3":"A青GRO黄","gNot4":"R青GAO黄"};
   const CONDITION_NOTICE="友・義・乱、魔導紀元史・金城グループマーク・プラント・尊士の剣・禁断のオブジェは、条件を満たしたと確認できたときだけ押してください。出ただけでは押しません。";
   const DEF={gameLog:[],games:0,counts:Object.fromEntries(COUNTS.map(c=>[c[0],0])),...Object.fromEntries(Object.entries(GROUPS).map(([key,arr])=>[key,Object.fromEntries(arr.map(c=>[c[0],0]))])),img:null,iconChoice:null};

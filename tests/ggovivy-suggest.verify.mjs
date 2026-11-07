@@ -1,3 +1,18 @@
+// 2026-11-07: 指定文言だけを過去版の期待値へ適用し、全文一致を維持する。
+const wordingExpected=s=>[
+  [
+    "合計が設定推定の分母になります。",
+    "当選ごとのG数を合計して、1/xを出します。"
+  ],
+  [
+    "出現率はホールが調整できるため、出ないことは設定の根拠になりません。",
+    "出現率はホール設定で変わります。"
+  ],
+  [
+    "示唆内容は出典で推測とされているため、確定演出には数えません。",
+    "示唆内容は出典でも推測の段階のため、カードの確定演出の欄には出ません。"
+  ]
+].reduce((text,[before,after])=>text.split(before).join(after),s);
 // node tests/ggovivy-suggest.verify.mjs — GGO・Vivy 示唆（本番、§9-108-2 で 65de568 のテスト版から反映）。
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -288,7 +303,7 @@ for(const [id,groups] of Object.entries(EXPECTED)){
    const reverted=html.replace('checker-engine.js?v=20261102-orphan','checker-engine.js?v=20260924').replace('repeat(4,1fr)','repeat(3,1fr)').replace('<button data-p="1">示唆</button><button data-p="2">参照</button><button data-p="3">カード</button>','<button data-p="1">参照</button><button data-p="2">カード</button>').replace('checker-data/'+id+'.js?v=20261102-suggest',old.match(new RegExp('checker-data/'+id+'\\.js\\?v=[^" ]+'))[0]);assert.equal(reverted,old);
    const guide=read(id+'-guide.html');
    assert.ok(guide.includes('<h2>示唆タブ</h2>')&&guide.includes('「入力」「示唆」「参照」「カード」')&&guide.includes(id==='ggo'?'2026年11月6日確認':'2026年11月2日確認'));assert.ok(!guide.includes('設定示唆（終了画面・トロフィーなど）は出典で調査中'));
-   for(const h of Object.values(HINTS).filter((h,i)=>Object.keys(HINTS)[i] in groups))assert.ok(guide.includes(h),h);
+   for(const h of Object.values(HINTS).filter((h,i)=>Object.keys(HINTS)[i] in groups))assert.ok(guide.includes(wordingExpected(h)),wordingExpected(h));
    const tmp=fs.mkdtempSync(path.join(process.env.CHECKER_ARTIFACTS||os.tmpdir(),'ggovivy-syntax-'));
    for(const p of [id+'-checker.html',id+'-guide.html','checker-data/'+id+'.js']){const src=read(p);assert.ok(!src.includes('\r'));assert.doesNotMatch(src,/\(\?<([=!])/);assert.doesNotMatch(src,/濃厚示唆|最強|設定差なし/);if(p.endsWith('.js'))execFileSync(process.execPath,['--check',path.join(root,p)]);else for(const [i,m] of [...src.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)].entries())if(!/\bsrc=/.test(m[1])){const f=path.join(tmp,id+i+'.mjs');fs.writeFileSync(f,m[2]);execFileSync(process.execPath,['--check',f]);}}
  });

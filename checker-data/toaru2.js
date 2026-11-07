@@ -222,7 +222,7 @@ function detail(ctx){
     }
     return bayesStyle()+`<section class="sec"><div class="sec-h">設定推測</div>
     <div class="hint">記録した内容から、各設定である可能性を%で表示します。</div>${body}
-    <div class="hint">AT終了画面の振り分けと確定演出から推定します。CZ・AT確率は通常ゲーム数が取れないため推定に使いません。終了画面は毎回記録してください（残り◯G系の画面はカウント対象外）。</div>
+    <div class="hint">AT終了画面の振り分けと確定演出から推定します。CZ・AT確率は通常ゲーム数が取れないため、％には反映されません。終了画面は毎回記録してください（残り◯G系の画面はカウント対象外）。</div>
     </section>`;
   }
   function pageShisa(ctx){

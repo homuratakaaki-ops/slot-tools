@@ -1,3 +1,19 @@
+// 2026-11-07: 指定文言・参照クエリだけをファイル別の期待値へ適用し、全文一致を維持する。
+const wordingChanges={
+  "checker-data/aobuta.js":[["確認手段（アプリ等）と分母条件が未確認のため、現時点で1/x表示は行いません。","現時点では1/xは表示せず、回数だけを表示します。"]],
+  "checker-data/mieruko.js":[["確認手段と分母条件が未確認のため、現時点で1/x表示は行いません。","現時点では1/xは表示せず、回数だけを表示します。"]],
+  "checker-data/mogumogu.js":[["確認手段と分母条件が未確認のため、現時点で1/x表示は行いません。","現時点では1/xは表示せず、回数だけを表示します。"]],
+  "checker-data/kabaneri2.js":[["実測の1/x表示は行いません。出典の確率がどの区間（通常時だけか、ST中も含むか）を分母にしているか明示されていないためです（AGENTS.md §9-70）。下段ベルはST中にも成立するため、上の通常回転数を分母にしても解析値と条件が揃いません。回数だけを記録してください。","回数だけを記録してください。1/xは表示しません。下段ベルはST中にも成立するため、通常回転数で割った値は、解析値と比べられません。"]],
+  "checker-data/juuou.js":[["の分母は0として扱い、確率表示は行いません。","の確率は表示しません。"]],
+  "checker-data/otome5.js":[["（解析の分母定義に合わせるため）",""]],
+  "checker-data/enen2.js":[["（通常時は混ぜない。解析の分母定義に合わせるため）","（通常時は混ぜない）"],["分母用","炎炎激闘当選率を見るための回数"],["'罠中 小V成立','炎炎激闘当選率を見るための回数","'罠中 小V成立','十字目変換の発生率を見るための回数"]],
+  "checker-data/jashinchan.js":[["ホール側で出現バランスを変更できるカスタムが搭載されているため、出現頻度そのものは設定推測に使えません。","出現バランスを変更できるカスタムが搭載されており、出現頻度はホールの設定で変わります。"],["設定推測には使わず記録のみです","記録のみです"],["確率の算出には使わず、稼働メモとして保存します。","稼働メモとして保存します（確率は出しません）。"],["AT中の消化分を含む総回転数のため、確率の算出には使わず回数のみ記録します","回数だけを記録します（AT中の消化分を含むため、1/xは出しません）"]],
+  "checker-data/milliongod.js":[["未入力の場合、15枚役は設定推定に使われません。","入力すると、15枚役が設定推測の％に反映されます。"]],
+  "checker-data/monkey5.js":[["5枚役の設定推定に使う分母になります","打ち始めとの差（自遊技G）で5枚役の1/xを出します"]],
+  "checker-data/karakuri2.js":[["分母用","CZ当選率を見るための回数"]],
+  "checker-data/taktop.js":[["分母用","報酬チャンス当選率を見るための回数"]]
+};
+const wordingExpected=(file,s)=>(wordingChanges[file]||[]).reduce((text,[before,after])=>text.split(before).join(after),s);
 // Release audit: run explicitly against the instructed base; not a history-dependent unit test.
 import fs from 'node:fs';
 import vm from 'node:vm';
@@ -127,6 +143,6 @@ const approvedData={
 };
 for(const file of ['checker-engine.js','checker-bayes.js',...fs.readdirSync(new URL('checker-data/',root)).filter(f=>f.endsWith('.js')&&!f.endsWith('-test.js')&&!['mhsunbreak.js','magireco.js','tenten.js','takoslot.js','paripi.js','toaru2.js','kanokari.js','ricorico.js','garei_zero_re.js','mahoako.js','seiya12.js','ragnador.js','garo.js','ggo.js','godzieva2.js','vivy.js','vvv2.js'].includes(f)).map(f=>'checker-data/'+f)]){
   const expected=approvedData[file]?execFileSync('git',['show',approvedData[file]+':'+file],{encoding:'utf8'}):hitBaseline(file);
-  bytes(beforeOrphan(read(file)),expected);
+  bytes(beforeOrphan(read(file)),wordingExpected(file,expected));
 }
 console.log('PASS both common files and every other machine data file: #76/#77 approved heads exact, others vs 74f8e03; MH golden validated above');

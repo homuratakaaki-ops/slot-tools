@@ -65,7 +65,7 @@ check('通常CZ合計と種別割合は2種のみ・旧不明を無視',()=>{
   for(const s of ['サガバトル','セット継続・上位移行・千日戦争の引戻しは数えません','CZ成功からの自動加算はしません'])assert.ok(pages(fresh())[0]().includes(s),s);
 });
 check('当選ごとのG: 入力欄・追加・最後の1件の取消・hint・注記の移動',()=>{
-  const HINT='当選するたびに、その当選までのG数（ホールのデータカウンターの当選G、または台メニューのAT間G）を入力して追加します。合計が設定推定の分母になります。今まわしている未当選区間のG数は分母に含めません。';
+  const HINT='当選するたびに、その当選までのG数（ホールのデータカウンターの当選G、または台メニューのAT間G）を入力して追加します。当選ごとのG数を合計して、1/xを出します。今まわしている未当選区間のG数は分母に含めません。';
   const S=fresh(),cx=ctx(S),input=()=>pages(S)[0]();
   assert.ok(input().includes(`<div class="hint">${HINT}</div>`));
   assert.ok(input().includes('<label>当選時のG数</label><input type="number" inputmode="numeric" id="gameLogIn" value=""'));
@@ -80,7 +80,7 @@ check('当選ごとのG: 入力欄・追加・最後の1件の取消・hint・�
   assert.equal(c.card.metaText(cx,'2026/10/28'),'2026/10/28  累計通常G 600G（2件）');
   assert.equal(c.actions.popGameLog(cx),'当選G 180G を取り消し');assert.deepEqual(clone(S.gameLog),[420]);
   const ref=pages(S)[2]();
-  assert.ok(ref.includes('<td>液晶・メニューのG数</td><td>液晶G数は設定変更時と電源OFF→ON時に0Gへ戻ります（電源OFF→ONでは内部状態を引き継ぎます）。メニューのAT間G数も設定変更で0に戻ります。設定推定の分母には使わず、当選ごとのG数の合計を使います。</td>'));
+  assert.ok(ref.includes('<td>液晶・メニューのG数</td><td>液晶G数は設定変更時と電源OFF→ON時に0Gへ戻ります（電源OFF→ONでは内部状態を引き継ぎます）。メニューのAT間G数も設定変更で0に戻ります。このツールには、当選ごとのG数を入れてください。</td>'));
   assert.ok(read('seiya12-guide.html').includes('当選するたびに、その当選までのG数（ホールのデータカウンターの当選G、または台メニューのAT間G）'));
   assert.ok(read('docs/specs/seiya12-checker-v01.md').includes('分母＝当選ごとのG合計（§9-105）'));
 });
@@ -167,7 +167,7 @@ check('HTML: 公開（index可・checkers.html／sitemap 掲載）・推測タ�
   const html=read('seiya12-checker.html');
   assert.deepEqual([...html.matchAll(/<button data-p="\d"[^>]*>(.*?)<\/button>/g)].map(m=>m[1]),['入力','示唆','参照','カード']);
   assert.ok(!html.includes('checker-bayes.js'));
-  for(const s of ['checker-engine.js?v=20261102-orphan','checker-data/seiya12.js?v=20261106-addl','CheckerEngine.mount(CheckerConfigs.seiya12);','seiya12-guide.html'])assert.ok(html.includes(s),s);
+  for(const s of ['checker-engine.js?v=20261102-orphan','checker-data/seiya12.js?v=20261107-wording','CheckerEngine.mount(CheckerConfigs.seiya12);','seiya12-guide.html'])assert.ok(html.includes(s),s);
   assert.equal(html.match(/<style>[\s\S]*?<\/style>/)[0],read('paripi-checker.html').match(/<style>[\s\S]*?<\/style>/)[0],'4タブのスタイル');
   // 11/2 公開（PR #83）。導線なしの固定を公開状態の検査に置き換えた。
   {const id='seiya12';const list=read('checkers.html').split('<div class="section-label">スマスロ・AT機</div>')[1];assert.ok(list.includes(`<a class="checker-main" href="${id}-checker.html">`)&&list.includes(`<a class="checker-guide" href="${id}-guide.html">使い方</a>`),'checkers.html に掲載');

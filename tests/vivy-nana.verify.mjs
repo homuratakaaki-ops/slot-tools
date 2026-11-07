@@ -1,3 +1,19 @@
+
+// 2026-11-07: 指定された文言だけを過去版の期待値へ適用し、全文一致を維持する。
+const wordingExpected=s=>[
+  [
+    "合計が設定推定の分母になります。",
+    "当選ごとのG数を合計して、1/xを出します。"
+  ],
+  [
+    "出現率はホールが調整できるため、出ないことは設定の根拠になりません。",
+    "出現率はホール設定で変わります。"
+  ],
+  [
+    "示唆内容は出典で推測とされているため、確定演出には数えません。",
+    "示唆内容は出典でも推測の段階のため、カードの確定演出の欄には出ません。"
+  ]
+].reduce((text,[before,after])=>text.split(before).join(after),s);
 // node tests/vivy-nana.verify.mjs（本番反映後。旧 vivy-nana-test） — 正本と独立した項目順による検査。
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -85,11 +101,11 @@ check('本番 js はテスト版との差が3か所だけ・HTML は ?v だけ�
   // 反映（PR #88、c004ff7）時点の本番で見る。以降の PR は他機種の更新で index.html などを変えるため（11/6 追加解析で NEW欄が動いた）。
   const RELEASED='c004ff7';
   const testJs=git('show',BASE+':checker-data/vivy-test.js');
-  assert.equal(read('checker-data/vivy.js'),git('show',RELEASED+':checker-data/vivy.js'),'vivy.js は反映時のまま');
+  assert.equal(read('checker-data/vivy.js'),wordingExpected(git('show',RELEASED+':checker-data/vivy.js')),'vivy.js は指定文言以外は反映時のまま');
   const reverted=git('show',RELEASED+':checker-data/vivy.js').replace(/^\/\/ 出典: [^\n]*\n\/\/ [^\n]*\n/,'').replace('window.CheckerConfigs.vivy={','window.CheckerConfigs["vivy-test"]={').replace('storageKey:"vivy-checker-v1"','storageKey:"vivy-checker-v1-test"');
   assert.equal(reverted,testJs.replace(/^(\/\/ [^\n]*\n){3}/,''),'先頭コメント・設定名・保存キー以外はテスト版と同じ');
   assert.equal(c.storageKey,'vivy-checker-v1');assert.equal(c.nanaCollab,true);
-  assert.equal(read('vivy-checker.html'),git('show',RELEASED+':vivy-checker.html'));
+  assert.equal(read('vivy-checker.html'),git('show',RELEASED+':vivy-checker.html').replace('checker-data/vivy.js?v=20261102-nana','checker-data/vivy.js?v=20261107-wording'));
   assert.equal(git('show',RELEASED+':vivy-checker.html'),git('show',BASE+':vivy-checker.html').replace('checker-data/vivy.js?v=20261102-suggest"','checker-data/vivy.js?v=20261102-nana"'));
   for(const p of ['vivy-test-checker.html','checker-data/vivy-test.js'])assert.ok(!fs.existsSync(path.join(root,p)),p+' は削除');
   for(const p of fs.readdirSync(root).filter(p=>p.endsWith('.html')))assert.doesNotMatch(read(p),/(?:href|src)=["'][^"']*vivy-test/,p);

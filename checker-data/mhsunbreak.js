@@ -1089,7 +1089,7 @@
       .lamp-cancel{width:100%;min-height:44px;margin-top:12px;border:1px solid var(--line,#53465f);border-radius:9px;background:none;color:var(--txt,#f2eef5);font:inherit;font-size:13px}
     </style><div class="lamp-overlay"><section class="lamp-dialog" id="lampDialog" role="dialog" aria-modal="true" aria-labelledby="lampDialogTitle">
       <h2 id="lampDialogTitle">${pending?'失敗後のランプを選択':'ランプの色を訂正'}</h2>
-      <p>${failureLamp(e)?'通常時のクエスト・福引失敗後にPUSH。見忘れた場合は「不明」を選んでください。':'旧記録の色を訂正します。押した契機は未確認のまま保持し、推測には使いません。'}</p>
+      <p>${failureLamp(e)?'通常時のクエスト・福引失敗後にPUSH。見忘れた場合は「不明」を選んでください。':'旧記録の色を訂正します。押した契機は未確認のままです。次回BZの候補は変わりません。'}</p>
       <div class="lamp-options">${Object.keys(FAILURE_LAMPS).map(c=>`<button type="button" data-action="lampChoose" data-session="${target.session}" data-index="${target.index}" data-c="${c}" style="--c:${LAMP_COLORS[c]}" aria-label="ランプ ${LAMP_NAMES[c]} ${FAILURE_LAMPS[c]}"><b>${LAMP_NAMES[c]}</b><small>${FAILURE_LAMPS[c]}</small></button>`).join('')}</div>
       ${pending?'<button type="button" class="lamp-cancel" data-action="cancelFailure">この失敗の記録を取り消す</button>':'<button type="button" class="lamp-cancel" data-action="lampEditClose">変更せず戻る</button>'}
     </section></div>`;
@@ -1165,7 +1165,7 @@
     return `<div class="bz-sub">結果アイコン</div><div class="pos-pick">${
       icons.map((name,i)=>btn(i+1,`${i+1}：${name}`,`位置${i+1} ${name}`,e.pos===i+1,iconColor(name))).join('')
     }${btn(11,'11：猛焔一閃（AT）','位置11 猛焔一閃',e.pos===11,iconColor(IC_MOU),e.r!=='win')}${btn('','未記録','結果アイコン 未記録',!e.pos)}</div>
-      <div class="hint">ブレイクゾーンの結果が、並んだアイコンの何個目で出たかを記録します。押さなくてもかまいません。11個目は猛焔一閃（AT）です。成功の記録にだけ付けられます。テーブル別の成功／回数・テンプレ・シナリオの候補には使いません。</div>`;
+      <div class="hint">ブレイクゾーンの結果が、並んだアイコンの何個目で出たかを記録します。押さなくてもかまいません。11個目は猛焔一閃（AT）です。成功の記録にだけ付けられます。経過カードとBZシナリオカードに表示され、集計の「獲得アイコン別のクエスト成功率」に数えられます。</div>`;
   }
   function inputPosPicker(table){
     if(table==='t7')return '<div class="pos-fixed">位置1 AT を自動で記録します</div>';
@@ -1198,7 +1198,7 @@
       ${known?`<div class="mn calc">→ ${group==='bzT1'?'1回目':'2回目以降'}に計上（BZ${no}回目）</div>`:`<div class="bz-sub">どちらに計上するか</div><div class="at-pick">${BZ_GROUPS.map(([dKey,,title])=>`<button type="button" class="at-btn${pickGroup===dKey?' on':''}" data-action="bzGroup" data-d="${dKey}" aria-pressed="${pickGroup===dKey}">${title}</button>`).join('')}</div>`}
       ${picked?`<div class="pick-sum">選んだテーブル：${TABLE_NAMES[picked]}（${no===null?'BZ番号なし':'BZ'+no+'回目'}）</div><div class="step-h">2. 結果アイコン（任意）</div>${inputPosPicker(picked)}<div class="step-h">3. 成功／失敗</div>`:''}
       <div class="crow pick-row"><div class="lbl"><div class="nm">${picked?`<span class="pick-table-label">${TABLE_NAMES[picked]}</span>${pickPos!==null?` <span class="pick-result-label" style="color:${iconColor(posIcon({t:'bz',table:picked,pos:pickPos}))}">・ 結果 ${pickPos}個目 ${ICON_SHORT[posIcon({t:'bz',table:picked,pos:pickPos})]}</span>`:''}`:'テーブルを選んでください'}</div></div><div class="cycle-actions">${resultBtns}</div></div>`}
-      <div class="hint">BZ開始時のアイコン1個目でテーブルが決まります。①〜⑦はテーブル1〜7（BZ開始時の1個目のアイコン）です。1でテーブル、2で結果アイコン（押さなくてもかまいません）、3で［成功］［失敗］の順に押します。BZとその後のクエストが終わってから、ATに当選したかで押してください。テーブル⑦はAT濃厚のため［＋］だけを置き、成功として数えます。1回目はAT終了後（リセット後を含む）最初のブレイクゾーン、2回目以降はそれ以外で、開始が分かっているときは次のBZ番号から自動で決まります。据え置きの朝一は前日のAT間の続きなので、開始では［途中から］を選んでください。設定差は公表されていません。記録してサンプルを集める項目です。結果アイコンは、ブレイクゾーンの結果が並んだアイコンの何個目で出たかの記録です。11個目は猛焔一閃（AT）です。押すと成功として記録されます。テーブル別の成功／回数・テンプレ・シナリオの候補には使いません。</div>
+      <div class="hint">BZ開始時のアイコン1個目でテーブルが決まります。①〜⑦はテーブル1〜7（BZ開始時の1個目のアイコン）です。1でテーブル、2で結果アイコン（押さなくてもかまいません）、3で［成功］［失敗］の順に押します。BZとその後のクエストが終わってから、ATに当選したかで押してください。テーブル⑦はAT濃厚のため［＋］だけを置き、成功として数えます。1回目はAT終了後（リセット後を含む）最初のブレイクゾーン、2回目以降はそれ以外で、開始が分かっているときは次のBZ番号から自動で決まります。据え置きの朝一は前日のAT間の続きなので、開始では［途中から］を選んでください。設定差は公表されていません。記録してサンプルを集める項目です。結果アイコンは、ブレイクゾーンの結果が並んだアイコンの何個目で出たかの記録です。11個目は猛焔一閃（AT）です。押すと成功として記録されます。経過カードとBZシナリオカードに表示され、集計の「獲得アイコン別のクエスト成功率」に数えられます。</div>
       <div class="hint">猛焔一閃直撃は、BZ完走の11個目とは別の現象です。<details class="hint-fold"><summary>説明を見る</summary><div class="hint-body">CZ突入時にいきなり猛焔一閃が発生します。レア役でBZに当選したときに抽選され、設定差あり（下の表）。CZ当選時にも0.4%で抽選されます（全設定共通）。専用の記録ボタンはありません。出現率は設1:1/16281.7⇔設6:1/4263.1（一撃）。${MOU_TABLE}${MOU_SECOND}${MOU_RATE}どちらの抽選で当たったかは見た目で分からないため、段階1の値がそのまま当選率になるわけではありません。</div></details></div>
     </div>`;
   }

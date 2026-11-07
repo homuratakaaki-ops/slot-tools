@@ -1,3 +1,19 @@
+
+// 2026-11-07: 指定された文言だけを過去版の期待値へ適用し、全文一致を維持する。
+const wordingExpected=s=>[
+  [
+    "合計が設定推定の分母になります。",
+    "当選ごとのG数を合計して、1/xを出します。"
+  ],
+  [
+    "押した契機は未確認のまま保持し、推測には使いません。",
+    "押した契機は未確認のままです。次回BZの候補は変わりません。"
+  ],
+  [
+    "テーブル別の成功／回数・テンプレ・シナリオの候補には使いません。",
+    "経過カードとBZシナリオカードに表示され、集計の「獲得アイコン別のクエスト成功率」に数えられます。"
+  ]
+].reduce((text,[before,after])=>text.split(before).join(after),s);
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
@@ -30,8 +46,8 @@ for(const id of ['godzieva2','mhsunbreak']){
   const NARROW="      @media (max-width:339px){.bz-row .ct b{white-space:nowrap}.bz-row .ct small{font-size:12px;overflow-wrap:anywhere}.bz-row .ct small span{white-space:normal!important}}\n";
   const released=id==='mhsunbreak'?tested.replace('      .bz-row .pct{min-width:48px;text-align:right}\n','      .bz-row .pct{min-width:48px;text-align:right}\n'+NARROW):tested;
   if(id==='mhsunbreak')assert.notEqual(released,tested);
-  assert.equal(source,released);assert.ok(!/-test\b|_test_/.test(source));
-  assert.equal(read(`${id}-checker.html`),git('show',`${BASE}:${id}-checker.html`).replace(new RegExp('checker-data/'+id+'\\.js\\?v=[^"\\s]+'),`checker-data/${id}.js?v=20261106-addl`));
+  assert.equal(source,wordingExpected(released));assert.ok(!/-test\b|_test_/.test(source));
+  assert.equal(read(`${id}-checker.html`),git('show',`${BASE}:${id}-checker.html`).replace(new RegExp('checker-data/'+id+'\\.js\\?v=[^"\\s]+'),`checker-data/${id}.js?v=20261107-wording`));
   for(const [k,v] of Object.entries(b.actions))assert.equal(String(c.actions[k]),String(v),k);
   for(const key of ['share','sourceUrl','uiV2','nanaCollab'])assert.deepEqual(clone(c[key]),clone(b[key]));
  });
@@ -99,7 +115,8 @@ check('構文・LF・保護ファイル・テスト版への導線なし',()=>{
   for(const [i,m] of [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)].entries())if(!/\bsrc=/.test(m[1])){const f=path.join(dir,id+i+'.mjs');fs.writeFileSync(f,m[2]);execFileSync(process.execPath,['--check',f]);}
   for(const p of ['index.html','checkers.html','sitemap.xml'])assert.ok(!read(p).includes('-test-checker.html'));
  }
- assert.equal(git('diff',BASE,'--','checker-engine.js','checkers.html','sitemap.xml','AGENTS.md','mhsunbreak-bz-import.html','docs/specs/*-nana-template-*.txt'),'');
+ assert.equal(read('AGENTS.md'),git('show',BASE+':AGENTS.md').trimEnd()+"\n\n## §9-109【画面の文言は使う人の言葉で書く】\n\n画面・ガイド・カード・テンプレに出る文言は、使う人が「何が起きるか」「どう受け取ればよいか」「どう入力すればよいか」を書く。ツール内部の計算の扱い（「推定には使いません」「根拠にしません」など）は画面に書かず、仕様書とコードのコメントに書く。例：×「出ないことを低設定の根拠にしません」→ ○「出現率はホール設定で変わります。」（2026-11-06 夢爽採用）\n％や候補に反映されるかどうかを書く必要があるときは、「％に反映されます／されません」「候補から外します」のように、使う人に見える表示の動きで書く。\n");
+ assert.equal(git('diff',BASE,'--','checker-engine.js','checkers.html','sitemap.xml','mhsunbreak-bz-import.html','docs/specs/*-nana-template-*.txt'),'');
 });
 
 // 各表は既存説明の中に置き、全セルを検査する。

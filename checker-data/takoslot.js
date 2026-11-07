@@ -143,7 +143,7 @@
     <div class="gsrc" data-gsrc="real"${src==='real'?'':' hidden'}>
       <div class="inrow"><label>打ち始め時の通常ゲーム数</label><input type="number" inputmode="numeric" data-number-key="gamesStart" value="${S.gamesStart||''}" placeholder="0"></div>
       <div class="inrow"><label>現在の通常ゲーム数</label><input type="number" inputmode="numeric" data-number-key="gamesNow" value="${S.gamesNow||''}" placeholder="0"></div>
-      ${denomWarn(S)?'<div class="hint warn">現在の通常ゲーム数が打ち始めを下回っています。分母は0として扱い、確率表示は行いません。入力を確認してください。</div>':''}
+      ${denomWarn(S)?'<div class="hint warn">現在の通常ゲーム数が打ち始めを下回っています。確率は表示しません。入力を確認してください。</div>':''}
       <div class="hint">実機の通常ゲーム数を開始と現在で入れます。実機サブ画面の『通常ゲーム数』を、打ち始めた時点と現在の2回確認して入力してください。差分があなたの遊技分になります。朝イチから打っている場合は打ち始め0で構いません。</div>
     </div>
   </section>`;
@@ -187,7 +187,7 @@
       ${ctx.crow('counts.replayTako','リプレイ＋タコゲーム','設1・2:1/728.2／設5:1/366.1／設6:1/242.7',1)}
     </div>
     <div class="hint">擬似リプレイハズシ手順が必要です。ボーナスゲーム中に擬似リプレイハズシ手順（中・右をフリー打ちしてリプレイテンパイ→左リール枠上に鉢巻付きの白7をビタ押し）を行い、タコランプが点灯した回数を記録します。設定1・2と設定6で約3倍の差がある判別材料です。</div>
-    <div class="hint">回数だけを記録してください。出典の確率の分母（通常プレイ数か総プレイ数か）が明示されていないため、実測の1/x表示は行いません（AGENTS.md §9-70）。</div>
+    <div class="hint">回数だけを記録してください。1/xは表示しません。</div>
   </section>`;
   }
 

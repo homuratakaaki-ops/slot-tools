@@ -198,7 +198,7 @@ ok();
   let html=page(S,1);
   assert.match(html,/data-action="kkEndCustom" data-v="none"[^>]*aria-pressed="false">なし/);
   assert.match(html,/data-action="kkEndCustom" data-v="unknown"[^>]*aria-pressed="true">不明/);
-  assert.match(html,/終了画面の振り分けは店のカスタム設定で変わります。カスタムなしを確認できたときだけ推測に使います/);
+  assert.match(html,/終了画面の振り分けは店のカスタム設定で変わります。「カスタムなし」を選んだときだけ、％に反映されます/);
   assert.match(html,/data-action="kkEdRole" data-v="other"[^>]*aria-pressed="true">それ以外・不明/);
   assert.match(html,/設定別の振り分けが公開されているのは強チャンス目で当選したときだけです/);
   // 終了画面のボタンはカスタムの値に関係なく従来どおり（data-c の単独加算）
@@ -257,7 +257,7 @@ ok();
   for(const f of ['checker-engine.js','checker-bayes.js'])assert.equal(beforeOrphan(read(f)),gitShow(f),f+' 不変');
   // ?v=（§9-107）と checker-bayes の読み込み
   const html=read('kanokari-checker.html');
-  assert.match(html,/<script src="checker-bayes\.js\?v=20260827-2"><\/script>\s*<script src="checker-data\/kanokari\.js\?v=20261014"><\/script>/);
+  assert.match(html,/<script src="checker-bayes\.js\?v=20260827-2"><\/script>\s*<script src="checker-data\/kanokari\.js\?v=20261107-wording"><\/script>/);
   assert.match(html,/grid-template-columns:repeat\(4,1fr\)/);
   assert.match(html,/<button data-p="2">設定推測<\/button><button data-p="3">カード<\/button>/);
 }

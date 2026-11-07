@@ -89,9 +89,9 @@
   const HINTS={
     counts:'CZ回数は契機を問わず突入した回数。CZ種別は種別が分かったCZだけ押し、分からなければ種別不明。AT初当りは初当りのみ（継続・引き戻し・上位移行は数えない）。ボーナス契機とそれ以外を分けます。',
     bbScreens:'番号はちょんぼりすたの掲載順です。枠の色だけで判断せず、絵柄で見分けてください。',
-    trophy:'AT終了時に記録。出現率はホールが設定できるため、出ないことを低設定の根拠にはしません。',
+    trophy:'AT終了時に記録。出現率はホール設定で変わります。',
     over:'『枚OVER』の特殊表示だけを記録します。実際の枚数が一致しただけでは押しません。',
-    rb:'1回のRBで、3人の構成を1つ、2人＋1人のときは3人目を1つ、ヴェナリータ・ヴァーツが出たらそれぞれ押します。2人＋1人のときの奇数・偶数は、2人側のチームで見ます（エノルミータ2人＝奇数、トレスマジア2人＝偶数）。3人目が相手チームのときだけ逆になります。期待度UPは記録のみで推定には使いません。割合は出しません。'
+    rb:'1回のRBで、3人の構成を1つ、2人＋1人のときは3人目を1つ、ヴェナリータ・ヴァーツが出たらそれぞれ押します。2人＋1人のときの奇数・偶数は、2人側のチームで見ます（エノルミータ2人＝奇数、トレスマジア2人＝偶数）。3人目が相手チームのときだけ逆になります。期待度UPは記録のみです。割合は出しません。'
   };
   const DEF={startGames:0,currentGames:0,games:0,counts:Object.fromEntries(COUNTS.map(c=>[c[0],0])),
     ...Object.fromEntries(Object.entries(GROUPS).map(([key,arr])=>[key,Object.fromEntries(arr.map(c=>[c[0],0]))])),img:null,iconChoice:null};
@@ -156,7 +156,7 @@
       <div class="sec-h">回転数<span class="sub">通常回転 <b style="color:${neg?'#ff5c5c':'#6fd8ff'}">${freeText(S)}</b></span></div>
       <div class="inrow"><label>打ち始めの回転数</label><input type="number" inputmode="numeric" data-number-key="startGames" value="${S.startGames||''}" placeholder="0"></div>
       <div class="inrow" style="margin-top:6px"><label>現在の回転数</label><input type="number" inputmode="numeric" data-number-key="currentGames" value="${S.currentGames||''}" placeholder="0"></div>
-      <div class="hint ${neg?'hot':''}">データカウンターのG数を入力します。設定推定の分母になります。${neg?' 現在G数が打ち始めG数を下回っています。':''}</div>
+      <div class="hint ${neg?'hot':''}">データカウンターのG数を入力します。打ち始めG数との差で確率を出します。${neg?' 現在G数が打ち始めG数を下回っています。':''}</div>
     </section><section class="sec"><div class="sec-h">カウント系</div><div class="cgrid">${COUNTS.map(c=>ctx.crow('counts.'+c[0],c[1],c[2],c[3],v=>oneIn(v,g))).join('')}</div><div class="hint">${HINTS.counts}</div></section>`+groupSection(ctx,'czType');
   }
   function pageSuggest(ctx){
@@ -175,7 +175,7 @@
         <div class="hint">除外根拠：${(r.reasons||[]).map(x=>x.label+'×'+x.count).join('、')||'なし'}${excluded.length?'（除外済み：設定'+excluded.join('・')+'）':''}</div>
         <div class="hint">推定は入力されたカウントに基づく参考値です。サンプルが少ないほど信頼度は下がります。</div>`;
     }
-    return pageStyle()+`<section class="sec"><div class="sec-h">設定推測</div><div class="hint">記録した内容から、各設定である可能性を%で表示します。</div>${body}<div class="hint">CZ確率・CZ種別の振り分け・確定演出から推定します。AT初当りはCZの結果と連動するため表示のみ。奇数・偶数・高設定の期待度UPは記録のみで推定には使いません。</div></section>`;
+    return pageStyle()+`<section class="sec"><div class="sec-h">設定推測</div><div class="hint">記録した内容から、各設定である可能性を%で表示します。</div>${body}<div class="hint">CZ確率・CZ種別の振り分け・確定演出から推定します。AT初当りはCZの結果に連動するため、回数の表示だけです。奇数・偶数・高設定の期待度UPは記録のみです。</div></section>`;
   }
   const REF_SECTIONS=[
     ['CZ・AT初当り・出玉率',SETTINGS.map((s,i)=>['設定'+s,'CZ 1/'+DENOMS.cz[s].toFixed(1)+' ／ AT初当り全体 1/'+[436.3,422.7,401.4,352.4,316.1,305.7][i].toFixed(1)+' ／ AT初当り（ボーナス契機除外）1/'+AT_OTHER[s].toFixed(1)+' ／ 出玉率 '+[97.6,98.8,100.5,105.0,110.2,112.0][i].toFixed(1)+'%'])],

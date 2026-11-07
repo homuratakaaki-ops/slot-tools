@@ -43,7 +43,7 @@ assert.deepEqual(sRows.filter(r=>r.key.startsWith('stageChange.')).map(r=>[r.key
   STAGE.map(s=>[s[0],s[1],s[2],s[3],false]));ok();
 assert.equal(sRows[0].key,'stageChange.hakuei');ok();  // 示唆タブの先頭（BB終了画面の前）
 assert.ok(shisa.indexOf('ステージチェンジ演出')<shisa.indexOf('BB終了画面'));ok();
-assert.ok(shisa.includes('<div class="hint">通常時のステージチェンジで上記4パターンが出たときだけ記録します。レア役成立時の炎背景も示唆内容は同じです。白叡・乱紅蓮は振り分けの数値が公表されていないため、記録のみで推定には使いません。</div>'));ok();
+assert.ok(shisa.includes('<div class="hint">通常時のステージチェンジで上記4パターンが出たときだけ記録します。レア役成立時の炎背景も示唆内容は同じです。白叡・乱紅蓮は振り分けの数値が公表されていないため、記録のみです。</div>'));ok();
 const cnt=pages(fresh())[0]();
 assert.ok(cnt.includes('<b>強チャンス目からのCZ当選</b><small>設1・2:10.2%⇔設6:14.5%</small>'));ok();
 assert.ok(cnt.indexOf('強チェリーからのCZ当選')<cnt.indexOf('強チャンス目からのCZ当選')&&cnt.indexOf('強チャンス目からのCZ当選')<cnt.indexOf('>BIG<'));ok();
@@ -111,7 +111,7 @@ assert.equal(strip(c.template(ctx(clone(migrated)))),old.template(ctx(oldS)));ok
 
 // ---- 5. 本番ページ・テスト版・ガイド・NEW欄 ----
 const prod=read('garei-zero-re-checker.html');
-assert.ok(prod.includes('<script src="checker-data/garei_zero_re.js?v=20261014"></script>'));ok();
+assert.ok(prod.includes('<script src="checker-data/garei_zero_re.js?v=20261107-wording"></script>'));ok();
 // テスト版（§9-108）は検収中だけ居る。マージで削除されたあとはこの節を飛ばす。
 if(fs.existsSync(path.join(root,'garei-zero-re-test-checker.html'))){
 const test=read('garei-zero-re-test-checker.html');
