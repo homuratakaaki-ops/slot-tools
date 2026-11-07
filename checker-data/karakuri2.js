@@ -145,7 +145,7 @@
     <div class="sec-h">CZ・設定差項目</div>
     <div class="cgrid">
       ${ctx.crow('cz.theater','劇場ジャッジ突入','CZ当選時の一部・成功で激情1クリア済みATスタート',0)}
-      ${ctx.crow('cz.strong','強チェリー成立','CZ当選率を見るための回数。高確示唆中は除外推奨',0)}
+      ${ctx.crow('cz.strong','強チェリー成立','直撃当選率を見るための回数。高確示唆中は除外推奨',0)}
       ${ctx.crow('cz.strongHit','強チェリーから直撃当選','通常滞在時 設1:9.8%⇔設6:16.4%。高確中は25%共通',1,n=>ctx.pct(n,ctx.S.cz.strong))}
     </div>
   </section>`;

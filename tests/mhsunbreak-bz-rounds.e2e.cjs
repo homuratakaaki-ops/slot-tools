@@ -97,7 +97,7 @@ test('legacy ambiguous lamps remain separate; editing retains legacy timing and 
  await page.locator('[data-action="fukuMode"]').click();
  assert.equal(await page.locator('.bz-round[data-round="2"] .round-lamps button').count(),0);assert.equal(await page.locator('.bz-round[data-round="2"] .round-serifs button').count(),0);
  const other=page.locator('.round-other');await other.locator('summary').click();assert.match(await other.innerText(),/旧記録・対象未確認/);assert.match(await other.innerText(),/福引を挟んだため対象未確認/);
- await other.locator('[data-index="1"]').click();await page.locator('[data-action="lampEdit"]').click();assert.match(await page.locator('#lampDialog').innerText(),/推測には使いません/);
+ await other.locator('[data-index="1"]').click();await page.locator('[data-action="lampEdit"]').click();assert.match(await page.locator('#lampDialog').innerText(),/次回BZの候補は変わりません/);
  await page.locator('[data-action="lampChoose"][data-c="red"]').click();const S=await appState(page);
  assert.equal(S.atLog.sessions[0].events[1].timing,undefined);assert.deepEqual(S.atLog.sessions[0].events[1].future,{keep:5});assert.deepEqual(S.untouched,{keep:true});
  await assertIsolation(page);assert.deepEqual(errors,[]);await context.close();
