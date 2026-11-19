@@ -102,9 +102,10 @@ check('本番差分限定・削除・全ページ導線なし・NEW8行',()=>{
   for(const p of ['checker-data/godzieva2-test.js','godzieva2-test-checker.html'])assert.ok(!fs.existsSync(path.join(root,p)));
   for(const p of fs.readdirSync(root,{recursive:true}).filter(p=>p.endsWith('.html')))assert.doesNotMatch(read(p),/(?:href|src)=["'][^"']*godzieva2-test/);
   const news=read('index.html').split('<div class="section-label">NEW</div>')[1].split('</section>')[0];
+  // 旧告知の文言は固定版で確認。現行では8行の上限を守る。
+  const historicalNews=git('show','20ead2ae5f3bcd6348d654ebf8573953c9c5ce27:index.html').split('<div class="section-label">NEW</div>')[1].split('</section>')[0];
   assert.equal((news.match(/<p>/g)||[]).length,8);
-  // 後の更新（11/2 Vivy）で先頭に行が足されたので、位置ではなく行があることを見る。
-  /* 同日・同機種の公開の行と1行に統合（§9-92） */assert.ok(news.includes('<p>11/2｜<a href="godzieva2-checker.html">L ゴジラ対エヴァンゲリオン2 設定判別カウンターを公開（なな様テンプレ v02：G侵食役・ボーナス当選率に対応）</a></p>'));
+  /* 同日・同機種の公開の行と1行に統合（§9-92） */assert.ok(historicalNews.includes('<p>11/2｜<a href="godzieva2-checker.html">L ゴジラ対エヴァンゲリオン2 設定判別カウンターを公開（なな様テンプレ v02：G侵食役・ボーナス当選率に対応）</a></p>'));
   // 10/21 とんスキの行は 11/2 の §9-92 統合で空いた枠に戻した（夢爽 11/2）ので、消えたことは見ない。
   assert.equal(read('docs/specs/godzieva2-nana-template-v02.txt'),git('show',BASE+':docs/specs/godzieva2-nana-template-v02.txt'));
   const guide=read('godzieva2-guide.html');

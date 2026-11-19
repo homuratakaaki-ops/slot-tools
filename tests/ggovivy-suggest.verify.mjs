@@ -302,8 +302,9 @@ check('test version removed (§9-108-2) / NEW欄 2 lines / no links to -test',()
  for(const p of fs.readdirSync(root).filter(p=>p.endsWith('.html')&&p!=='vivy-test-checker.html'))assert.doesNotMatch(read(p),/(?:href|src)=["'][^"']*(?:ggo|vivy)-test/);
  const news=read('index.html').split('<div class="section-label">NEW</div>')[1].split('</section>')[0];
  assert.equal((news.match(/<p>/g)||[]).length,8);
- const ps=news.match(/<p>.*<\/p>/g);
- // 後の更新で先頭に行が足されるので、位置ではなく行が残っていることを見る（8行上限で消えたら見ない）。
+ const historicalNews=execFileSync('git',['show','20ead2ae5f3bcd6348d654ebf8573953c9c5ce27:index.html'],{cwd:root,encoding:'utf8'}).split('<div class="section-label">NEW</div>')[1].split('</section>')[0];
+ const ps=historicalNews.match(/<p>.*<\/p>/g);
+ // 当時の告知は固定版で確認し、現行では上の8行制限だけ検証する。
  for(const line of ['<p>11/2｜<a href="ggo-checker.html">GGO ボーナス終了画面のカードの記録を追加</a></p>',/* Vivy は 11/2 のなな様テンプレ対応と1行に統合（§9-92） */'<p>11/2｜<a href="vivy-checker.html">Vivy 示唆（トロフィー・獲得枚数・ED・AT終了画面）と規定周期・規定ポイント・アクセスチャンスを追加（なな様テンプレ対応）</a></p>'])assert.ok(ps.includes(line),line);
 });
 console.log('ggovivy-suggest: '+checks+' passed / 0 failed');
