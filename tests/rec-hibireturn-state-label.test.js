@@ -25,7 +25,9 @@ test("ハイビリターン30の開始状態は表示だけを変更し、従来
     "const MACHINES={hibireturn:{" + hibi + "}, generic:{setup:[]}, other:{setup:[" + another + "]}}; " +
     "let pickedMachine='hibireturn',setupVals;" + slice("function optRow(", "/* 行タグ") +
     slice("function renderSetupFields(){", "function showSetup(){") +
-    "this.render=id=>{pickedMachine=id;renderSetupFields()};this.pick=()=>setupVals;", box
+    "this.render=id=>{pickedMachine=id;renderSetupFields()};this.pick=()=>setupVals;" +
+    "this.makeNote=(id,setup)=>{const d=MACHINES[id];" +
+    html.match(/^  const setupNote=.*$/m)[0] + "return setupNote.join('　')};", box
   );
   const buttons = label => fields.children[fields.children.findIndex(node => node.text === label) + 1].children;
   box.render("hibireturn");
@@ -36,6 +38,12 @@ test("ハイビリターン30の開始状態は表示だけを変更し、従来
   state[1].listeners.click();
   assert.equal(box.pick().stage0, "リセット後");
   assert.deepEqual(buttons("前回のボーナス").map(node => node.text), ["不明", "BIG", "REG"]);
+  const note = fields => box.makeNote("hibireturn", fields);
+  assert.equal(note({stage0:"不明", lastBonus:"不明"}), "状態：天国後");
+  assert.equal(note({stage0:"リセット後", lastBonus:"BIG"}), "状態：朝イチ　前回のボーナス：BIG");
+  assert.equal(note({}), "");
+  assert.equal(note({lastBonus:"REG"}), "前回のボーナス：REG");
+  assert.equal(box.makeNote("other", {state:"不明"}), "");
   box.render("other");
   assert.deepEqual(buttons("状態").map(node => node.text), ["不明", "リセット後", "AT後", "CZ後"]);
 });

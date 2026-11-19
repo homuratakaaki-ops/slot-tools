@@ -2779,7 +2779,7 @@ el("stStart").addEventListener("click",()=>{
   if(setup.melon!=null&&rare.melon)rare.melon.n=setup.melon;
   let zen0=false;d.setup.forEach(f=>{if(f.applyStage&&setup[f.key]!=null&&f.applyStage[setup[f.key]]!=null)zen0=f.applyStage[setup[f.key]]});
   if(d.zenchou&&d.zenchou.autoEnterIfG!=null&&setup.stage0!=="リセット後"&&(int(el("stRealG").value)||0)<=d.zenchou.autoEnterIfG)zen0=0;
-  const setupNote=d.setup.filter(f=>f.key!=="c3"&&f.key!=="melon"&&setup[f.key]!=null&&setup[f.key]!=="不明").map(f=>f.label.replace(/（.*?）/,"")+"："+setup[f.key]);
+  const setupNote=d.setup.filter(f=>f.key!=="c3"&&f.key!=="melon"&&setup[f.key]!=null&&(setup[f.key]!=="不明"||f.optionLabels?.[setup[f.key]]!=null)).map(f=>f.label.replace(/（.*?）/,"")+"："+(f.optionLabels?.[setup[f.key]]??setup[f.key]));
   const noteParts=setupNote.concat(el("stNote").value.trim()?[el("stNote").value.trim()]:[]);
   S.cur={id:uid(),machineId,machine:m,startAt:nowISO(),lend,setup,
     startRealG:int(el("stRealG").value)||0,startLcdG:int(el("stLcdG").value)||0,
