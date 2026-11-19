@@ -14,6 +14,7 @@
 ARCHITECTURE §5 の待ち行列には未掲載。新機種追加の標準工程1〜3として進め、進捗チェック専用チャットで §5 に反映する。
 
 追補：2026-11-19 夢爽裁可（途中からは観測済みの実データだけを記録、根拠が不足する区間の確率・見込みは非表示）。§15 を参照。
+追補：2026-11-20 夢爽裁可（失敗後は直前モード、または起点と失敗回数から計算する）。§16 を参照。
 ---
 
 ## 0. 要点
@@ -38,7 +39,7 @@ ARCHITECTURE §5 の待ち行列には未掲載。新機種追加の標準工程
 
 ## 2. ファイル
 
-- `checker-data/vvv2.js`（`window.CheckerConfigs.vvv2`、storageKey `'vvv2-checker-v1'`、`uiV2:true`、`nanaCollab:false`、schemaVersion 2、旧1互換。§15参照）
+- `checker-data/vvv2.js`（`window.CheckerConfigs.vvv2`、storageKey `'vvv2-checker-v1'`、`uiV2:true`、`nanaCollab:false`、schemaVersion 3、旧1・2互換。§15・§16参照）
 - `vvv2-checker.html`（noindex,nofollow。タブ4つ）
 - `vvv2-guide.html`（noindex,nofollow）
 - タイトル `Lパチスロ 革命機ヴァルヴレイヴ2`、footerTags `#ヴァルヴレイヴ2 #設定判別`
@@ -49,8 +50,8 @@ ARCHITECTURE §5 の待ち行列には未掲載。新機種追加の標準工程
 
 ```
 {
-  schemaVersion:1,
-  start:{kind:'reset'|'bonusEnd'|'fail'|'unknown', failCount:0..5},   // §6-1
+  schemaVersion:3,
+  start:{kind:'reset'|'bonusEnd'|'fail'|'unknown', failCount:0..5, previousMode?, origin?, czFailures?, decisiveFailures?},   // §6-1・§16
   custom:'off'|'on'|'unknown',                            // 終了画面カスタム
   counts:{cz:0, rb:0, bb:0, direct:0, bar:0, barDirect:0},
   groups:{endScreen:{...}, atEnd:{...}, roundRed:{...}, over:{...}, zorome:{...}, magiusCount:{...}, mumu:{...}, baffe:{...}},
@@ -185,7 +186,7 @@ Aの合計は98%（出典値のまま。正規化しない）。
 ### 6-1 事前分布 `priorOf(S)`（最初の span）
 - `start.kind==='reset'`（設定変更後）：PRIOR_RESET。最初の span は天井3周期（§5）
 - `start.kind==='bonusEnd'`（ボーナス・AT終了後）：PRIOR_RESET。天井は通常
-- `start.kind==='fail'`：PRIOR_RESET × TRANS^failCount（failCount=1..5。「それ以上」は5）。0回はボーナス・AT終了後（bonusEnd）と同じ
+- `start.kind==='fail'`：直前モードが既知ならその行を1回適用。そうでなければ、起点と入力開始前の失敗数が既知のとき PRIOR_RESET × TRANS^(CZ失敗数＋決戦失敗数)。根拠不足は均等。§16 を参照。
 - `start.kind==='unknown'`：均等 25%
 2つ目以降の span は §5 の end 種別で決まる（czmiss/rbmiss＝事後×TRANS、bbend/atend＝PRIOR_RESET）。
 
@@ -221,7 +222,7 @@ reset 開始の検算（tests に固定）：開始 reset（69/25/5/1・最初�
 ## 7. 画面
 
 ### 7-1 入力タブ
-- 開始条件（単一選択・保存）：「設定変更後（リセット）」（reset）「ボーナス・AT終了後」（bonusEnd）「CZ失敗・決戦失敗のあと（回数 1〜5）」（fail）「不明」（unknown）の4択。回数は 1〜4 と「5回以上」のチップ
+- 開始条件（単一選択・保存）：「設定変更後（リセット）」（reset）「ボーナス・AT終了後」（bonusEnd）「CZスルー・決戦失敗後」（fail）「不明」（unknown）の4択。失敗後の詳細は §16。
   - 途中で変更しても周期ログは保持し、事前分布だけ再計算する。変更時のトースト「開始条件を変えました（記録は保持）」
 - 終了画面カスタム：OFF／ON／不明（既定 不明）。hint「ホールが1000G単位で終了画面を変える設定です。OFF以外では終了画面を設定推測に使いません」
 - カウント系（crow）：CZ突入（counts.cz）／決戦ボーナス初当り（rb）／革命ボーナス初当り（bb）／AT直撃（direct）／BAR揃い（bar）／BAR揃いからAT直撃（barDirect・n≦d、減算は外れ側無効 §9-87）
@@ -286,7 +287,7 @@ groups（rank は濃厚の閾値。0 は記録のみ）：
 2. §6-7 の検算例：各周期終了時の事後・次候補・残り周期・参考%が固定値と一致（小数は小数第4位まで）
 3. 消去の規則：天国は2周期目で0／Cは500・600で0／Bは3周期目ハズレで0／A6周期目ハズレで全消え→矛盾表示
 4. 示唆：火遊でA=0、ソウイチ紫は pull(miss) があるときだけ天国のみ、ピノ「チカイ」で候補が100・200のみ、矛盾時は制約を外して矛盾表示
-5. 開始条件：fail n=1..5 の事前が PRIOR_RESET×TRANS^n と一致、unknown は均等
+5. 開始条件：直前モード各行、起点からの失敗総数3回、旧5回以上・根拠不足の均等、実操作との二重計上防止と途中周期の非表示を §16 に従って検証
 6. prev600：600の次の周期は PT3、span をまたぐと PT2
 7. span の遷移：czmiss／rbmiss→事後×TRANS、bbend／atend→PRIOR_RESET、pull(win)→新span
 8. 設定推測：5設定で動く／custom が off 以外で終了画面が spec に入らない／exclusions のランク対応
@@ -479,3 +480,10 @@ hazard が 1 になる周期（天井・reset時3・cycle 示唆の cap）で必
 - 周期示唆のボタンは名前と意味を表示し、各分類の「説明を見る」に元の意味・条件を表示。設定示唆の補足と周期履歴で意味を見られるが、既存の解析値・有効条件・設定推測の分母は変えない。
 - 例：3周期目から開始→400ptハズレは3周期目の1行だけ。4周期目へ進み、表示は「—」。CZ失敗で1周期目に戻るが不明は継続。革命BB／AT終了後に計算が戻る。
 - 実機確認：360／390px、途中開始・記録番号・再読込・取消、示唆の開閉は状態不変、別保存キー（非ゼロ本番保存を維持）、限定公開条件を保持。
+
+
+## 16. 失敗後の開始条件（2026-11-20）
+- 「CZスルー・決戦失敗後」で、その失敗直前のモードが分かる場合は、§4の移行表のその出発モードの行を1回適用する（例：Bなら A 0%／B 66%／C 32%／天国 2%）。
+- 直前モード不明でも最後の設定変更または革命BB・AT終了と、その後の両方の失敗回数が分かる場合、初期分布 `[69,25,5,1]%` に合計回数だけ移行を適用する。例：AT後、CZ失敗2回＋決戦ボーナス失敗1回で `PRIOR_RESET × TRANS^3`。成功や周期ハズレは回数に含めない。起点だけ、合計0回、または起点も不明の場合は均等。起点からの最初の区間は既に終わっているため、今の区間にリセットの3周期上限や66G引き戻し入力を適用しない。
+- 開始前の回数は最初の区間の事前だけに使う。アプリ内に記録したCZ失敗・決戦失敗は各1回を自動適用し、設定・初当りカウンターには加算しない。革命BB・AT終了で分布を初期化。§15 の欠測状態が続く区間の確率・必要ptの非表示は維持する。
+- 保存キー不変。schemaVersion 3。新しい任意キーは `start.previousMode`（A／B／C／天国）、または `start.origin`（reset／bbEnd／atEnd）と `start.czFailures`・`start.decisiveFailures`（各0〜999の整数）。旧 `start.failCount` は根拠なしでは適用せず、旧値・履歴・カウンター・未知キーを保持。旧値5は「5回以上」とだけ案内。読み込みだけでは保存値を書き換えない。変更は標準の保存・取消を使う。

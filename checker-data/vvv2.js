@@ -55,9 +55,14 @@
   const TITLES={endScreen:'CZ・ボーナス終了画面',atEnd:'AT終了画面',roundRed:'赤背景ラウンド開始',over:'獲得枚数',zorome:'ゾロ目上乗せ',magiusCount:'マギウスマーク個数',mumu:'ハラキリチャレンジ',baffe:'バッフェ'};
   const END_PROBS=[[74,8,8,7,3,0,0,0],[65,5,10,7,3,10,0,0],[60,5,10,9,6,8,2,0],[60,10,5,9,6,8,2,0],[60,5,10,9,6,7,2,1]];
   const BAFFE=[[55,45],[45,55],[45,55],[55,45],[45,55]], BAR=[3,4,5,6,7], SPECIAL=[1,2,4,8,12], FIRST=[476,473,464,459,456], PAYOUT=[97.7,99.3,104.7,110.8,114.9];
-  const START={reset:'設定変更後（リセット）',bonusEnd:'ボーナス・AT終了後',fail:'CZ失敗・決戦失敗のあと',unknown:'不明'};
+  const START={reset:'設定変更後（リセット）',bonusEnd:'ボーナス・AT終了後',fail:'CZスルー・決戦失敗後',unknown:'不明'};
   const END={czmiss:'CZ失敗',rbmiss:'決戦失敗',bbend:'革命BB終了（AT非当選）',atend:'AT終了'};
-  const SCHEMA_VERSION=2;
+  const SCHEMA_VERSION=3;
+  const ORIGINS={reset:'設定変更後',bbEnd:'革命ボーナス終了後',atEnd:'AT終了後'};
+  const MAX_PRIOR_FAILURES=999;
+  const validPriorCount=n=>Number.isInteger(n)&&n>=0&&n<=MAX_PRIOR_FAILURES;
+  const hasOrigin=st=>Object.hasOwn(ORIGINS,st.origin);
+  const priorCount=(st,key)=>validPriorCount(st[key])?st[key]:0;
   const DEF={schemaVersion:SCHEMA_VERSION,start:{kind:'unknown',failCount:0},custom:'unknown',counts:{cz:0,rb:0,bb:0,direct:0,bar:0,barDirect:0},groups:Object.fromEntries(Object.entries(GROUPS).map(([g,a])=>[g,Object.fromEntries(a.map(c=>[c[0],0]))])),spans:[{rows:[],end:null,magius:[]}],curPt:null,img:null,iconChoice:null};
   const clone=x=>JSON.parse(JSON.stringify(x)), sum=a=>a.reduce((x,y)=>x+y,0), num=x=>Number.isFinite(Number(x))?Math.max(0,Math.floor(Number(x))):0;
   const esc=x=>String(x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -66,7 +71,7 @@
   function normalizeState(S){
     S=S&&typeof S==='object'?S:{};
     if(!Number.isInteger(S.schemaVersion)||S.schemaVersion<SCHEMA_VERSION)S.schemaVersion=SCHEMA_VERSION;
-    S.start=Object.assign({},DEF.start,S.start);if(!START[S.start.kind])S.start.kind='unknown';S.start.failCount=Math.min(5,num(S.start.failCount));
+    S.start=Object.assign({},DEF.start,S.start);if(!Object.hasOwn(START,S.start.kind))S.start.kind='unknown';
     if(!['on','off','unknown'].includes(S.custom))S.custom='unknown';
     S.counts=Object.assign({},DEF.counts,S.counts);Object.keys(DEF.counts).forEach(k=>S.counts[k]=num(S.counts[k]));S.counts.bar=Math.max(S.counts.bar,S.counts.barDirect);
     S.groups=Object.assign({},S.groups);Object.entries(GROUPS).forEach(([g,a])=>{S.groups[g]=Object.assign({},S.groups[g]);a.forEach(c=>S.groups[g][c[0]]=num(S.groups[g][c[0]]));});
@@ -74,7 +79,22 @@
     S.curPt=S.curPt==null?null:num(S.curPt);if(S.img===undefined)S.img=null;if(S.iconChoice===undefined)S.iconChoice=null;
     return S;
   }
-  function priorOf(S){let p=PRIOR_RESET.map(v=>v/100);if(S.start.kind==='unknown')return [.25,.25,.25,.25];if(S.start.kind==='fail')for(let i=0;i<S.start.failCount;i++)p=transition(p);return p;}
+  function failureBasis(st){
+    if(MODES.includes(st.previousMode))return 'mode';
+    if(hasOrigin(st)&&validPriorCount(st.czFailures)&&validPriorCount(st.decisiveFailures)&&st.czFailures+st.decisiveFailures>0)return 'origin';
+    return 'unknown';
+  }
+  function priorOf(S){
+    const st=S.start,p=PRIOR_RESET.map(v=>v/100),uniform=[.25,.25,.25,.25];
+    if(st.kind==='unknown')return uniform;
+    if(st.kind!=='fail')return p;
+    const basis=failureBasis(st);
+    if(basis==='mode')return TRANS[MODES.indexOf(st.previousMode)].map(v=>v/100);
+    if(basis==='unknown')return uniform;
+    let q=p;
+    for(let i=0;i<st.czFailures+st.decisiveFailures;i++)q=transition(q);
+    return q;
+  }
   const current=S=>S.spans[S.spans.length-1];
   const cycles=s=>s.rows.filter(r=>r.t==='cyc');
   const startCycleOf=s=>Number.isInteger(s.startCycle)&&s.startCycle>=2&&s.startCycle<=6?s.startCycle:1;
@@ -199,7 +219,26 @@
   function rowText(r,span){if(r.t==='cyc')return r.k+'周期目 '+r.pt+'pt '+(r.r==='win'?'当選':'ハズレ')+(rowMagius(span,r)?' 🔶':'')+(r.bonus?' →'+(r.bonus==='rb'?'決戦RB':'革命BB'):'')+(r.at?' →AT':'');if(r.t==='out')return r.k+'周期目 周期外当選'+(r.bonus?' →'+(r.bonus==='rb'?'決戦RB':'革命BB'):'')+(r.at?' →AT':'');if(r.t==='pull')return '引き戻し '+(r.r==='win'?'あり':'なし');if(r.t==='hint')return r.k+'周期目 '+(hintDef(r)?.label||r.c);return '未対応の記録';}
   const action=(name,label,attrs='')=>`<button type="button" class="act plain" data-action="${name}" ${attrs}>${label}</button>`;
   const section=(title,body,id='')=>`<section class="sec" ${id?'id="'+id+'"':''}><div class="sec-h">${title}</div>${body}</section>`;
-  function pageCounts(ctx){const S=ctx.S;return section('開始条件',`<div class="vv-grid">${Object.entries(START).map(([k,v])=>action('start',v,`data-kind="${k}" aria-pressed="${S.start.kind===k}" ${k==='reset'&&resetWouldConflict(S)?'disabled title="設定変更後は最大3周期です"':''}`)).join('')}</div>${S.start.kind==='fail'?'<div class="vv-grid">'+[1,2,3,4,5].map(n=>action('failCount',n===5?'5回以上':n+'回',`data-n="${n}" aria-pressed="${S.start.failCount===n}"`)).join('')+'</div>':''}`)+
+  const legacyFailure=st=>Number.isInteger(st.failCount)&&st.failCount>=1&&st.failCount<=5?'旧記録：'+(st.failCount===5?'5回以上':st.failCount+'回')+'（起点・前モード未確認。計算には使いません）':'';
+  function startLabel(st){
+    if(st.kind!=='fail')return START[st.kind];
+    const basis=failureBasis(st);
+    const detail=basis==='mode'?'直前モード '+st.previousMode:basis==='origin'?ORIGINS[st.origin]+'／CZ失敗 '+st.czFailures+'回・決戦失敗 '+st.decisiveFailures+'回':'起点・直前モードからの計算なし（均等を初期値に使用）';
+    return START.fail+'／'+detail;
+  }
+  function failControls(S,mode){
+    const st=S.start;
+    const selected=MODES.includes(st.previousMode),legacy=legacyFailure(st);
+    const delta=(key,label)=>{const n=priorCount(st,key);return '<div class="crow"><div class="lbl"><div class="nm">'+label+'</div></div><div class="num">'+n+'</div>'+[-1,1].map(d=>action('priorFailure',d===1?'＋':'−',`data-key="${key}" data-delta="${d}" aria-label="${label}を1回${d===1?'増やす':'減らす'}" ${mode<0||!validPriorCount(n+d)?'disabled':''}`)).join('')+'</div>';};
+    return '<p class="vv-small">入力を始める前の結果だけを指定します。周期タブで記録した失敗は自動で反映します。</p>'+
+      '<div class="hint">失敗の直前モードが分かる場合</div><div class="vv-grid">'+[...MODES,'unknown'].map(k=>action('previousMode',k==='unknown'?'不明':k,`data-value="${k}" aria-pressed="${k==='unknown'?!selected:st.previousMode===k}" ${mode<0?'disabled':''}`)).join('')+'</div>'+
+      (selected?'':'<div class="hint">直前モードが不明で、最後の起点とそこからの失敗回数が分かる場合</div><div class="vv-grid">'+[...Object.keys(ORIGINS),'unknown'].map(k=>action('failureOrigin',ORIGINS[k]||'不明',`data-value="${k}" aria-pressed="${k==='unknown'?!hasOrigin(st):st.origin===k}" ${mode<0?'disabled':''}`)).join('')+'</div>'+
+      (hasOrigin(st)?'<div class="cgrid">'+delta('czFailures','CZ失敗')+delta('decisiveFailures','決戦ボーナス失敗')+'</div>':'')+
+      (failureBasis(st)==='unknown'?'<p class="vv-small">起点または失敗回数が分からない場合は各25%から推測します。起点を選んだだけでは反映されません。</p>':''))+
+      (legacy?'<p class="vv-small">'+legacy+'</p>':'')+
+      '<p class="vv-small" data-failure-preview>開始時の振り分け（参考）：'+(missingHistory(S,0)?'—（それ以前の周期が不明）':priorOf(S).map((p,i)=>MODES[i]+' '+(100*p).toFixed(1)+'%').join('／'))+'</p>';
+  }
+  function pageCounts(ctx){const S=ctx.S;return section('開始条件',`<div class="vv-grid">${Object.entries(START).map(([k,v])=>action('start',v,`data-kind="${k}" aria-pressed="${S.start.kind===k}" ${k==='reset'&&resetWouldConflict(S)?'disabled title="設定変更後は最大3周期です"':''}`)).join('')}</div>${S.start.kind==='fail'?failControls(S,ctx.mode):''}`)+
     section('終了画面カスタム',`<div class="vv-grid three">${['off','on','unknown'].map(k=>action('custom',k==='unknown'?'不明':k.toUpperCase(),`data-value="${k}" aria-pressed="${S.custom===k}"`)).join('')}</div><div class="hint">ホールが1000G単位で終了画面を変える設定です。OFF以外では終了画面を設定推測に使いません</div>`)+
     section('カウント系',`<div class="cgrid">${[['cz','CZ突入'],['rb','決戦ボーナス初当り'],['bb','革命ボーナス初当り'],['direct','AT直撃']].map(([k,v])=>ctx.crow('counts.'+k,v,'',0)).join('')}<div class="crow"><div class="lbl"><div class="nm">BAR揃い</div><div class="mn">BAR揃いからAT直撃 ${S.counts.barDirect}/${S.counts.bar}</div></div><div class="num">${S.counts.bar}</div>${action('bar','＋',`aria-label="BAR揃いを追加" ${ctx.mode<0?'disabled':''}`)}</div><div class="crow"><div class="lbl"><div class="nm">BAR揃いからAT直撃</div></div><div class="num">${S.counts.barDirect}</div>${action('barDirect',ctx.mode<0?'−':'＋')}</div></div><div class="hint">BAR揃いは直撃しなかった場合に押します。直撃では両方を数えます。減算時の外れ側は無効です。訂正は取消かデータリセットで行います。</div><div class="hint">初当りは出典の合算（革命ボーナス・決戦ボーナス・AT直撃）を3つに分けて数えます。CZ成功からの自動加算はしません。1/xは出しません（CZは全設定共通、初当りの設定差はごく小さいため）</div>`);
   }
@@ -258,8 +297,29 @@
       if(k===1)delete s.startCycle;else s.startCycle=k;
       return k+'周期目から記録します';
     },
-    start({S},d){if(!START[d.kind]||d.kind==='reset'&&resetWouldConflict(S))return false;S.start.kind=d.kind;if(d.kind==='fail'&&!S.start.failCount)S.start.failCount=1;return '開始条件を変えました（記録は保持）';},
-    failCount({S},d){S.start.failCount=Number(d.n);return '開始時の失敗回数 '+d.n;},
+    start({S},d){if(!Object.hasOwn(START,d.kind)||d.kind===S.start.kind||d.kind==='reset'&&resetWouldConflict(S))return false;S.start.kind=d.kind;delete S.start.previousMode;delete S.start.origin;delete S.start.czFailures;delete S.start.decisiveFailures;return '開始条件を変えました（記録は保持）';},
+    previousMode({S,mode},d){
+      const st=S.start,value=d.value;
+      if(mode<0||st.kind!=='fail'||!(value==='unknown'||MODES.includes(value))||(st.previousMode||'unknown')===value)return false;
+      if(value==='unknown')delete st.previousMode;else st.previousMode=value;
+      delete st.origin;delete st.czFailures;delete st.decisiveFailures;
+      return '直前モード：'+(value==='unknown'?'不明':value);
+    },
+    failureOrigin({S,mode},d){
+      const st=S.start,value=d.value;
+      if(mode<0||st.kind!=='fail'||MODES.includes(st.previousMode)||!(value==='unknown'||Object.hasOwn(ORIGINS,value))||(st.origin||'unknown')===value)return false;
+      if(value==='unknown'){delete st.origin;delete st.czFailures;delete st.decisiveFailures;}
+      else{const known=hasOrigin(st);st.origin=value;if(!known){st.czFailures=0;st.decisiveFailures=0;}}
+      return '最後の起点：'+(ORIGINS[value]||'不明');
+    },
+    priorFailure({S,mode},d){
+      const st=S.start,key=d.key,delta=Number(d.delta);
+      if(mode<0||st.kind!=='fail'||MODES.includes(st.previousMode)||!hasOrigin(st)||!['czFailures','decisiveFailures'].includes(key)||![-1,1].includes(delta))return false;
+      const n=priorCount(st,key)+delta;if(!validPriorCount(n))return false;
+      st.czFailures=priorCount(st,'czFailures');st.decisiveFailures=priorCount(st,'decisiveFailures');
+      st[key]=n;
+      return (key==='czFailures'?'CZ失敗':'決戦ボーナス失敗')+'：'+n+'回';
+    },
     custom({S},d){S.custom=d.value;return '終了画面カスタム '+d.value;},
     bar({S,mode}){if(mode<0)return false;S.counts.bar++;return 'BAR揃い（直撃なし）';},
     barDirect({S,mode}){if(mode<0&&!S.counts.barDirect)return false;S.counts.barDirect+=mode;S.counts.bar+=mode;return 'BAR揃いからAT直撃';},
@@ -312,7 +372,7 @@
   // カードの値枠は幅186px（DotGothic16 34px で半角10文字・170px）。合計と内訳を半角10文字以内で出し、超える時は内訳だけにする
   function firstBlock(S){const c=S.counts,parts=c.bb+'/'+c.rb+'/'+c.direct,full=(c.rb+c.bb+c.direct)+'('+parts+')';return full.length<=10?full:parts;}
   const cycleLogCount=S=>sum(S.spans.map(s=>s.rows.length));
-  function template({S}){return ['Lパチスロ 革命機ヴァルヴレイヴ2','開始条件：'+START[S.start.kind]+(S.start.kind==='fail'?' '+S.start.failCount+'回':''),'CZ '+S.counts.cz+'回／初当り 計'+(S.counts.rb+S.counts.bb+S.counts.direct)+'回（革命'+S.counts.bb+'・決戦'+S.counts.rb+'・直撃'+S.counts.direct+'）',bestStrong(S),...Object.entries(GROUPS).map(([g,a])=>TITLES[g]+'：'+(a.filter(c=>S.groups[g][c[0]]).map(c=>c[1]+'×'+S.groups[g][c[0]]).join('／')||'—')),...S.spans.map((s,i)=>'区間'+(i+1)+'：'+(s.rows.map(rowText).join('→')||'記録なし')+(s.end?' →'+END[s.end.t]:'')),'周期推測 '+modeText(S),bayesText(S),'by slot-tools.jp／解析出典：ちょんぼりすた様'].join('\n');}
+  function template({S}){return ['Lパチスロ 革命機ヴァルヴレイヴ2','開始条件：'+startLabel(S.start),'CZ '+S.counts.cz+'回／初当り 計'+(S.counts.rb+S.counts.bb+S.counts.direct)+'回（革命'+S.counts.bb+'・決戦'+S.counts.rb+'・直撃'+S.counts.direct+'）',bestStrong(S),...Object.entries(GROUPS).map(([g,a])=>TITLES[g]+'：'+(a.filter(c=>S.groups[g][c[0]]).map(c=>c[1]+'×'+S.groups[g][c[0]]).join('／')||'—')),...S.spans.map((s,i)=>'区間'+(i+1)+'：'+(s.rows.map(rowText).join('→')||'記録なし')+(s.end?' →'+END[s.end.t]:'')),'周期推測 '+modeText(S),bayesText(S),'by slot-tools.jp／解析出典：ちょんぼりすた様'].join('\n');}
   function detail({S}){return [...Object.entries(GROUPS).map(([g,a])=>({title:TITLES[g],percent:true,denominator:knownTotal(S,g),items:a.map(c=>({label:c[1],value:S.groups[g][c[0]],hot:c[2]>0,...(c[0]==='unknown'?{text:'不明 ×'+S.groups[g][c[0]],show:S.groups[g][c[0]]>0}:{})}))})),...S.spans.map((s,i)=>({title:'周期ログ 区間'+(i+1),items:s.rows.map(r=>({label:rowText(r,s),text:rowText(r,s),value:1,show:true,hot:false}))}))];}
   const summaryRow=text=>({text,value:1,active:true});
   const groupSummary=(S,g)=>TITLES[g]+' '+(GROUPS[g].filter(c=>S.groups[g][c[0]]).map(c=>c[1]+'×'+S.groups[g][c[0]]).join('・')||'—');

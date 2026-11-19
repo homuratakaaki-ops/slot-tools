@@ -153,13 +153,30 @@ try{
     await seed({},390);
   }
   assert.deepEqual(await run('return [...d.querySelectorAll("#nav button")].map(x=>x.textContent);'),['入力','示唆','周期','カード']);
+  const legacyFail={schemaVersion:2,start:{kind:'fail',failCount:5,future:'raw'},counts:{cz:3},spans:[{startCycle:3,rows:[],end:null,magius:[]}]};
+  await seed(legacyFail,320);await tab(0);
+  assert.deepEqual(await state(),legacyFail,'旧保存を読み込みだけで書き換えない');
+  assert.match(await run("return d.getElementById('main').textContent"),/旧記録：5回以上/);
+  assert.match(await run("return d.querySelector('[data-failure-preview]').textContent"),/—/);
+  await seed({},390);await tab(0);
   for(const kind of ['reset','bonusEnd','fail','unknown']){await act('start',`[data-kind="${kind}"]`);assert.equal((await state()).start.kind,kind);}
-  await act('start','[data-kind="fail"]');for(let i=1;i<=5;i++){await act('failCount',`[data-n="${i}"]`);assert.equal((await state()).start.failCount,i);}
+  await act('start','[data-kind="fail"]');
+  await act('failureOrigin','[data-value="atEnd"]');
+  for(const key of ['czFailures','czFailures','decisiveFailures']) await act('priorFailure',`[data-key="${key}"][data-delta="1"]`);
+  assert.equal((await state()).start.czFailures,2);assert.equal((await state()).start.decisiveFailures,1);
+  assert.match(await run("return d.querySelector('[data-failure-preview]').textContent"),/26\.3%.*37\.2%.*26\.1%.*10\.4%/);
+  await click('#undoBtn');assert.equal((await state()).start.decisiveFailures,0);
+  await act('priorFailure','[data-key="decisiveFailures"][data-delta="1"]');
+  await layout(390,'開始前の失敗回数',0);
+  await reloaded();await tab(0);assert.equal((await state()).start.origin,'atEnd');assert.equal((await state()).start.decisiveFailures,1);
+  await act('previousMode','[data-value="B"]');assert.equal((await state()).start.previousMode,'B');assert.equal((await state()).start.origin,undefined);
+  await click('#undoBtn');assert.equal((await state()).start.czFailures,2);
+  await act('start','[data-kind="unknown"]');
   for(const custom of ['off','on','unknown']){await act('custom',`[data-value="${custom}"]`);assert.equal((await state()).custom,custom);}
   for(const key of ['cz','rb','bb','direct']){await plus('counts.'+key);assert.equal((await state()).counts[key],1);}
   await act('bar');await act('barDirect');assert.equal((await state()).counts.bar,2);assert.equal((await state()).counts.barDirect,1);
   await click('#modeBtn');assert.equal(await run(`return d.querySelector('[data-action="bar"]').disabled;`),true);await act('barDirect');assert.equal((await state()).counts.barDirect,0);await click('#undoBtn');assert.equal((await state()).counts.barDirect,1);await click('#modeBtn');
-  pass('開始4条件・失敗回数5選択・カスタム3選択・全カウント・減算n<=d');
+  pass('開始4条件・失敗の起点と回数・直前モード・再読込と取消・カスタム3選択・全カウント・減算n<=d');
   await tab(1);const groupKeys=await run(`return [...d.querySelectorAll('[data-action="group"]')].map(b=>[b.dataset.group,b.dataset.key]);`);
   for(const [g,key] of groupKeys){await act('group',`[data-group="${g}"][data-key="${key}"]`);assert.equal((await state()).groups[g][key],1);}
   await click('#undoBtn');const [lastG,lastKey]=groupKeys.at(-1);assert.equal((await state()).groups[lastG][lastKey],0);await act('group',`[data-group="${lastG}"][data-key="${lastKey}"]`);

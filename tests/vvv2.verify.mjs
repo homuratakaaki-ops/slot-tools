@@ -49,10 +49,43 @@ check('4 示唆制約・条件付き天国・矛盾解除・参考は不使用',
   S=fresh();hint(S,'pino_kekkon');cyc(S,200);assert.ok(c.posterior(S).warnings.some(w=>w.includes('ケッコン')));assert.ok(c.nextPtDist(S).dist.some(x=>x.pt>100));
   S=fresh();S.curPt=600;assert.equal(c.nextPtDist(S).contradiction,true);eq(c.nextPtDist(S).dist,[]);
 });
-check('5 fail 1〜5の事前・unknown・0回',()=>{
-  let p=[.69,.25,.05,.01];const t=[[.66,.29,.04,.01],[0,.66,.32,.02],[0,0,.57,.43],[.66,.31,.02,.01]];
-  for(let n=1;n<=5;n++){p=t[0].map((_,j)=>p.reduce((a,v,i)=>a+v*t[i][j],0));const S=fresh('fail');S.start.failCount=n;c.priorOf(S).forEach((v,i)=>near(v,p[i]));}
-  eq(c.priorOf(fresh('unknown')),[.25,.25,.25,.25]);eq(c.priorOf(fresh('fail')),[.69,.25,.05,.01]);
+check('5 開始条件：起点×失敗総数・直前モード・不明・旧保存・実記録の別計上',()=>{
+  const reset=[.69,.25,.05,.01],uniform=[.25,.25,.25,.25];
+  const t=[[.66,.29,.04,.01],[0,.66,.32,.02],[0,0,.57,.43],[.66,.31,.02,.01]];
+  const move=p=>t[0].map((_,j)=>p.reduce((a,v,i)=>a+v*t[i][j],0));
+  const same=(a,b)=>a.forEach((v,i)=>near(v,b[i]));
+  const S=fresh('fail');S.start.failCount=5;S.start.future='keep';
+  eq(c.priorOf(S),uniform);eq(c.priorOf(fresh('unknown')),uniform);
+  const act=(action,data,mode=1)=>c.actions[action]({S,mode},data);
+  assert.equal(act('priorFailure',{key:'czFailures',delta:'1'}),false);
+  act('failureOrigin',{value:'atEnd'});eq(c.priorOf(S),uniform);
+  for(const key of ['czFailures','czFailures','decisiveFailures'])act('priorFailure',{key,delta:'1'});
+  const p=[.26265228,.37249520,.26081945,.10403307];same(c.priorOf(S),move(move(move(reset))));same(c.priorOf(S),p);
+  eq(S.start,{kind:'fail',failCount:5,future:'keep',origin:'atEnd',czFailures:2,decisiveFailures:1});
+  act('failureOrigin',{value:'bbEnd'});same(c.priorOf(S),p);assert.equal(S.start.czFailures,2);
+  act('failureOrigin',{value:'unknown'});eq(c.priorOf(S),uniform);assert.equal(S.start.czFailures,undefined);
+  act('failureOrigin',{value:'atEnd'});for(const key of ['czFailures','czFailures','decisiveFailures'])act('priorFailure',{key,delta:'1'});
+  eq(c.normalizeState(clone(S)),S);assert.equal(S.counts.cz,0);assert.equal(S.counts.rb,0);
+  const span=()=>({rows:[],end:null,magius:[]});
+  S.spans[0].end={t:'czmiss'};S.spans.push(span());same(c.posterior(S).p,move(p));
+  S.spans[1].end={t:'rbmiss'};S.spans.push(span());same(c.posterior(S).p,move(move(p)));
+  assert.equal(S.start.czFailures,2);assert.equal(S.start.decisiveFailures,1);
+  S.spans[2].end={t:'atend'};S.spans.push(span());same(c.posterior(S).p,reset);
+  S.spans[0].startCycle=3;S.spans.pop();S.spans[2].end=null;
+  eq(c.posterior(S).p,[0,0,0,0]);eq(c.nextPtDist(S).dist,[]);
+  S.spans[2].end={t:'bbend'};S.spans.push(span());same(c.posterior(S).p,reset);
+  for(const [i,value] of ['A','B','C','天国'].entries()){act('previousMode',{value});eq(c.priorOf(S),t[i]);}
+  assert.equal(S.start.origin,undefined);assert.equal(act('failureOrigin',{value:'reset'}),false);
+  act('previousMode',{value:'unknown'});eq(c.priorOf(S),uniform);
+  act('failureOrigin',{value:'reset'});act('priorFailure',{key:'decisiveFailures',delta:'1'});same(c.priorOf(S),move(reset));
+  assert.equal(act('priorFailure',{key:'czFailures',delta:'-1'}),false);
+  assert.equal(act('priorFailure',{key:'decisiveFailures',delta:'-1'},-1),false);
+  eq(c.priorOf({...S,start:{...S.start,czFailures:1000}}),uniform);
+  eq(c.priorOf({...S,start:{...S.start,origin:'nonsense'}}),uniform);
+  eq(c.priorOf({...S,start:{...S.start,decisiveFailures:'1'}}),uniform);
+  const history=clone(S.spans);
+  act('start',{kind:'unknown'});act('start',{kind:'fail'});eq(S.spans,history);
+  eq(c.priorOf(S),uniform);assert.equal(S.start.failCount,5);
 });
 check('6 prev600とspanの独立・現在ptの条件',()=>{
   const S=fresh();cyc(S,200);cyc(S,600);const p=c.posterior(S).p;
@@ -134,7 +167,7 @@ check('13 ptMaxは当該周期のみ・cycle示唆・参考示唆・全消去',(
   hint(S,'sub_hito',1);const capped=c.untilWin(S);near(capped.avgPt,100);near(capped.avgCycles,1);assert.equal(capped.p50,100);assert.equal(capped.p80,100);
   hint(S,'sub_v3',2);eq(c.untilWin(S),capped);
   const T=fresh('reset');cyc(T,200);cyc(T,400);cyc(T,200);assert.equal(c.untilWin(T).avgPt,null);
-  assert.ok(read('vvv2-checker.html').includes('checker-data/vvv2.js?v=20261119-cycle-hints'));
+  assert.ok(read('vvv2-checker.html').includes('checker-data/vvv2.js?v=20261120-failure-origin'));
 });
 check('14 追加便E 到達pt集合・見出し・トースト',()=>{
   const cases=[fresh(),fresh(),fresh(),fresh(),fresh()];
@@ -185,7 +218,7 @@ check('15 F マギウス派生・矛盾解除・旧形式・正規化・計算�
   assert.equal(c.cycleCap(T),capBefore-1);assert.ok(c.rowText(T.spans[0].rows[0],T.spans[0]).includes('🔶'));
   c.actions.magius({S:T},{k:'1'});eq(T.spans[0].magius,[]);assert.equal(c.cycleCap(T),capBefore);
   const L=c.normalizeState({spans:[{rows:[{t:'cyc',k:1,pt:200,r:'miss',magius:true}],end:null,magius:[3]}]});assert.equal(c.cycleCap(L),5);
-  assert.equal(T.schemaVersion,2);eq(c.mergeKeys,['start','counts','groups']);
+  assert.equal(T.schemaVersion,3);eq(c.mergeKeys,['start','counts','groups']);
 });
 check('16 F 履歴編集・全モード候補・削除再付番・終了区間保護',()=>{
   box.document={getElementById:()=>null};
@@ -216,7 +249,7 @@ check('18 途中開始：既存保存互換、欠けた区間を記録しない�
   const say=(S,pt,result)=>{box.document={querySelector:()=>({dataset:{pt:String(pt)}}),getElementById:()=>null};return c.actions.cycle({S},{result});};
   const old={schemaVersion:1,start:{kind:'bonusEnd',failCount:0,future:true},counts:{rb:2},spans:[{rows:[{t:'cyc',k:1,pt:200,r:'miss',future:'keep'}],end:null,magius:[],future:7}],future:{d:4},curPt:50};
   const legacy=c.normalizeState(clone(old));
-  assert.equal(legacy.schemaVersion,2);assert.equal(legacy.spans[0].startCycle,undefined);
+  assert.equal(legacy.schemaVersion,3);assert.equal(legacy.spans[0].startCycle,undefined);
   eq(legacy.spans,old.spans);eq(legacy.future,old.future);eq(legacy.start,old.start);assert.equal(legacy.counts.rb,2);
   assert.equal(c.normalizeState({...clone(old),schemaVersion:8}).schemaVersion,8);
   assert.equal(c.normalizeState({...clone(old),spans:[{startCycle:0}],schemaVersion:2}).spans[0].startCycle,0);
