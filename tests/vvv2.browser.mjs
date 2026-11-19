@@ -6,11 +6,12 @@ import os from 'node:os';
 import http from 'node:http';
 import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
-const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+const preview=Boolean(process.env.VVV2_PREVIEW_ROOT);
+const root=preview?path.resolve(process.env.VVV2_PREVIEW_ROOT):path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const artifacts=process.env.CHECKER_ARTIFACTS?path.resolve(root,process.env.CHECKER_ARTIFACTS):fs.mkdtempSync(path.join(os.tmpdir(),'vvv2-'));fs.mkdirSync(artifacts,{recursive:true});
 const profile=fs.mkdtempSync(path.join(os.tmpdir(),'slot-newmachines-1102-profile-'));
 const chrome=process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe';
-const KEY='vvv2-checker-v1',PAGE='/vvv2-checker.html';const errors=[],measures=[];
+const PROD_KEY='vvv2-checker-v1',KEY=preview?PROD_KEY+'-test':PROD_KEY,PAGE=preview?'/vvv2-test-checker.html':'/vvv2-checker.html';const errors=[],measures=[];
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
 const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.png':'image/png','.jpg':'image/jpeg','.webp':'image/webp'};
 const server=http.createServer((req,res)=>{
@@ -95,7 +96,44 @@ try{
   async function reloaded(){const saved=await state();await load(390);assert.deepEqual(await state(),saved);await tab(2);}
   async function selectStart(kind){const S=await state(),w=await run('return innerWidth;');S.spans=[{rows:[],end:null}];S.curPt=null;await seed(S,w);await tab(0);await act('start',`[data-kind="${kind}"]`);await tab(2);}
   await load(390);
+  const productionSentinel=JSON.stringify({counts:{cz:4,bb:8},spans:[{rows:[{t:'cyc',k:1,pt:200,r:'miss'}]}],future:{text:'09',fraction:1.25}});
+  if(preview)await run(`localStorage.setItem(${JSON.stringify(PROD_KEY)},${JSON.stringify(productionSentinel)});`);
 
+  for(const width of [360,390]){
+    await seed(await run("return {...CheckerConfigs.vvv2.defaults,iconChoice:'default'};"),width);await tab(2);
+    const before=await state();
+    await click('.vv-hints > summary');
+    assert.equal(await run('return d.querySelector("[data-hint=sub_hito] .vv-hint-meaning").textContent;'),'2周期以内にCZ濃厚');
+    assert.equal(await run('return d.querySelector(".vv-hint-guide").open;'),false);
+    await click('.vv-hint-guide > summary');
+    assert.ok(await run('const e=d.querySelector(".vv-hint-guide");return e.open&&e.querySelector("dd").getBoundingClientRect().height>0;'));
+    assert.deepEqual(await state(),before,'説明開閉では変更しない');
+    await layout(width,'示唆の意味と説明',2);
+    await act('hint','[data-hint="sub_hito"]');
+    assert.equal(await run('return d.querySelector("[data-row-index] .vv-hint-meaning").textContent;'),'2周期以内にCZ濃厚');
+    await click('#undoBtn');
+    assert.deepEqual(await state(),before);
+    pass('示唆ボタンの意味・説明開閉・履歴・取消 '+width+'px');
+  }
+  for(const width of [360,390]){
+    await seed(await run("return {...CheckerConfigs.vvv2.defaults,iconChoice:'default'};"),width);await tab(2);
+    const before=await state();
+    await click('.vv-start-cycle > summary');
+    await act('startCycle','[data-k="3"]');
+    assert.equal((await state()).spans[0].startCycle,3);
+    assert.deepEqual((await state()).spans[0].rows,[]);
+    assert.equal(await run('return d.querySelector(".vv-mode").textContent;'),'—');
+    assert.match(await run('return d.querySelector(".vv-until").textContent;'),/—/);
+    await click('#undoBtn');assert.deepEqual(await state(),before);
+    await click('.vv-start-cycle > summary');await act('startCycle','[data-k="3"]');
+    await round(400);
+    assert.deepEqual((await state()).spans[0].rows,[{t:'cyc',k:3,pt:400,r:'miss'}]);
+    assert.equal((await state()).counts.cz,before.counts.cz);
+    const saved=await state();await load(width);await tab(2);assert.deepEqual(await state(),saved);
+    assert.match(await run('return d.querySelector(".vv-record-heading").textContent;'),/4周期目/);
+    assert.equal(await run('return d.querySelector(".vv-start-cycle");'),null);
+    pass('途中開始・欠けた履歴なし・取消・再読込 '+width+'px');
+  }
   // F: 指定の3列×2段・マギウス上配置を実測する。
   {
     const filled={start:{kind:'bonusEnd',failCount:0},spans:[{rows:[{t:'cyc',k:1,pt:200,r:'miss',magius:false},{t:'cyc',k:2,pt:600,r:'miss',magius:false},{t:'cyc',k:3,pt:400,r:'miss',magius:false}],end:null,magius:[]}]};
@@ -236,7 +274,7 @@ try{
     assert.deepEqual((await state()).spans[0].magius,[]);await click('#undoBtn');assert.deepEqual((await state()).spans[0].magius,[1]);await act('magius','[data-k="1"]');
     await shot('vvv2-f-cycle-first-390',390);
     await click('.vv-hints summary');
-    const colored=await run('return [...d.querySelectorAll("[data-hint^=sub_],[data-hint^=eye_]")].map(e=>({key:e.dataset.hint,text:e.textContent,color:e.style.getPropertyValue("--hint-color"),left:getComputedStyle(e).borderLeftWidth,width:e.getBoundingClientRect().width,height:e.getBoundingClientRect().height,right:e.getBoundingClientRect().right,fg:getComputedStyle(e).color}));');
+    const colored=await run('return [...d.querySelectorAll("[data-hint^=sub_],[data-hint^=eye_]")].map(e=>({key:e.dataset.hint,text:(e.querySelector(".vv-hint-name")||e).textContent,color:e.style.getPropertyValue("--hint-color"),left:getComputedStyle(e).borderLeftWidth,width:e.getBoundingClientRect().width,height:e.getBoundingClientRect().height,right:e.getBoundingClientRect().right,fg:getComputedStyle(e).color}));');
     assert.equal(colored.length,12);
     for(const b of colored){assert.ok(b.width>=44&&b.height>=44&&b.right<=390);assert.equal(b.left,'4px');assert.ok(b.color);assert.ok(!b.text.includes('サブモニター')&&!b.text.includes('アイキャッチ'));if(b.key.includes('white'))assert.equal(b.fg,'rgb(34, 34, 34)');}
     assert.deepEqual(colored.filter(b=>b.key.startsWith('sub_')).map(b=>b.text),['火人','Valvrave 3','火ノ輪','Valvrave 5','火遊','野火マリエ']);
@@ -279,7 +317,8 @@ try{
   assert.ok((await run('return d.getElementById("tpl").value;')).includes('区間1：1周期目 200pt ハズレ→2周期目 600pt ハズレ→3周期目 400pt ハズレ'));
   pass('通常/詳細PNG・画素・周期ログ行・%・テンプレ一致');
   await tab(0);await click('#resetBtn');await click('#resetBtn');assert.equal((await state()).spans[0].rows.length,0);await click('#undoBtn');assert.equal((await state()).spans[0].rows.length,3);pass('データリセットと取消');
-  await load(360,'/vvv2-guide.html');assert.equal(await run('return d.documentElement.scrollWidth-innerWidth;'),0);
+  if(preview){assert.equal(await run(`return localStorage.getItem(${JSON.stringify(PROD_KEY)});`),productionSentinel);pass('非ゼロの本番保存は操作後も1バイト不変');}
+  await load(360,preview?'/vvv2-test-guide.html':'/vvv2-guide.html');assert.equal(await run('return d.documentElement.scrollWidth-innerWidth;'),0);
   assert.deepEqual(await run('return window.__errors;'),[]);assert.deepEqual(errors,[]);pass('guide 360px・未捕捉例外なし');
 }catch(e){console.error(e.stack);process.exitCode=1;}
 finally{

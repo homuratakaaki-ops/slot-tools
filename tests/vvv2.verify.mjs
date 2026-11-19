@@ -134,7 +134,7 @@ check('13 ptMaxは当該周期のみ・cycle示唆・参考示唆・全消去',(
   hint(S,'sub_hito',1);const capped=c.untilWin(S);near(capped.avgPt,100);near(capped.avgCycles,1);assert.equal(capped.p50,100);assert.equal(capped.p80,100);
   hint(S,'sub_v3',2);eq(c.untilWin(S),capped);
   const T=fresh('reset');cyc(T,200);cyc(T,400);cyc(T,200);assert.equal(c.untilWin(T).avgPt,null);
-  assert.ok(read('vvv2-checker.html').includes('checker-data/vvv2.js?v=20261029-histedit'));
+  assert.ok(read('vvv2-checker.html').includes('checker-data/vvv2.js?v=20261119-cycle-hints'));
 });
 check('14 追加便E 到達pt集合・見出し・トースト',()=>{
   const cases=[fresh(),fresh(),fresh(),fresh(),fresh()];
@@ -185,7 +185,7 @@ check('15 F マギウス派生・矛盾解除・旧形式・正規化・計算�
   assert.equal(c.cycleCap(T),capBefore-1);assert.ok(c.rowText(T.spans[0].rows[0],T.spans[0]).includes('🔶'));
   c.actions.magius({S:T},{k:'1'});eq(T.spans[0].magius,[]);assert.equal(c.cycleCap(T),capBefore);
   const L=c.normalizeState({spans:[{rows:[{t:'cyc',k:1,pt:200,r:'miss',magius:true}],end:null,magius:[3]}]});assert.equal(c.cycleCap(L),5);
-  assert.equal(T.schemaVersion,1);eq(c.mergeKeys,['start','counts','groups']);
+  assert.equal(T.schemaVersion,2);eq(c.mergeKeys,['start','counts','groups']);
 });
 check('16 F 履歴編集・全モード候補・削除再付番・終了区間保護',()=>{
   box.document={getElementById:()=>null};
@@ -211,4 +211,67 @@ check('17 F short・色・アイキャッチの参照専用定義',()=>{
   for(const h of Object.values(c.HINT))assert.ok(h.short&&!h.short.includes('??'));
 });
 
-console.log(`Verify checks: ${checks}/17; failures: ${failures}`);if(failures)process.exitCode=1;
+check('18 途中開始：既存保存互換、欠けた区間を記録しない、未観測を確率に使わない',()=>{
+  const html=S=>c.pages({S,mode:1},()=>null)[2]();
+  const say=(S,pt,result)=>{box.document={querySelector:()=>({dataset:{pt:String(pt)}}),getElementById:()=>null};return c.actions.cycle({S},{result});};
+  const old={schemaVersion:1,start:{kind:'bonusEnd',failCount:0,future:true},counts:{rb:2},spans:[{rows:[{t:'cyc',k:1,pt:200,r:'miss',future:'keep'}],end:null,magius:[],future:7}],future:{d:4},curPt:50};
+  const legacy=c.normalizeState(clone(old));
+  assert.equal(legacy.schemaVersion,2);assert.equal(legacy.spans[0].startCycle,undefined);
+  eq(legacy.spans,old.spans);eq(legacy.future,old.future);eq(legacy.start,old.start);assert.equal(legacy.counts.rb,2);
+  assert.equal(c.normalizeState({...clone(old),schemaVersion:8}).schemaVersion,8);
+  assert.equal(c.normalizeState({...clone(old),spans:[{startCycle:0}],schemaVersion:2}).spans[0].startCycle,0);
+  assert.equal(c.actions.startCycle({S:legacy,mode:1},{k:'2'}),false);
+  const S=fresh(),counts=clone(S.counts),settings=clone(c.bayesSpec(S));
+  assert.match(html(S),/記録を始める周期：1周期目/);
+  assert.equal(c.actions.startCycle({S,mode:-1},{k:'3'}),false);
+  assert.equal(c.actions.startCycle({S,mode:1},{k:'99'}),false);
+  assert.match(c.actions.startCycle({S,mode:1},{k:'3'}),/3周期目/);
+  assert.equal(S.spans[0].startCycle,3);assert.equal(S.spans[0].rows.length,0);
+  assert.equal(c.phase(S),'cycle');assert.equal(c.modeText(S),'—');eq(c.nextPtDist(S).dist,[]);
+  assert.equal(c.nextPtDist(S).contradiction,false);assert.equal(c.winPctNow(S),null);assert.equal(c.untilWin(S).avgPt,null);
+  eq(c.enabledPts(S),[100,200,300,400,500,600]);
+  assert.match(html(S),/途中からの記録で/);assert.doesNotMatch(html(S),/消去：|到達pt候補がありません/);
+  assert.match(say(S,600,'miss'),/3周期目 600pt ハズレ → 4周期目へ/);
+  eq(S.spans[0].rows,[{t:'cyc',k:3,pt:600,r:'miss'}]);
+  assert.equal(c.actions.startCycle({S,mode:1},{k:'1'}),false);
+  assert.doesNotMatch(html(S),/data-action="startCycle"/);eq(c.enabledPts(S),[100,200,300,400]);
+  eq(c.bayesSpec(S),settings);eq(S.counts,counts);
+  const reload=c.normalizeState(clone(S));eq(reload,S);assert.match(html(reload),/4周期目/);
+  c.actions.hint({S},{hint:'sub_hito'});assert.equal(S.spans[0].rows[1].k,4);
+  c.actions.deleteRow({S},{index:'0'});assert.equal(S.spans[0].rows[0].k,3);
+  assert.equal(c.actions.editRow({S},{index:'0',k:'2'}),false);
+});
+check('19 途中開始：上限・取消用の状態・区間をまたぐ不明と復帰',()=>{
+  const html=S=>c.pages({S,mode:1},()=>null)[2]();
+  const say=(S,pt,result)=>{box.document={querySelector:()=>({dataset:{pt:String(pt)}}),getElementById:()=>null};return c.actions.cycle({S},{result});};
+  const R=fresh('reset');
+  assert.match(html(R),/data-action="startCycle" data-k="3"/);
+  assert.doesNotMatch(html(R),/data-action="startCycle" data-k="4"/);
+  assert.equal(c.actions.startCycle({S:R,mode:1},{k:'4'}),false);
+  const before=clone(R);c.actions.startCycle({S:R,mode:1},{k:'3'});
+  assert.equal(c.cycleCap(R),1);
+  c.actions.startCycle({S:R,mode:1},{k:'1'});eq(R,before);
+  c.actions.startCycle({S:R,mode:1},{k:'3'});say(R,400,'miss');eq(c.enabledPts(R),[]);
+  assert.match(html(R),/周期上限と記録が食い違います/);assert.doesNotMatch(html(R),/4周期目 の到達ptを記録/);
+  assert.equal(say(R,400,'win'),false);
+  assert.match(c.actions.out({S:R}),/3周期目 周期外当選/);
+  assert.equal(R.spans[0].rows.at(-1).k,3);
+  const S=fresh('unknown');c.actions.startCycle({S,mode:1},{k:'4'});
+  assert.equal(c.actions.start({S},{kind:'reset'}),false);
+  say(S,200,'win');c.actions.result({S},{result:'czmiss'});
+  assert.equal(S.spans[1].startCycle,undefined);assert.match(html(S),/1周期目/);
+  assert.equal(c.modeText(S),'—');eq(c.enabledPts(S),[100,200]);
+  assert.equal(c.actions.startCycle({S,mode:1},{k:'4'}),false);
+  say(S,200,'win');c.actions.result({S},{result:'rb'});c.actions.result({S},{result:'rbmiss'});
+  assert.equal(c.modeText(S),'—');
+  say(S,200,'win');c.actions.result({S},{result:'bb'});c.actions.result({S},{result:'bbend'});
+  assert.notEqual(c.modeText(S),'—');assert.notEqual(c.untilWin(S).avgPt,null);
+  assert.doesNotMatch(html(S),/途中からの記録で/);
+  assert.equal(c.phase(S),'pull');
+  assert.equal(c.actions.editRow({S},{span:'0',index:'0',pt:'100',result:'miss'}),false);
+  for(const muted of [{curPt:0},{mark:true},{hint:true}]){
+    const T=fresh();if('curPt' in muted)T.curPt=muted.curPt;if(muted.mark)c.actions.magius({S:T},{k:'3'});if(muted.hint)c.actions.hint({S:T},{hint:'sub_hito'});
+    assert.equal(c.actions.startCycle({S:T,mode:1},{k:'3'}),false);
+  }
+});
+console.log(`Verify checks: ${checks}/19; failures: ${failures}`);if(failures)process.exitCode=1;

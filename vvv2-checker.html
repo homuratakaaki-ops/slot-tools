@@ -67,6 +67,11 @@ button,[role=button],summary,.hd-btn,.jump-nav button,.jump-back{min-height:44px
 .vv-pad{position:fixed;inset:0;z-index:120;background:#0009;display:flex;align-items:flex-end;justify-content:center}.vv-pad-body{width:min(100%,420px);background:var(--panel);padding:12px 12px 30px;border-radius:16px 16px 0 0}.vv-pad output{display:block;text-align:right;min-height:32px;font-size:24px}.vv-pad .act{min-height:48px!important}
 .vv-reach{grid-template-columns:repeat(3,1fr)}
 .vv-magius .vv-grid{grid-template-columns:minmax(0,1fr) repeat(6,minmax(44px,1fr))}.vv-magius button{min-height:44px}.vv-magius-label{display:flex;align-items:center;justify-content:center}
+.vv-start-cycle>summary{min-height:44px;box-sizing:border-box;color:var(--cyan);padding:12px 0}
+.vv-grid.vv-hint-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.vv-hint-grid .act{min-height:44px;text-align:left;padding:8px;overflow-wrap:anywhere}
+.vv-hint-name,.vv-hint-meaning{display:block}.vv-hint-meaning{margin-top:3px;font-weight:500;font-size:12px;line-height:1.45;overflow-wrap:anywhere}
+.vv-hint-guide>summary{min-height:44px;box-sizing:border-box;color:var(--cyan);padding:12px 0}.vv-hint-guide dl{margin:0;line-height:1.5}.vv-hint-guide dt{font-weight:800;margin-top:6px}.vv-hint-guide dd{margin:0 0 8px;color:var(--muted);overflow-wrap:anywhere}
 [data-hint][style]{border-left:4px solid var(--hint-color);background:color-mix(in srgb,var(--hint-color) 16%,var(--panel))}
 [data-hint="eye_white"],[data-hint="eye_white_pino"]{color:#222!important;background:#ededed!important}
 #vv-row-sheet .vv-pad-body{max-height:90vh;overflow-y:auto}#vv-row-sheet .vv-delete{color:var(--danger);border-color:var(--danger)}
@@ -88,7 +93,7 @@ button,[role=button],summary,.hd-btn,.jump-nav button,.jump-back{min-height:44px
 <div class="toast" id="toast"></div>
 <script src="checker-engine.js?v=20261102-orphan"></script>
 <script src="checker-bayes.js?v=20260922"></script>
-<script src="checker-data/vvv2.js?v=20261029-histedit"></script>
+<script src="checker-data/vvv2.js?v=20261119-cycle-hints"></script>
 <script>CheckerEngine.mount(CheckerConfigs.vvv2);</script>
 </body>
 </html>

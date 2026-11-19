@@ -90,7 +90,10 @@ console.log('STATS '+JSON.stringify(stats));
 check('all root HTML changes are exactly the engine query',()=>{
   let count=0;
   for(const file of fs.readdirSync(root).filter(f=>f.endsWith('.html'))){
-    const now=read(file);if(!now.includes('checker-engine.js?v='))continue;
+    const live=read(file);if(!live.includes('checker-engine.js?v='))continue;
+    if(file==='vvv2-checker.html')assert.ok(live.includes('checker-engine.js?v=20261102-orphan'),file);
+    // VVV2の画面は後続の周期・示唆改善で変更。旧エンジン切替の完全一致は直前の固定版で見る。
+    const now=file==='vvv2-checker.html'?git('show','a9561f645f02587bc73f7d93577109b8640a03fa:'+file):live;
     // テスト版ページ（*-test-checker.html）は検収中に ?v が変わるので、新しいエンジンを読むことだけを見る。
     if(file.endsWith('-test-checker.html')){assert.ok(now.includes('checker-engine.js?v=20261102-orphan'),file);count++;continue;}
     let base=git('show','d279952:'+file);
