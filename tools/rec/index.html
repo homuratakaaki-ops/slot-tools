@@ -437,7 +437,7 @@ const MACHINES={
     lcdRestart:0,
     setup:[
       {key:"c3",label:"天国スルー回数",type:"num"},
-      {key:"stage0",label:"状態",type:"select",options:["不明","リセット後"]},
+      {key:"stage0",label:"状態",type:"select",options:["不明","リセット後"],optionLabels:{"不明":"天国後","リセット後":"朝イチ"}},
       {key:"lastBonus",label:"前回のボーナス",type:"select",options:["不明","BIG","REG"]}
     ],
     counter3:{label:"天国スルー",reset:"never"},
@@ -867,10 +867,10 @@ function positionSheet(){
 }
 el("shClose").addEventListener("click",closeSheet);
 el("sheet").addEventListener("click",e=>{if(e.target.id==="sheet")closeSheet()});
-function optRow(items,onPick,cls){
+function optRow(items,onPick,cls,optionLabels){
   const w=mk("div","opts");
   items.forEach(it=>{
-    const label=Array.isArray(it)?it[0]:(it.l!=null?it.l:it);
+    const label=optionLabels?.[it]??(Array.isArray(it)?it[0]:(it.l!=null?it.l:it));
     const hint=Array.isArray(it)?it[1]:it.h;
     const b=mk("button",cls||"",label);
     if(hint)b.append(mk("small","",hint));
@@ -2735,7 +2735,7 @@ function renderSetupFields(){
     w.append(lbl);
     if(f.type==="num"){const i=mk("input");i.className="num";i.setAttribute("inputmode","numeric");i.placeholder="0";i.addEventListener("input",()=>setupVals[f.key]=int(i.value));w.append(i)}
     else if(f.type==="select"){
-      const row=optRow(f.options,(it,btn,wrap)=>{setupVals[f.key]=it;wrap.querySelectorAll("button").forEach(x=>x.classList.remove("on"));btn.classList.add("on")},f.options.length>6?"q4":"");
+      const row=optRow(f.options,(it,btn,wrap)=>{setupVals[f.key]=it;wrap.querySelectorAll("button").forEach(x=>x.classList.remove("on"));btn.classList.add("on")},f.options.length>6?"q4":"",f.optionLabels);
       w.append(row);
     }
   });
