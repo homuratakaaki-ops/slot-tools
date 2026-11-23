@@ -87,12 +87,12 @@ const sum=a=>(a||[]).reduce((x,y)=>x+y.amount,0);
 function expectedTotal(s){return (s.expected||0)+(s.follow||[]).reduce((a,f)=>a+(f.amount||0),0)}
 function invested(m){return Array.isArray(m.spends)?sum(m.spends):sum(m.cash||[])}
 function replayed(m){return sum(m.replays||[])}
-function profit(s){const m=s.money;if(m.endMedal==null)return null;const st=m.startMedal||0,en=m.endMedal||0,rp=replayed(m),cash=invested(m),bought=Math.round(cash/1000*s.lend);return{cash,bought,replay:rp,lend:s.lend,medalDiff:en-st-bought-rp,yen:Math.round((en-st-rp)*(1000/s.lend)-cash)}}
+function profit(s){const m=s.money;if(m.endMedal==null)return null;const st=m.startMedal||0,en=m.endMedal||0,rp=replayed(m),cash=invested(m),bought=Math.round(cash/1000*s.lend);return{cash,bought,replay:rp,lend:s.lend,medalDiff:s.cond&&Number.isFinite(s.cond.exch)&&s.cond.exch>0?en-st-rp:en-st-bought-rp,yen:s.cond&&Number.isFinite(s.cond.exch)&&s.cond.exch>0?Math.round((en-st-rp)*s.cond.exch)-cash:Math.round((en-st-rp)*(1000/s.lend)-cash)}}
 function recPlay(session,source){
   const s=cleanRaw(session),m=s.money;if(!m)throw Error('recの収支データがありません');
   // rec の fixMoney と同じ旧形式移行。時刻は元データから取り、再取り込みを安定させる。
   if(!Array.isArray(m.replays)){m.replays=[];if(m.startReplay>0)m.replays.push({at:s.startAt,amount:m.startReplay,migrated:true});if(m.endReplay>0&&m.endMedal!=null)m.endMedal+=m.endReplay;m.startReplay=0;m.endReplay=0}
-  return play(source,s.id,{date:localDate(s.startAt),startAt:s.startAt,endAt:s.endAt,machine:s.machine||'機種不明',shop:s.shop||'',dai:s.dai??null,money:{cashIn:invested(m),cashOut:0,withdraw:zero(m.startMedal)+replayed(m),deposit:zero(m.endMedal),unit:'枚'},expected:s.expected!=null||s.follow?.length?expectedTotal(s):null,events:cleanEvents(s.events),raw:{...s,recProfit:profit(s)?.yen??null}});
+  return play(source,s.id,{date:localDate(s.startAt),startAt:s.startAt,endAt:s.endAt,machine:s.machine||'機種不明',shop:s.shop||'',dai:s.dai??null,...(s.cond&&Number.isFinite(s.cond.exch)&&s.cond.exch>0?{cond:clone(s.cond)}:{}),money:{cashIn:invested(m),cashOut:0,withdraw:zero(m.startMedal)+replayed(m),deposit:zero(m.endMedal),unit:'枚'},expected:s.expected!=null||s.follow?.length?expectedTotal(s):null,events:cleanEvents(s.events),raw:{...s,recProfit:profit(s)?.yen??null}});
 }
 function ledgerPlay(e){const m=e.money||e;return play('ledger',e.id,{date:e.date,kind:e.kind||'slot',machine:e.machine||'機種不明',shop:e.storeName||e.shop||'',dai:e.dai??null,cond:validCond(e.cond),money:{cashIn:zero(m.cashIn),cashOut:zero(m.cashOut),withdraw:zero(m.withdraw),deposit:zero(m.deposit),unit:e.kind==='pachinko'?'玉':'枚'},expected:num(e.expected),raw:cleanRaw(e)})}
 function validCond(c){if(!c)return null;if(!(num(c.exch)>0))throw Error('換算条件の交換単価が不正です');return clone(c)}
@@ -121,6 +121,7 @@ function envelopePlay(e){
   const p=e.payload||{};
   if(String(e.payloadVer||'').startsWith('rec-')){
     const s={id:e.sessionId,startAt:e.startedAt,endAt:e.endedAt,machine:p.machine||e.machineId,shop:e.storeName,dai:e.unitNo,lend:e.lendRate,expected:p.expected,follow:p.follow||[],money:{spends:[{amount:zero(e.invest)}],startMedal:zero(p.startMedal),endMedal:p.endMedal??(zero(e.payout)+zero(p.startMedal)+zero(p.replays??p.startReplay)),replays:[{amount:zero(p.replays??p.startReplay)}]},events:(p.logs||[]).map(l=>({...l,at:l.at??new Date(l.t).toISOString()}))};
+    if(p.cond)s.cond=clone(p.cond);
     const result=recPlay(s,'rec');result.raw.envelope=clone(e);return result;
   }
   // slot-session envelope: invest は円、payout は枚。元ログの type を保持する。
