@@ -101,7 +101,7 @@ check('all root HTML changes are exactly the engine query',()=>{
     if(file==='vivy-checker.html')base=base.replace('checker-data/vivy.js?v=20261102-suggest','checker-data/vivy.js?v=20261102-nana');
     // 11/6の5機種とGGO・星矢の参照表追加で、変わるのは機種データの ?v だけ。
     const addl=file.match(/^(seiya12|ragnador|ggo|godzieva2|mhsunbreak)-checker\.html$/);
-    if(addl)base=base.replace(new RegExp('checker-data/'+addl[1]+'\\.js\\?v=[^"]+'),'checker-data/'+addl[1]+'.js?v='+(['ggo','seiya12'].includes(addl[1])?'20261119-reference-release':'20261106-addl'));
+    if(addl)base=base.replace(new RegExp('checker-data/'+addl[1]+'\\.js\\?v=[^"]+'),'checker-data/'+addl[1]+'.js?v='+(addl[1]==='seiya12'?'20261123-seiya-reference':addl[1]==='ggo'?'20261119-reference-release':'20261106-addl'));
     assert.equal(now,base.replaceAll('checker-engine.js?v=20260924','checker-engine.js?v=20261102-orphan'),file);count++;
   }
   assert.ok(count>=36,String(count));

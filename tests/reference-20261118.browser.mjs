@@ -125,6 +125,14 @@ try{
       await run(`localStorage.setItem(${JSON.stringify(KEY)},${JSON.stringify(JSON.stringify(legacy))});`);await load(width,page);
       const before=await state();
       await tab(2);
+      if(id==='seiya12')for(const [heading,values] of [
+        ['規定周期到達時のVゲットチャレンジEX移行率',['2.73%','2.73%','3.52%','3.52%','3.52%','3.91%']],
+        ['黄金降臨成功時の報酬ポイント',['80.47%','10.94%','1.95%','6.64%','80.08%','11.33%','1.95%','6.64%','80.08%','11.33%','1.95%','6.64%','78.91%','11.72%','1.95%','7.42%','75.40%','13.67%','2.34%','8.59%','73.44%','14.84%','2.34%','9.38%']]
+      ]){
+        const expected=JSON.stringify(heading);
+        const actual=await run('const section=[...d.querySelectorAll("#main .sec")].find(s=>s.querySelector(".sec-h")?.textContent=== '+expected+');return [...section.querySelectorAll("tr")].slice(-6).flatMap(r=>r.lastElementChild.textContent.match(/[0-9]+[.][0-9]+%/g));');
+        assert.deepEqual(actual,values);
+      }
       assert.match(await run('return d.getElementById("main").textContent;'),/2026年11月18日/);
       assert.equal(await run('return d.documentElement.scrollWidth>d.documentElement.clientWidth;'),false);
       assert.equal(await run('return d.querySelectorAll("#main input,#main button[data-c]").length;'),0);
@@ -138,7 +146,7 @@ try{
       assert.equal(before.iconChoice,null,'fixture must exercise legacy iconChoice migration');
       assert.deepEqual(await state(),expectedAfterSave,'save/reload/undo migrates only iconChoice and preserves other values/types');
       await tab(3);const template=await run('return d.getElementById("tpl").value;');
-      assert.doesNotMatch(template,/グレネード|守護星座|AT直撃/);
+      assert.doesNotMatch(template,/グレネード|守護星座|AT直撃|VゲットチャレンジEX|黄金降臨/);
       await click('#detailBtn');await pause(250);await canvas('detailCanvas',id+'-detail-'+width);await canvas('cardCanvas',id+'-card-'+width);
       assert.deepEqual(await run('return window.__errors;'),[]);
       if(preview)assert.equal(await run(`return localStorage.getItem(${JSON.stringify(id+'-checker-v1')});`),productionSentinel,'nonzero production storage stays byte-identical');
@@ -146,7 +154,7 @@ try{
       assert.equal(await run('return d.documentElement.scrollWidth>d.documentElement.clientWidth;'),false);
       const guideHeadings=id==='ggo'
         ? [['rewards','グレネードジャッジの報酬振り分け']]
-        : [['guardian-1','守護星座の加護（加護なし・星矢・氷河）'],['guardian-2','守護星座の加護（瞬・紫龍・一輝）'],['direct-at','規定周期到達時のAT直撃']];
+        : [['guardian-1','守護星座の加護（加護なし・星矢・氷河）'],['guardian-2','守護星座の加護（瞬・紫龍・一輝）'],['direct-at','規定周期到達時のAT直撃'],['v-ex','規定周期到達時のVゲットチャレンジEX移行率'],['gold-points','黄金降臨成功時の報酬ポイント']];
       for(const [label,heading] of guideHeadings)await guideShot(id+'-guide-'+label+'-'+width,width,heading);
       pass(id+' '+width+'px: reference/guide, legacy storage, unknown types, undo, template/cards');
     }

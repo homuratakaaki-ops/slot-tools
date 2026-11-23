@@ -33,7 +33,7 @@ for(const id of ['ggo','seiya12'])test(id+' reference-only change and old/unknow
  const guide=fs.readFileSync(`${id}-guide.html`,'utf8');
  for(const value of new Set(expected.flatMap(s=>s.match(/\d+\.\d+%/g))))assert.ok(guide.includes(value),value);
  if(id==='ggo')assert.match(guide,/<th>設定<\/th><th>ボーナス<\/th><th>イエスマム<\/th>/);
- const version='20261119-reference-release';
+ const version=id==='seiya12'?'20261123-seiya-reference':'20261119-reference-release';
  assert.match(fs.readFileSync(`${id}-checker.html`,'utf8'),new RegExp(`${id}\\.js\\?v=${version}"`));
 });
 
