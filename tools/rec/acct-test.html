@@ -712,7 +712,6 @@ function save(opts){
     // 複数タブ：自分が読んだ世代より進んでいたら止める（操作による保存だけ世代を上げる）
     try{const r=localStorage.getItem(KEY);if(r){const g=(JSON.parse(r)||{}).gen;if(typeof g==="number"&&g>saveGen){staleTab();return}}}catch(e){}
   }
-  const durableOutbox=outbox;
   const next=boot?saveGen:saveGen+1;
   S.gen=next;
   if(idbMode)outbox=pendingSessions();
@@ -725,7 +724,7 @@ function save(opts){
     }
     saveGen=next;retryAfterFlush=false;if(idbMode)void flushOutbox();if(!saveOK){saveOK=true;el("storeWarn").classList.add("hide")}
   }
-  catch(e){S.gen=saveGen;saveOK=false;el("storeWarn").classList.remove("hide");if(idbMode){if(S.ledger?.events.length||condOk(S.cur?.cond)||S.sessions.some(s=>condOk(s.cond))){outbox=durableOutbox;retryAfterFlush=false;return}retryAfterFlush=true;void flushOutbox()}}   // 失敗したら世代を進めない。IndexedDB への書き込みは続ける
+  catch(e){S.gen=saveGen;saveOK=false;el("storeWarn").classList.remove("hide");if(idbMode){retryAfterFlush=true;void flushOutbox()}}   // 失敗したら世代を進めない。IndexedDB への書き込みは続ける
 }
 // 別のタブが先に進んでいる：このタブは保存しない
 let staleShown=false;
@@ -858,8 +857,7 @@ function acctBalanceA(a){const base=acctBase(a);if(!base)return null;const after
 function acctLast(a,day){return acctSessions(a).filter(s=>s.endAt&&jstDay(s.startAt)===day).sort((x,y)=>Date.parse(x.endAt)-Date.parse(y.endAt)).at(-1)}
 function acctHandH(a,day=jstDay()){
   const last=acctLast(a,day);if(!last)return 0;
-  // §3.3 の定義。autoDeposit 後の過去日の H は C05 との不一致が未確定。
-  if(acctEvents(a).some(e=>e.dayKey===day&&["finalDeposit","settleSkip"].includes(e.type)&&Date.parse(e.at)>=Date.parse(last.endAt)))return 0;
+  if(acctEvents(a).some(e=>e.dayKey===day&&["finalDeposit","settleSkip","autoDeposit"].includes(e.type)&&Date.parse(e.at)>=Date.parse(last.endAt)))return 0;
   return last.money.endMedal??0;
 }
 function acctRemaining(a){const lim=a.cond?.replayLimit;return lim?.mode==="fixed"?yen(Math.max(0,lim.value-acctReplaysU(a)))+"枚":lim?.mode==="none"?"上限なし":"—（上限未登録）"}
@@ -867,8 +865,10 @@ function acctSummary(a){const bal=acctBalanceA(a);return "貯メダル残 "+(bal
 function acctUsed(storeId,condId){return [...S.sessions,...(S.cur?[S.cur]:[]),...(S.ledger?.events||[])].some(x=>x.storeId===storeId&&(condId===undefined||x.condId===condId))}
 function acctAccounts(){return S.stores.flatMap(st=>st.conds.filter(c=>c.kind==="slot").map(c=>({storeId:st.id,condId:c.id,shop:st.name,cond:c})))}
 function acctPendingDays(a){
-  const days=[...new Set(acctSessions(a).map(s=>jstDay(s.startAt)))].filter(day=>day<jstDay());
-  return days.filter(day=>!acctEvents(a).some(e=>e.dayKey===day&&["finalDeposit","autoDeposit","settleSkip"].includes(e.type))).sort();
+  const first=acctEvents(a).filter(e=>e.type==="balanceSet").sort((x,y)=>Date.parse(x.at)-Date.parse(y.at))[0];
+  if(!first)return [];
+  const days=[...new Set(acctSessions(a).filter(s=>s.endAt&&Date.parse(s.endAt)>Date.parse(first.at)).map(s=>jstDay(s.startAt)))].filter(day=>day<jstDay());
+  return days.filter(day=>!acctEvents(a,false).some(e=>e.dayKey===day&&(e.type==="autoDeposit"||(e.status==="active"&&["finalDeposit","settleSkip"].includes(e.type))))).sort();
 }
 function acctEdit(e,field,value){if(JSON.stringify(e[field])===JSON.stringify(value))return;e.edits.push({at:nowISO(),field,from:e[field],to:value});e[field]=value;e.updatedAt=nowISO()}
 function acctPut(type,a,day,amount){
