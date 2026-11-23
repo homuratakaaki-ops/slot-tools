@@ -57,6 +57,80 @@ try{
   await open('/tools/rec/index.html');await ev(`document.querySelector('#stMachine').value='テスト汎用台';document.querySelector('#stStart').click()`);fixture=await ev('return __rec.S.cur');assert.ok(fixture);
   for(const testPage of ['/tools/rec/index.html','/tools/rec/acct-test.html']){
     page=testPage;key=page.includes('acct-test')?'slot-tools-rec-acct-test':'slot-tools-rec';
+    const settle=()=>ev(`__rec.acctSettleSheet(${JSON.stringify(account)})`);
+    const importSessions=async sessions=>{await ev('__rec.showNote()');await click('#nImpOpen');await ev(`document.querySelector('#shBody textarea').value=${JSON.stringify(JSON.stringify({sessions}))}`);await button('取り込む')};
+    const history=async()=>{await ev('__rec.showNote()');await button('お金の履歴を直す','#scNote')};
+    await test('V102-1: 日付またぎ・手入力保持・同日開始',async()=>{
+      for(const manual of [false,true]){
+        await seed(state([session('today',600,0,0,23)]));
+        await ev(`window.__time=Date.parse('2026-11-23T23:59:00+09:00')`);await select();
+        assert.equal(await ev('return document.querySelector("#stMedal").value'),'600');
+        await ev(`document.querySelector('#stMachine').value='テスト汎用台';${manual?"document.querySelector('#stMedal').value=250;":''}window.__time=Date.parse('2026-11-24T00:01:00+09:00')`);
+        await click('#stStart');assert.equal(await ev('return __rec.S.cur'),null);
+        assert.equal(await ev('return document.querySelector("#stMedal").value'),manual?'250':'0');
+        assert.match(await ev('return document.querySelector("#stErr").textContent'),/日付が変わった/);
+        assert.equal((await vals()).events.filter(e=>e.type==='autoDeposit').length,1);
+        assert.match(await ev('return document.querySelector("#stAccountInfo").textContent'),/手持ち 0枚/);
+        await click('#stStart');assert.equal(await ev('return __rec.S.cur.money.startMedal'),manual?250:0);
+        assert.equal((await vals()).events.filter(e=>e.type==='autoDeposit').length,1);
+      }
+      await seed(state());await start();assert.ok(await ev('return __rec.S.cur'));
+    });
+    await test('V102-2: 精算再表示・訂正確認・締め済みから預入',async()=>{
+      await seed(state([session('today',600,0,0,23)]));await ev(`window.__time=Date.parse('2026-11-23T21:00:00+09:00')`);await settle();await button('記録する');
+      const recorded=(await vals()).events;await settle();assert.equal(await ev('return document.querySelector("#shBody input").value'),'600');
+      assert.match(await ev('return document.querySelector("#shBody").textContent'),/精算済み：預入 600枚/);
+      await button('預入枚数を直す');assert.equal((await vals()).A,2600);assert.deepEqual((await vals()).events,recorded);
+      await settle();await click('#shBody input');await number(0);await ev('window.__answer=false');await button('預入枚数を直す');assert.equal((await vals()).A,2600);
+      assert.match(await ev('return __confirms.at(-1)'),/600枚 → 0枚/);await ev('window.__answer=true');await button('預入枚数を直す');assert.equal((await vals()).A,2000);
+      assert.ok((await vals()).events.at(-1).edits.some(e=>e.field==='amount'&&e.from===600&&e.to===0));
+      await seed(state([session('today',300,0,0,23)]));await settle();await button('預けていない・分からない');await settle();
+      assert.match(await ev('return document.querySelector("#shBody").textContent'),/として締め済み/);assert.equal(await ev('return document.querySelector("#shBody input").value'),'300');await button('記録する');
+      assert.ok((await vals()).events.some(e=>e.type==='settleSkip'&&e.status==='void'));assert.equal((await vals()).events.at(-1).amount,300);
+      await ev(`__rec.S.sessions.push(${JSON.stringify({...session('return',450,0,0,23),endAt:iso(23,22)})})`);await settle();
+      assert.match(await ev('return document.querySelector("#shBody").textContent'),/精算の後に終わった台があります（最終持ち 450枚）/);assert.equal(await ev('return document.querySelector("#shBody input").value'),'300');
+    });
+    await test('V102-3: 稼働中・台なしの締め防止・別口座許可',async()=>{
+      for(const running of [false,true]){
+        const cur=session('current',null,0,0,23);cur.endAt=null;await seed(running?state([session('done',300,0,0,23)],[balance()],cur):state());await settle();
+        assert.equal(await ev('return document.querySelectorAll("#shBody input,#shBody button").length'),0);
+        assert.match(await ev('return document.querySelector("#shBody").textContent'),running?/まだ稼働中/:/この日に終わった台がありません/);
+        const before=(await vals()).events;assert.deepEqual(await ev(`return ['finalDeposit','settleSkip'].map(t=>__rec.acctPut(t,${JSON.stringify(account)},'2026-11-23',t==='settleSkip'?null:300))`),[null,null]);assert.deepEqual((await vals()).events,before);
+      }
+      await seed(state());await ev('__rec.showNote()');await button('今日の稼働を終える（貯メダルへ預ける）','#scNote');assert.match(await ev('return document.querySelector("#shBody").textContent'),/今日終わった台がありません/);
+      const cur=session('other',null,0,0,23,{...account,storeId:'b'});cur.endAt=null;await seed(state([session('done',300,0,0,23)],[balance()],cur));await settle();await button('記録する');assert.equal((await vals()).A,2300);
+    });
+    await test('V102-4: 履歴追加の日付・上限確認・旧方式互換',async()=>{
+      await seed(state([session()]));await history();assert.match(await ev('return document.querySelector("#shBody").textContent'),/11\/22 の分として記録/);
+      await ev('window.__answer=false');await button('再プレイ +100');assert.equal((await vals()).oldU,500);assert.match(await ev('return __confirms.at(-1)'),/上限/);
+      await ev('window.__answer=true');await button('再プレイ +100');assert.deepEqual([(await vals()).oldU,(await vals()).U],[600,0]);
+      await button('入金 +1,000');await button('投資 +1,000');await button('枚数を入れて再プレイ');await number(100);
+      assert.deepEqual(await ev('const s=__rec.S.sessions[0];return [s.money.replays.at(-1).at,s.money.deposits.at(-1).at,s.money.spends.at(-1).at]'),[iso(22,20),iso(22,20),iso(22,20)]);
+      await seed(state());await start();await click('#bUtil');await button('お金の履歴を直す');await button('再プレイ +100');assert.equal((await vals()).U,100);
+      const legacy=structuredClone(fixture);legacy.endAt=iso(22,20);legacy.money.endMedal=600;const outputs=[],savedPage=page,savedKey=key;
+      for(const target of [savedPage,'/old/tools/rec/index.html']){page=target;key=target.startsWith('/old')?'slot-tools-rec':savedKey;await seed({sessions:[legacy],cur:null,settings:{lend:46},stores:[],entries:[]});await history();await button('再プレイ +100');await button('入金 +1,000');await button('投資 +1,000');outputs.push(await ev('return __rec.S.sessions[0]'))}page=savedPage;key=savedKey;assert.deepEqual(outputs[0],outputs[1]);assert.equal(outputs[0].money.replays.at(-1).at,new Date(iso(23)).toISOString());await open(page);
+    });
+    await test('V102-5: 交換単価補完・不正条件取り込み拒否・日誌一致',async()=>{
+      for(const exch of [undefined,0,-1,'bad']){
+        const s=session('missing',46,0,0,23);s.money.spends=[{at:iso(23),amount:1000}];s.cond.exch=exch;
+        await seed(state());await importSessions([s]);assert.equal(await ev('return __rec.S.sessions[0].cond.exch'),19.23);assert.equal(await ev('return __rec.profit(__rec.S.sessions[0]).yen'),-115);
+        const env=await ev('return __rec.toEnvelope(__rec.S.sessions[0])');assert.equal(env.payloadVer,'rec-4');assert.equal(env.exchangeRate,52);
+        await open('/tools/nisshi/index.html');assert.deepEqual(await ev(`return [recPlay(${JSON.stringify(s)},'rec'),envelopePlay(${JSON.stringify({...env,payload:{...env.payload,cond:s.cond}})})].map(p=>[calculatedYen(p),p.cond.exch])`),[[-115,19.23],[-115,19.23]]);await open(page);
+      }
+      const bad=session('invalid',46,0,0,23);bad.cond.exchPer1000=0;delete bad.cond.exch;bad.money.spends=[{at:iso(23),amount:1000}];await seed(state([session('keep',100,0,0,23)]));const before=await ev('return __rec.S.sessions');await importSessions([bad]);assert.deepEqual(await ev('return __rec.S.sessions'),before);assert.match(await ev('return document.querySelector("#toast").textContent'),/1件が記録の形/);
+      await open('/tools/nisshi/index.html');assert.deepEqual(await ev(`const p=recPlay(${JSON.stringify(bad)},'rec');return [p.cond,calculatedYen(p)]`),[null,0]);await open(page);
+      await seed(state([bad]));assert.deepEqual(await ev('return __rec.S.sessions[0].cond'),bad.cond);assert.equal(await ev('return __rec.toEnvelope(__rec.S.sessions[0]).payloadVer'),'rec-3');
+    });
+    await test('V102-7: 締め3状態・開始確認の幅360/390/412',async()=>{
+      for(const width of [360,390,412]){
+        await send('Emulation.setDeviceMetricsOverride',{width,height:530,deviceScaleFactor:1,mobile:true});
+        await seed(state([session('done',600,0,0,23)]));await ev(`window.__time=Date.parse('2026-11-23T21:00:00+09:00')`);await settle();await button('記録する');await settle();await capture('settled',width);
+        await seed(state());await start();await settle();await capture('running',width);
+        await seed(state());await settle();await capture('no-session',width);
+        await seed(state([session('done',600,0,0,23)]));await select();await ev(`window.__time=Date.parse('2026-11-24T00:01:00+09:00');document.querySelector('#stMachine').value='テスト汎用台'`);await click('#stStart');await ev('document.querySelector("#stErr").scrollIntoView({block:"center"})');await capture('start-confirm',width);
+        assert.ok(await ev('const r=document.querySelector("#stErr").getBoundingClientRect();return r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<=innerHeight'));
+      }
+    });
     await test('C01',async()=>{const a5={...account,condId:'c5',cond:stores[0].conds[1]};await seed(state([session()], [balance(),balance(a5,900)]));const v=await ev(`const a=${JSON.stringify(a5)};return [__rec.acctBalanceA(a),__rec.acctHandH(a),__rec.acctReplaysU(a,'2026-11-22')]`);assert.deepEqual(v,[900,0,0]);assert.equal((await vals()).A,2100)});
     await test('C02',async()=>{const b={...account,storeId:'b',shop:'B店'};await seed(state([session('a',800,0,100,23),session('b',300,0,50,23,b)],[balance(),balance(b,900)]));await select();assert.equal(await ev('return document.querySelector("#stMedal").value'),'800');assert.deepEqual(await ev(`return [__rec.acctBalanceA(${JSON.stringify(b)}),__rec.acctReplaysU(${JSON.stringify(b)})]`),[850,50])});
     await test('C03',async()=>{await seed(state([session('a',800,0,500,23)]));await start();await click('#bReplay');assert.ok((await ev('return __confirms')).some(t=>t.includes('上限')));assert.equal((await vals()).U,550);assert.equal(await ev('return __rec.S.cur.money.startMedal'),800);await click('#bUndo');assert.equal((await vals()).U,500)});
@@ -117,4 +191,4 @@ try{
   await test('H: 本番保存先の分離',async()=>{page='/tools/rec/acct-test.html';key='slot-tools-rec-acct-test';await open('/empty');await ev(`localStorage.setItem('slot-tools-rec','PRODUCTION SENTINEL');localStorage.setItem('slot-tools-rec:cycleLabel','PRODUCTION LABEL')`);await seed(state());await start();await click('#bReplay');await pause(100);assert.deepEqual(await ev(`return [localStorage.getItem('slot-tools-rec'),localStorage.getItem('slot-tools-rec:cycleLabel')]`),['PRODUCTION SENTINEL','PRODUCTION LABEL'])});
 }catch(e){console.error(e.stack);results.push({id:'driver',ok:false,error:e.stack})}
 finally{fs.writeFileSync(path.join(artifacts,'rec-account-results.json'),JSON.stringify(results,null,2));console.log('結果 '+results.filter(x=>x.ok).length+'/'+results.length+' 成果物 '+artifacts);ws?.close();browser?.kill();server.close();if(results.some(x=>!x.ok))process.exitCode=1}
-async function capture(name,width){await pause(100);const fit=await ev(`return {width:innerWidth,scroll:document.documentElement.scrollWidth,body:document.querySelector('#shBody').scrollWidth,pane:document.querySelector('#shBody').clientWidth,closeRight:document.querySelector('#shClose').getBoundingClientRect().right,closeWidth:document.querySelector('#shClose').getBoundingClientRect().width}`);assert.equal(fit.width,width);assert.ok(fit.scroll<=width,JSON.stringify(fit));if(name!=='start'){assert.ok(fit.body<=fit.pane,JSON.stringify(fit));assert.ok(fit.closeRight<=width&&fit.closeWidth>=44,JSON.stringify(fit));}const s=await send('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(artifacts,(page.includes('acct-test')?'test-':'rec-')+name+'-'+width+'.png'),Buffer.from(s.data,'base64'))}
+async function capture(name,width){await pause(100);const fit=await ev(`return {width:innerWidth,scroll:document.documentElement.scrollWidth,body:document.querySelector('#shBody').scrollWidth,pane:document.querySelector('#shBody').clientWidth,closeRight:document.querySelector('#shClose').getBoundingClientRect().right,closeWidth:document.querySelector('#shClose').getBoundingClientRect().width}`);assert.equal(fit.width,width);assert.ok(fit.scroll<=width,JSON.stringify(fit));if(!name.startsWith('start')){assert.ok(fit.body<=fit.pane,JSON.stringify(fit));assert.ok(fit.closeRight<=width&&fit.closeWidth>=44,JSON.stringify(fit));}const s=await send('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(artifacts,(page.includes('acct-test')?'test-':'rec-')+name+'-'+width+'.png'),Buffer.from(s.data,'base64'))}
