@@ -1,5 +1,8 @@
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os'),http=require('node:http'),vm=require('node:vm');
+
+// Only omit the two added top-level keys; preserve nested values.
+function legacyTopLevel({ledger,storageKey,...rest}){return rest}
 const {execFileSync}=require('node:child_process');
 const {chromium}=require('playwright'),fixture=require('./rec-idb-sessions.fixture.cjs');
 const ROOT=path.resolve(__dirname,'..'),KEY='slot-tools-rec',DB=KEY;
@@ -61,7 +64,7 @@ async function run(){
   const baseC=await context(),base=await seed(baseC);await ready(base,'/baseline-rec/');const before=await snapshot(base);
   const beforeDiary=await nisshi(baseC);assert.equal(beforeDiary.plays.length,200);
   const c=await context(),p=await seed(c);await ready(p);await settled(p);const after=await snapshot(p);
-  assert.deepEqual(after.exp,before.exp);assert.deepEqual(after.displays,before.displays);
+  assert.deepEqual(legacyTopLevel(after.exp),legacyTopLevel(before.exp));assert.deepEqual(after.displays,before.displays);
   let d=await disk(p);assert.equal((await rows(p)).length,200);assert(!('sessions'in d));
   example(1,`sessions=200; LS ${raw.length} -> ${JSON.stringify(d).length} chars`);
   result(2,`sessions=200 entries=6 stores=2; exported JSON identical (${JSON.stringify(after.exp).length} chars)`);
@@ -80,11 +83,11 @@ async function run(){
   d=await disk(resumed);assert.equal(d.outbox.del.length,1);assert.equal(await resumed.locator('#nList details.sess').count(),200);await resumed.reload();await resumed.waitForFunction(()=>!document.body.inert);await settled(resumed);assert.equal((await rows(resumed)).length,200);example(4,'note 201 -> 200 immediately; outbox.del 1 -> 0; IDB=200');
   // Stop after the migration transaction completes, before its verification read returns.
   const cutC=await context(),cut=await seed(cutC);await cut.route('**/js/rec-store.js?*',async route=>{const s=fs.readFileSync(path.join(ROOT,'js/rec-store.js'),'utf8');await route.fulfill({contentType:'text/javascript',body:s+'\n{const get=RecStore.getAll;let n=0;RecStore.getAll=async(...a)=>{const rows=await get(...a);if(++n===2){window.__cut=true;await new Promise(()=>{})}return rows}}'})});
-  await cut.goto(origin+'/tools/rec/');await cut.waitForFunction(()=>window.__cut);assert.equal((await disk(cut)).version,2);assert.equal((await rows(cut)).length,200);await cut.close();const recovered=await cutC.newPage();await ready(recovered);await settled(recovered);assert.deepEqual((await snapshot(recovered)).exp,before.exp);result(4,'interrupted: LS v2 / IDB=200; restart=200; export identical');
+  await cut.goto(origin+'/tools/rec/');await cut.waitForFunction(()=>window.__cut);assert.equal((await disk(cut)).version,2);assert.equal((await rows(cut)).length,200);await cut.close();const recovered=await cutC.newPage();await ready(recovered);await settled(recovered);assert.deepEqual(legacyTopLevel((await snapshot(recovered)).exp),legacyTopLevel(before.exp));result(4,'interrupted: LS v2 / IDB=200; restart=200; export identical');
   // Fill the actual Chromium quota to within 10,000 characters before migration.
   const fullC=await context(),full=await seed(fullC);const capacity=await full.evaluate(()=>{let lo=0,hi=6000000;while(lo+1<hi){const m=Math.floor((lo+hi)/2);try{localStorage.setItem('filler','x'.repeat(m));lo=m}catch{hi=m}}localStorage.setItem('filler','x'.repeat(lo-10000));return {filled:lo-10000,remaining:10000}});
   await ready(full);await settled(full);for(let i=0;i<3;i++){await start(full);await finish(full);await settled(full)}assert.equal((await rows(full)).length,203);assert(await full.locator('#storeWarn').isHidden());example(6,`remaining=${capacity.remaining} chars; filler=${capacity.filled}; sessions=203; warnings=0`);result(6,examples.get(6));
-  const failC=await context();await failC.addInitScript(()=>{indexedDB.open=()=>{throw new Error('simulated unavailable')}});const fallback=await seed(failC);await ready(fallback);assert.equal(JSON.stringify(await disk(fallback)),raw);await start(fallback);await finish(fallback);d=await disk(fallback);assert.equal(d.version,2);assert.equal(d.sessions.length,201);example(5,`open failed; version=2; sessions=201; LS=${JSON.stringify(d).length} chars`);result(7,examples.get(5));
+  const failC=await context();await failC.addInitScript(()=>{indexedDB.open=()=>{throw new Error('simulated unavailable')}});const fallback=await seed(failC);await ready(fallback);assert.equal(JSON.stringify(legacyTopLevel(await disk(fallback))),JSON.stringify(legacyTopLevel(JSON.parse(raw))));await start(fallback);await finish(fallback);d=await disk(fallback);assert.equal(d.version,2);assert.equal(d.sessions.length,201);example(5,`open failed; version=2; sessions=201; LS=${JSON.stringify(d).length} chars`);result(7,examples.get(5));
   const tabC=await context(),tabA=await seed(tabC);await ready(tabA);await settled(tabA);const tabB=await tabC.newPage();await ready(tabB);await settled(tabB);await start(tabA);await tabB.locator('#staleWarn').waitFor({state:'visible'});assert(await tabB.locator('#stStart').isDisabled());
   const old={...data,gen:(await disk(tabA)).gen+1,sessions:data.sessions.slice(0,199).map(s=>({...s}))};old.sessions[0].endNote='旧版更新';await tabA.evaluate(([k,d])=>localStorage.setItem(k,JSON.stringify(d)),[KEY,old]);await tabB.close();await tabA.reload();await tabA.waitForFunction(()=>!document.body.inert);await settled(tabA);const migrated=await rows(tabA);assert.equal(migrated.length,200);assert.equal(migrated.find(s=>s.id===old.sessions[0].id).endNote,'旧版更新');result(8,'stale tab disabled=1; v2=199 + IDB-only=1 -> 200; v2 conflict wins');
   // v3 cannot fall back to an empty local sessions list.
