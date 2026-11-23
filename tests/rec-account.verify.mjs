@@ -60,6 +60,50 @@ try{
     const settle=()=>ev(`__rec.acctSettleSheet(${JSON.stringify(account)})`);
     const importSessions=async sessions=>{await ev('__rec.showNote()');await click('#nImpOpen');await ev(`document.querySelector('#shBody textarea').value=${JSON.stringify(JSON.stringify({sessions}))}`);await button('取り込む')};
     const history=async()=>{await ev('__rec.showNote()');await button('お金の履歴を直す','#scNote')};
+    await test('V104-1',async()=>{
+      const firstRound=async()=>{await seed(state([session('first',600,0,0,23)]));await ev(`window.__time=Date.parse('${iso(23,21)}')`);await settle();await button('記録する');};
+      const resume=async()=>{await ev(`window.__time+=60000;__rec.showSetup()`);await start();assert.equal(await ev('return __rec.S.cur.money.startMedal'),0);await click('#bUtil');await button('やめる（終了して記録する）');await ev('window.__time+=60000;const i=document.querySelector("#shBody input");i.value=450;i.dispatchEvent(new Event("input"))');await button('終了する');await ev('window.__time+=60000')};
+      for(const skip of [false,true]){
+        await firstRound();await resume();await settle();
+        assert.match(await ev('return document.querySelector("#shBody").textContent'),/前回の精算：預入 600枚/);
+        assert.match(await ev('return document.querySelector("#shBody").textContent'),/その後の台の手持ち 450枚/);
+        assert.equal(await ev('return document.querySelector("#shBody input").value'),'450');
+        for(const width of [360,390,412]){await send('Emulation.setDeviceMetricsOverride',{width,height:530,deviceScaleFactor:1,mobile:true});await capture('v104-second-round',width)}
+        await button(skip?'預けていない・分からない':'記録する');let v=await vals();assert.equal(v.A,skip?2600:3050);assert.equal(v.H,0);
+        assert.deepEqual(v.events.filter(e=>e.type!=='balanceSet').map(e=>e.id),['final:a|c20:2026-11-23',(skip?'skip':'final')+':a|c20:2026-11-23:2']);
+        const original=v.events.at(-1);await settle();
+        if(skip){assert.match(await ev('return document.querySelector("#shBody").textContent'),/締め済み/);await button('記録する');v=await vals();assert.equal(v.events.find(e=>e.id===original.id).status,'void');assert.equal(v.events.at(-1).id,'final:a|c20:2026-11-23:2');assert.equal(v.events.at(-1).at,original.at)}
+        else{assert.match(await ev('return document.querySelector("#shBody").textContent'),/精算済み/);await click('#shBody input');await number(400);await button('預入枚数を直す');v=await vals();assert.equal(v.events.at(-1).amount,400);assert.equal(v.events.at(-1).at,original.at)}
+        await ev('__rec.showSetup()');await start();assert.equal(await ev('return __rec.S.cur.money.startMedal'),0);
+      }
+      await firstRound();await resume();await ev('window.__time+=86400000;__rec.acctAutoDeposit()');assert.equal((await vals()).events.filter(e=>e.type==='autoDeposit').length,0);assert.deepEqual(await ev(`return __rec.acctPendingDays(${JSON.stringify(account)})`),['2026-11-23']);
+      for(const aligned of [false,true]){
+        await firstRound();await resume();await settle();await button('記録する');const second=(await vals()).events.at(-1);
+        if(aligned)await ev(`window.__time+=60000;__rec.acctPut('balanceSet',${JSON.stringify(account)},'2026-11-23',3050)`);
+        await ev(`__rec.acctSheet(${JSON.stringify(account)});const buttons=[...document.querySelectorAll('#shBody button')].filter(b=>b.textContent==='直す');buttons.at(-2).click()`);await number(550);
+        assert.equal((await vals()).A,aligned?3050:3000);assert.deepEqual((await vals()).events.find(e=>e.id===second.id),second);
+        assert.match(await ev('return document.querySelector("#shBody").textContent'),/行先未記録 50枚/);
+      }
+      assert.equal(await ev(`const e=__rec.S.ledger.events.find(e=>e.type==='finalDeposit');return [':2',':3',':20'].every(s=>__rec.validAcctEvent({...e,id:'final:a|c20:2026-11-23'+s}))&&![':1',':02',':0',':x'].some(s=>__rec.validAcctEvent({...e,id:'final:a|c20:2026-11-23'+s}))`),true);
+    });
+    await test('V104-2',async()=>{
+      await seed(state([session('unknown',null,0,0,23)]));await select();await ev('document.querySelector("#stMachine").value="テスト汎用台";window.__answer=false');await click('#stStart');assert.equal(await ev('return __rec.S.cur'),null);assert.equal(await ev('return __confirms.at(-1)'),'開始持ちメダルが空欄です。0枚で始めますか？');
+      await ev('window.__answer=true');await click('#stStart');assert.equal(await ev('return __rec.S.cur.money.startMedal'),0);
+      await seed(state([session('unknown',null,0,0,23)]));await select();await ev('document.querySelector("#stMachine").value="テスト汎用台";document.querySelector("#stMedal").value=123');await click('#stStart');assert.equal(await ev('return __rec.S.cur.money.startMedal'),123);assert.deepEqual(await ev('return __confirms'),[]);
+      await seed(state());await ev('document.querySelector("#stMachine").value="テスト汎用台"');await click('#stStart');assert.equal(await ev('return __rec.S.cur.money.startMedal'),0);assert.deepEqual(await ev('return __confirms'),[]);
+    });
+    await test('V104-3',async()=>{
+      for(const width of [360,390,412]){
+        await send('Emulation.setDeviceMetricsOverride',{width,height:530,deviceScaleFactor:1,mobile:true});
+        for(const blank of [false,true]){
+          await seed(state([session('late',blank?null:600,0,0,23)]));await ev(`window.__time=Date.parse('2026-11-23T23:59:00+09:00')`);await select();
+          await ev(`document.querySelector('#stMachine').value='テスト汎用台';document.querySelector('#stReplay0').value=${blank?0:600};window.confirm=t=>{__confirms.push(t);window.__time=Date.parse('2026-11-24T00:01:00+09:00');return true}`);await click('#stStart');
+          assert.equal(await ev('return __rec.S.cur'),null);assert.equal(await ev('return document.querySelector("#stMedal").value'),'0');assert.match(await ev('return __confirms.at(-1)'),blank?/開始持ちメダルが空欄/:/上限/);
+          assert.match(await ev('return document.querySelector("#stErr").textContent'),/日付が変わった/);await ev('document.querySelector("#stErr").scrollIntoView({block:"center"})');await capture('start-v104-confirm',width);
+          assert.ok(await ev('const r=document.querySelector("#stErr").getBoundingClientRect();return r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<=innerHeight'));
+        }
+      }
+    });
     await test('V103-1',async()=>{
       for(const aligned of [false,true]){
         await seed(state([session('today',600,0,0,23)]));await ev(`window.__time=Date.parse('${iso(23,21)}')`);
@@ -105,19 +149,19 @@ try{
       await seed(state([],[b]));await start();await click('#bStock');await button('枚数を入れる');await number(100);assert.match((await ev('return __confirms')).at(-1),/マイナス/);
     });
     await test('V103-4',async()=>{
-      await seed(state([session('done',600,0,0,23)]));await settle();await button('記録する');await settle();
+      await seed(state([session('done',600,0,0,23)]));await ev(`window.__time=Date.parse('${iso(23,21)}')`);await settle();await button('記録する');await settle();
       assert.equal(await ev(`return [...document.querySelectorAll('#shBody button')].some(b=>b.textContent==='預けていない・分からない')`),false);
       const before=(await vals()).events;assert.equal(await ev(`return __rec.acctPut('settleSkip',${JSON.stringify(account)},'2026-11-23',null)`),null);assert.deepEqual((await vals()).events,before);
     });
-    await test('V103-I',async()=>{
-      const seedValue=0x1032026;await seed(state([session('initial',600,0,0,23)]));
+    await test('V104-I',async()=>{
+      const seedValue=0x1042026;await seed(state([session('initial',600,0,0,23)]));
       // 200個の独立した操作列。各列は全操作を含むシャッフル＋24操作。
       for(let run=0;run<200;run++){
         const report=await ev(`
           const seed=${seedValue}+${run},a=${JSON.stringify(account)},initial=${JSON.stringify(state([session('initial',600,0,0,23)]))};
           let t=seed;const rand=()=>{t+=0x6D2B79F5;let x=t;x=Math.imul(x^x>>>15,x|1);x^=x+Math.imul(x^x>>>7,x|61);return ((x^x>>>14)>>>0)/4294967296};
-          const r=__rec,ops=['liveReplay','pastReplay','end','final','correct','skip','void','verify','balance','auto','unknown','align'];
-          for(let i=ops.length-1;i>0;i--){const j=Math.floor(rand()*(i+1));[ops[i],ops[j]]=[ops[j],ops[i]]}for(let i=0;i<24;i++)ops.push(ops[Math.floor(rand()*12)]);
+          const r=__rec,ops=['liveReplay','pastReplay','end','final','correct','skip','void','verify','balance','auto','unknown','align','restart','autoStart'];
+          for(let i=ops.length-1;i>0;i--){const j=Math.floor(rand()*(i+1));[ops[i],ops[j]]=[ops[j],ops[i]]}for(let i=0;i<24;i++)ops.push(ops[Math.floor(rand()*14)]);
           Object.assign(r.S,structuredClone(initial));window.__time=Date.parse('${iso(23,21)}');r.save();
           const eq=(x,y,msg)=>{if(JSON.stringify(x)!==JSON.stringify(y))throw Error(msg+' '+JSON.stringify({x,y}))};
           const fixed=e=>['at','dayKey','type','id','createdAt'].map(k=>e[k]);
@@ -140,9 +184,26 @@ try{
             else if(op==='verify'&&e)r.acctEdit(e,'verified',true);
             else if(op==='balance'){r.acctPut('balanceSet',a,day,n);eq(r.acctBalanceA(a),n,'I3')}
             else if(op==='auto'){window.__time+=86400000;r.acctAutoDeposit()}
+            else if(op==='restart'||op==='autoStart'){
+              if(r.S.cur){r.S.cur.endAt=at;r.S.cur.money.endMedal=n;r.S.sessions.push(r.S.cur);r.S.cur=null}
+              const own=r.S.sessions.filter(s=>s.storeId===a.storeId&&s.condId===a.condId&&s.endAt&&new Date(Date.parse(s.startAt)+9*3600000).toISOString().slice(0,10)===day).sort((x,y)=>Date.parse(x.endAt)-Date.parse(y.endAt)).at(-1);
+              const close=r.S.ledger.events.filter(e=>e.storeId===a.storeId&&e.condId===a.condId&&e.dayKey===day&&e.status==='active'&&['finalDeposit','settleSkip','autoDeposit'].includes(e.type)).sort((x,y)=>Date.parse(x.at)-Date.parse(y.at)).at(-1);
+              const hand=own&&(!close||Date.parse(own.endAt)>Date.parse(close.at))?own.money.endMedal??null:0;
+              r.showSetup();r.acctSelectStart(a);eq(document.querySelector('#stMedal').value,hand===null?'':String(hand),'I7');
+              document.querySelector('#stMachine').value='テスト汎用台';document.querySelector('#stStart').click();
+              if(!r.S.cur){const later=[...document.querySelectorAll('#shBody button')].find(b=>b.textContent==='あとで');if(later)later.click()}
+              if(!r.S.cur)throw Error('I7 start');eq(r.S.cur.money.startMedal,hand??0,'I7 saved');
+              if(op==='restart'){window.__time+=1000;r.S.cur.endAt=new Date().toISOString();r.S.cur.money.endMedal=n;r.S.sessions.push(r.S.cur);r.S.cur=null}
+            }
             else if(op==='unknown')r.S.sessions.at(-1).money.endMedal=null;
             for(const e of r.S.ledger.events)if(before.has(e.id))eq(fixed(e),before.get(e.id),'I1');
-            const active=r.acctEvents(a),days=[...new Set(active.map(e=>e.dayKey))];for(const d of days){const count=t=>active.filter(e=>e.dayKey===d&&e.type===t).length;for(const t of ['autoDeposit','finalDeposit','settleSkip'])if(count(t)>1)throw Error('I6 duplicate');if(count('finalDeposit')&&count('settleSkip'))throw Error('I6 final+skip')}
+            const active=r.S.ledger.events.filter(e=>e.status==='active'&&e.storeId===a.storeId&&e.condId===a.condId),days=[...new Set(active.map(e=>e.dayKey))];
+            for(const d of days){const events=active.filter(e=>e.dayKey===d);if(r.S.ledger.events.filter(e=>e.dayKey===d&&e.type==='autoDeposit').length>1)throw Error('I6 auto duplicate');const rounds=new Set();for(const e of events.filter(e=>['finalDeposit','settleSkip'].includes(e.type))){const round=e.id.split(':')[3]||'1';if(rounds.has(round))throw Error('I6 final+skip');rounds.add(round)}}
+            // I8: 本体の口座関数に依存しない、元記録からの独立参照モデル。
+            const bases=active.filter(e=>e.type==='balanceSet').sort((x,y)=>Date.parse(x.at)-Date.parse(y.at)),base=bases.at(-1);
+            let expected=null;if(base){expected=base.amount;for(const e of active)if(['finalDeposit','autoDeposit'].includes(e.type)&&Date.parse(e.at)>Date.parse(base.at))expected+=e.amount;
+              for(const s of [...r.S.sessions,...(r.S.cur?[r.S.cur]:[])])if(s.cond&&s.storeId===a.storeId&&s.condId===a.condId)for(const replay of s.money.replays||[])if(Date.parse(replay.at)>Date.parse(base.at))expected-=replay.amount}
+            eq(r.acctBalanceA(a),expected,'I8');
             // メモリの変更も保存してから、実際の閉じるボタンでI4を検証。
             r.save();while(!r.ready)await new Promise(resolve=>setTimeout(resolve,1));
             const raw=localStorage.getItem(${JSON.stringify(key)}),saves=window.__saves;
@@ -151,7 +212,7 @@ try{
           }return {ok:true}}catch(error){return {ok:false,seed,step,trace,ops,error:String(error)}}
         `);assert.ok(report.ok,JSON.stringify(report));
       }
-      console.log('V103-I seed='+seedValue+'..'+(seedValue+199)+' 200列 × 36操作 I1-I6 '+page);
+      console.log('V104-I seed='+seedValue+'..'+(seedValue+199)+' 200列 × 38操作 I1-I8 '+page);
     });
     await test('V102-1: 日付またぎ・手入力保持・同日開始',async()=>{
       for(const manual of [false,true]){
@@ -177,11 +238,11 @@ try{
       await settle();await click('#shBody input');await number(0);await ev('window.__answer=false');await button('預入枚数を直す');assert.equal((await vals()).A,2600);
       assert.match(await ev('return __confirms.at(-1)'),/600枚 → 0枚/);await ev('window.__answer=true');await button('預入枚数を直す');assert.equal((await vals()).A,2000);
       assert.ok((await vals()).events.at(-1).edits.some(e=>e.field==='amount'&&e.from===600&&e.to===0));
-      await seed(state([session('today',300,0,0,23)]));await settle();await button('預けていない・分からない');await settle();
+      await seed(state([session('today',300,0,0,23)]));await ev(`window.__time=Date.parse('${iso(23,21)}')`);await settle();await button('預けていない・分からない');await settle();
       assert.match(await ev('return document.querySelector("#shBody").textContent'),/として締め済み/);assert.equal(await ev('return document.querySelector("#shBody input").value'),'300');await button('記録する');
       assert.ok((await vals()).events.some(e=>e.type==='settleSkip'&&e.status==='void'));assert.equal((await vals()).events.at(-1).amount,300);
       await ev(`__rec.S.sessions.push(${JSON.stringify({...session('return',450,0,0,23),endAt:iso(23,22)})})`);await settle();
-      assert.match(await ev('return document.querySelector("#shBody").textContent'),/精算の後に終わった台があります（最終持ち 450枚）/);assert.equal(await ev('return document.querySelector("#shBody input").value'),'300');
+      assert.match(await ev('return document.querySelector("#shBody").textContent'),/その後の台の手持ち 450枚/);assert.equal(await ev('return document.querySelector("#shBody input").value'),'450');
     });
     await test('V102-3: 稼働中・台なしの締め防止・別口座許可',async()=>{
       for(const running of [false,true]){
