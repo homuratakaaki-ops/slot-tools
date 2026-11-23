@@ -529,7 +529,7 @@ function expectedTotal(s){return (s.expected||0)+(s.follow||[]).reduce((a,f)=>a+
 function invested(m){return Array.isArray(m.spends)?sum(m.spends):sum(m.cash||[])}
 function balance(m){return Array.isArray(m.deposits)?sum(m.deposits)-sum(m.spends||[]):0}
 function replayed(m){return sum(m.replays||[])}
-function replayUnitOf(sess){if(condOk(sess.cond))return sess.cond.replayUnit??sess.cond.lend;const v=sess.money.replayUnit;return typeof v==="number"&&Number.isFinite(v)&&v>0?v:sess.lend}
+function replayUnitOf(sess){if(sessCond(sess))return sess.cond.replayUnit??sess.cond.lend;const v=sess.money.replayUnit;return typeof v==="number"&&Number.isFinite(v)&&v>0?v:sess.lend}
 function stockLeft(m){return typeof m.stockStart==="number"&&Number.isFinite(m.stockStart)?m.stockStart-replayed(m):null}
 function fixMoney(m){
   if(!m)return;
@@ -551,6 +551,8 @@ function fixMoney(m){
 // 交換条件：1,000円で何枚（玉）交換 → 1枚（玉）あたりの円。小数第2位まで
 function exchOf(per1000){const n=Number(per1000);return (Number.isFinite(n)&&n>0)?Math.round(1000/n*100)/100:null}
 function condOk(c){return !!(c&&typeof c==="object"&&(c.kind==="slot"||c.kind==="pachinko")&&typeof c.lend==="number"&&Number.isFinite(c.lend)&&c.lend>0&&typeof c.exchPer1000==="number"&&Number.isFinite(c.exchPer1000)&&c.exchPer1000>0)}
+function condExch(c){return typeof c?.exch==="number"&&Number.isFinite(c.exch)&&c.exch>0?c.exch:exchOf(c?.exchPer1000)}
+function sessCond(s){return condOk(s?.cond)&&condExch(s.cond)!=null}
 function entryUnit(e){return (e&&e.kind==="pachinko")?"玉":"枚"}
 function entryCash(e){return (e.cashOut||0)-(e.cashIn||0)}                      // 現金収支（円）
 function entryStock(e){return (e.deposit||0)-(e.withdraw||0)}                   // 貯玉増減（枚 or 玉）
@@ -590,6 +592,7 @@ function validSessionShape(c){
 }
 // 取り込み時の判定：中身の型まで厳しく（外から来るデータは信用しない）
 function validSession(c){
+  if(c&&Object.hasOwn(c,"cond")&&!condOk(c.cond))return false;
   if(!validSessionShape(c))return false;
   if(c.endAt!=null&&!dateOk(c.endAt))return false;
   if(!c.events.every(ev=>ev&&typeof ev==="object"&&dateOk(ev.at)&&typeof ev.type==="string"&&typeof ev.text==="string"&&numOrNull(ev.realG)&&numOrNull(ev.lcdG)&&numOrNull(ev.c3)&&(ev.tags==null||(Array.isArray(ev.tags)&&ev.tags.every(t=>typeof t==="string")))))return false;
@@ -748,6 +751,7 @@ document.addEventListener("click",e=>{
 },true);
 function fixSession(c){
   if(!c)return;
+  if(condOk(c.cond)&&condExch(c.cond)!=null)c.cond.exch=condExch(c.cond);
   ["realG","lcdG","c3"].forEach(k=>{if(c[k]!=null&&!(typeof c[k]==="number"&&Number.isFinite(c[k]))){const n=Number(c[k]);c[k]=Number.isFinite(n)?n:0}});
   (c.events||[]).forEach(ev=>{["realG","lcdG","c3"].forEach(k=>{if(ev[k]!=null&&!(typeof ev[k]==="number"&&Number.isFinite(ev[k]))){const n=Number(ev[k]);ev[k]=Number.isFinite(n)?n:null}});if(typeof ev.text!=="string")ev.text=String(ev.text==null?"":ev.text);if(typeof ev.type!=="string")ev.type="memo"});
   if(c.money&&typeof c.money==="object"){["cash","deposits","spends","replays"].forEach(k=>{if(Array.isArray(c.money[k]))c.money[k]=c.money[k].filter(x=>x&&typeof x==="object").map(x=>{const n=Number(x.amount);return Object.assign({},x,{amount:Number.isFinite(n)?n:0})})});
@@ -848,13 +852,15 @@ function fixLedger(){
   if(!Array.isArray(S.ledger.quarantine))S.ledger.quarantine=S.ledger.quarantine===undefined?[]:[S.ledger.quarantine];
   S.ledger.events=S.ledger.events.filter(e=>{if(validAcctEvent(e))return true;S.ledger.quarantine.push(e);return false});
 }
-function acctSessions(a){return [...S.sessions,...(S.cur?[S.cur]:[])].filter(s=>s.storeId===a.storeId&&s.condId===a.condId)}
+function acctSessions(a){return [...S.sessions,...(S.cur?[S.cur]:[])].filter(s=>sessCond(s)&&s.storeId===a.storeId&&s.condId===a.condId)}
 function acctEvents(a,active=true){return (S.ledger?.events||[]).filter(e=>e.storeId===a.storeId&&e.condId===a.condId&&(!active||e.status==="active"))}
 function acctReplays(a){return acctSessions(a).flatMap(s=>s.money?.replays||[])}
 function acctReplaysU(a,day=jstDay()){return sum(acctReplays(a).filter(r=>Number.isFinite(Date.parse(r.at))&&jstDay(r.at)===day))}
 function acctBase(a){return acctEvents(a).filter(e=>e.type==="balanceSet").sort((x,y)=>Date.parse(x.at)-Date.parse(y.at)).at(-1)}
 function acctBalanceA(a){const base=acctBase(a);if(!base)return null;const after=e=>Date.parse(e.at)>Date.parse(base.at);return base.amount+sum(acctEvents(a).filter(e=>["finalDeposit","autoDeposit"].includes(e.type)&&after(e)))-sum(acctReplays(a).filter(after))}
 function acctLast(a,day){return acctSessions(a).filter(s=>s.endAt&&jstDay(s.startAt)===day).sort((x,y)=>Date.parse(x.endAt)-Date.parse(y.endAt)).at(-1)}
+function acctDayEnd(a,day){return acctLast(a,day)?.money.endMedal??null}
+function acctSettleBlocked(a,day){return S.cur&&sessCond(S.cur)&&acctKey(S.cur)===acctKey(a)?"この店舗・レートの台がまだ稼働中です。台を終えてから記録してください":!acctLast(a,day)?"この日に終わった台がありません":null}
 function acctHandH(a,day=jstDay()){
   const last=acctLast(a,day);if(!last)return 0;
   if(acctEvents(a).some(e=>e.dayKey===day&&["finalDeposit","settleSkip","autoDeposit"].includes(e.type)&&Date.parse(e.at)>=Date.parse(last.endAt)))return 0;
@@ -872,6 +878,7 @@ function acctPendingDays(a){
 }
 function acctEdit(e,field,value){if(JSON.stringify(e[field])===JSON.stringify(value))return;e.edits.push({at:nowISO(),field,from:e[field],to:value});e[field]=value;e.updatedAt=nowISO()}
 function acctPut(type,a,day,amount){
+  if(["finalDeposit","settleSkip"].includes(type)&&acctSettleBlocked(a,day))return null;
   fixLedger();const last=acctLast(a,day),time=nowISO();
   const at=(type==="autoDeposit"||(type!=="balanceSet"&&day<jstDay()))?last?.endAt:time;
   if(!at)return null;
@@ -879,7 +886,7 @@ function acctPut(type,a,day,amount){
   let e=S.ledger.events.find(x=>x.id===id);
   if(e){acctEdit(e,"amount",amount);acctEdit(e,"at",at);acctEdit(e,"status","active")}
   else{e={id,type,storeId:a.storeId,condId:a.condId,dayKey:day,amount,at,createdAt:time,updatedAt:time,status:"active",verified:type!=="autoDeposit",edits:[]};S.ledger.events.push(e)}
-  if(type==="finalDeposit")acctEvents(a).filter(x=>x.dayKey===day&&x.type==="autoDeposit").forEach(x=>acctEdit(x,"status","void"));
+  if(type==="finalDeposit")acctEvents(a).filter(x=>x.dayKey===day&&["autoDeposit","settleSkip"].includes(x.type)).forEach(x=>acctEdit(x,"status","void"));
   return e;
 }
 function acctAutoDeposit(){
@@ -898,10 +905,10 @@ function acctAutoDeposit(){
   }
   if(changed)save();
 }
-function acctAllowReplay(a,n){
-  if(!condOk(a.cond))return true;
+function acctAllowReplay(a,n,day=jstDay()){
+  if(!sessCond(a))return true;
   const lim=a.cond.replayLimit,bal=acctBalanceA(a),warnings=[];
-  if(lim?.mode==="fixed"&&acctReplaysU(a)+n>lim.value)warnings.push("1日の再プレイ上限を超えます");
+  if(lim?.mode==="fixed"&&acctReplaysU(a,day)+n>lim.value)warnings.push("1日の再プレイ上限を超えます");
   if(bal!==null&&bal-n<0)warnings.push("貯メダル残高がマイナスになります");
   return !warnings.length||confirm(warnings.join("。")+"。記録しますか？");
 }
@@ -940,16 +947,24 @@ function acctReplaySheet(){sheet("再プレイ（貯メダルから入れる）"
   acctButton(b,"枚数を入れる",()=>askNum("再プレイ枚数",0,v=>{recordReplay(v);summary.textContent=acctSummary(a)}));
 })}
 function acctSettleSheet(a,day=jstDay(),after){sheet("今日の稼働を終える",b=>{
-  const h=acctHandH(a,day);b.append(mk("div","lbl",a.shop+"／"+a.cond.label+"／"+day));b.append(mk("div","hint","手持ち "+yen(h)+"枚"));
-  const hint=mk("div","hint");const n=acctNum(b,"預けた枚数",h,refresh);b.append(hint);
+  const blocked=acctSettleBlocked(a,day);if(blocked){b.append(mk("div","hint",blocked));return}
+  const final=acctEvents(a).find(e=>e.dayKey===day&&e.type==="finalDeposit"),skip=acctEvents(a).find(e=>e.dayKey===day&&e.type==="settleSkip");
+  if(final)b.append(mk("div","hint","精算済み：預入 "+yen(final.amount)+"枚（記録 "+hm(final.at)+"）"));
+  else if(skip)b.append(mk("div","hint","預けていない・分からない として締め済み"));
+  const h=acctDayEnd(a,day);
+  if((final||skip)&&Date.parse(acctLast(a,day).endAt)>Date.parse((final||skip).at))b.append(mk("div","hint","精算の後に終わった台があります（最終持ち "+yen(h)+"枚）"));
+  b.append(mk("div","lbl",a.shop+"／"+a.cond.label+"／"+day));b.append(mk("div","hint","手持ち "+yen(h)+"枚"));
+  const hint=mk("div","hint");const n=acctNum(b,"預けた枚数",final?final.amount:h,refresh);b.append(hint);
   function refresh(){const v=int(n.value);hint.textContent=v!==null&&v<h?"行先未記録 "+yen(h-v)+"枚":""}refresh();
   function done(){save();closeSheet();if(S.cur)renderMoney();if(after)after()}
-  acctButton(b,"記録する",()=>{const v=int(n.value);if(!Number.isInteger(v)||v<0){toast("0以上の整数で入れてください");return}if(v>h&&!confirm("手持ちより多い枚数です。記録しますか？"))return;if(!acctPut("finalDeposit",a,day,v)){toast("終了時刻が未確定です。台を終了してから記録してください");return}done()});
+  acctButton(b,final?"預入枚数を直す":"記録する",()=>{const v=int(n.value);if(!Number.isInteger(v)||v<0){toast("0以上の整数で入れてください");return}if(final){if(v===final.amount){closeSheet();if(after)after();return}if(!confirm(yen(final.amount)+"枚 → "+yen(v)+"枚 に直します。よろしいですか？"))return}else if(v>h&&!confirm("手持ちより多い枚数です。記録しますか？"))return;if(!acctPut("finalDeposit",a,day,v)){toast("終了時刻が未確定です。台を終了してから記録してください");return}done()});
   acctButton(b,"預けていない・分からない",()=>{if(!acctPut("settleSkip",a,day,null)){toast("終了時刻が未確定です。台を終了してから記録してください");return}done()});
   acctButton(b,"あとで",()=>{closeSheet();if(after)after()});
 })}
 function acctListSheet(settle=false){sheet(settle?"今日の稼働を終える":"口座",b=>{
-  acctAccounts().forEach(a=>acctButton(b,a.shop+"／"+a.cond.label,()=>settle?acctSettleSheet(a):acctSheet(a)));
+  const accounts=acctAccounts().filter(a=>!settle||acctLast(a,jstDay()));
+  if(settle&&!accounts.length)b.append(mk("div","hint","今日終わった台がありません"));
+  accounts.forEach(a=>acctButton(b,a.shop+"／"+a.cond.label,()=>settle?acctSettleSheet(a):acctSheet(a)));
 })}
 function acctSheet(a){sheet("口座",b=>{
   b.append(mk("div","lbl",a.shop+"／"+a.cond.label));b.append(mk("div","hint",acctSummary(a)));
@@ -973,7 +988,7 @@ function acctSheet(a){sheet("口座",b=>{
 })}
 let acctStartChoice=null,acctStartReviewed=false;
 function acctSelectStart(a){
-  acctStartChoice=a;acctStartReviewed=false;
+  acctStartChoice=a?{...a,day:jstDay(),autoMedal:acctHandH(a)}:null;acctStartReviewed=false;
   el("stAccount").textContent=a?a.shop+"／"+a.cond.label:"店舗を選ぶ";
   el("stAccount").classList.toggle("on",!!a);el("stAccount").setAttribute("aria-pressed",String(!!a));
   el("stAccountInfo").textContent=a?acctSummary(a)+"／貸出 "+a.cond.lend+"枚／1回 "+(a.cond.replayUnit??a.cond.lend)+"枚／手持ち "+acctHandH(a)+"枚":"";
@@ -1285,7 +1300,7 @@ function renderMoney(){
   const c=S.cur,m=c.money;
   el("mCash").textContent=yen(invested(m))+"円";
   const bal=balance(m);el("mBal").textContent=yen(bal)+"円";el("mBal").style.color=bal<0?"var(--hot)":"";
-  const left=condOk(c.cond)?acctBalanceA(c):stockLeft(m);el("mRepLabel").textContent=left==null?"再":"貯";
+  const left=sessCond(c)?acctBalanceA(c):stockLeft(m);el("mRepLabel").textContent=left==null?"再":"貯";
   el("mRep").textContent=yen(left==null?replayed(m):left)+"枚";el("mRep").style.color=left<0?"var(--hot)":"";
   fitStockPill();
   el("bReplay").textContent="再 −"+yen(replayUnitOf(c));
@@ -2103,7 +2118,7 @@ function recordReplay(n){
 }
 el("bReplay").addEventListener("click",()=>recordReplay(replayUnitOf(S.cur)));
 el("bStock").addEventListener("click",()=>{
-  if(condOk(S.cur.cond)){acctReplaySheet();return}
+  if(sessCond(S.cur)){acctReplaySheet();return}
   sheet("再プレイ（貯メダルから入れる）",b=>{
     const m=S.cur.money,summary=mk("div","hint"),leftLabel=mk("div","hint");b.append(summary,leftLabel);
     const stock=mk("button","sub","貯メダル残高を入れる／直す"),clear=mk("button","sub","残高を消す");
@@ -2161,7 +2176,7 @@ el("bUtil").addEventListener("click",()=>{
 function finish(){
   sheet("やめる",b=>{
     const m=S.cur.money;
-    b.append(mk("div","lbl",condOk(S.cur.cond)?"終了時の手元の持ちメダル":"終了時の持ちメダル（枚・貯メダルに預けた分も含む）"));const i1=mk("input");i1.className="num";i1.setAttribute("inputmode","numeric");i1.value=m.endMedal!=null?m.endMedal:(m.credit!=null?m.credit:"");b.append(i1);
+    b.append(mk("div","lbl",sessCond(S.cur)?"終了時の手元の持ちメダル":"終了時の持ちメダル（枚・貯メダルに預けた分も含む）"));const i1=mk("input");i1.className="num";i1.setAttribute("inputmode","numeric");i1.value=m.endMedal!=null?m.endMedal:(m.credit!=null?m.credit:"");b.append(i1);
     const i2={value:"0"};
     b.append(mk("div","lbl","台の総回転数（終了時・データ画面の値）"));const i3=mk("input");i3.className="num";i3.setAttribute("inputmode","numeric");i3.value=S.cur.totalEnd!=null?S.cur.totalEnd:"";i3.placeholder=S.cur.totalStart!=null?"開始時 "+S.cur.totalStart:"";b.append(i3);
     b.append(mk("div","lbl","終わりのメモ"));const ta=mk("textarea");ta.placeholder="ヤメ";ta.value=S.cur.endNote||"";ta.style.minHeight="60px";b.append(ta);
@@ -2403,12 +2418,14 @@ function editMoney(sess,after){
     });
     b.append(list);
     b.append(mk("div","lbl","追加する"));
+    if(sessCond(sess))b.append(mk("div","hint","再プレイ（"+jstDay(sess.endAt||nowISO()).slice(5).replace("-","/")+" の分として記録）"));
     const w=mk("div","opts");
     [["入金 +1,000","deposits",1000],["投資 +1,000","spends",1000],["再プレイ +100","replays",100],["金額を入れて入金","deposits",null],["金額を入れて投資","spends",null],["枚数を入れて再プレイ","replays",null]].forEach(([l,k,v])=>{
       const btn=mk("button","q2",l);
       btn.addEventListener("click",()=>{
-        if(v){m[k].push({at:nowISO(),amount:v});save();editMoney(sess,after)}
-        else{closeSheet();askNum(l,0,n=>{if(n){m[k].push({at:nowISO(),amount:n});save()}editMoney(sess,after)})}
+        const add=n=>{const at=sessCond(sess)&&sess.endAt?sess.endAt:nowISO();if(k==="replays"&&sessCond(sess)&&!acctAllowReplay(sess,n,jstDay(at)))return;m[k].push({at,amount:n});save()};
+        if(v){add(v);editMoney(sess,after)}
+        else{closeSheet();askNum(l,0,n=>{if(n)add(n);editMoney(sess,after)})}
       });
       w.append(btn);
     });
@@ -2685,7 +2702,7 @@ function editEventIn(sess,id,after){
 }
 
 /* ---------- 収支・集計 ---------- */
-function profit(s){const m=s.money;if(m.endMedal==null)return null;const st=m.startMedal||0,en=m.endMedal||0,rp=replayed(m),cash=invested(m),bought=Math.round(cash/1000*s.lend);return{cash,bought,replay:rp,lend:s.lend,medalDiff:condOk(s.cond)?en-st-rp:en-st-bought-rp,yen:condOk(s.cond)?Math.round((en-st-rp)*s.cond.exch)-cash:Math.round((en-st-rp)*(1000/s.lend)-cash)}}
+function profit(s){const m=s.money;if(m.endMedal==null)return null;const st=m.startMedal||0,en=m.endMedal||0,rp=replayed(m),cash=invested(m),bought=Math.round(cash/1000*s.lend);return{cash,bought,replay:rp,lend:s.lend,medalDiff:sessCond(s)?en-st-rp:en-st-bought-rp,yen:sessCond(s)?Math.round((en-st-rp)*condExch(s.cond))-cash:Math.round((en-st-rp)*(1000/s.lend)-cash)}}
 // 集計。紐づいた実戦記録は収支・台数に数えず、簡易収支の側を使う（想定期待値は実戦記録の側だけ）
 function agg(list,ents){
   let n=0,exp=0,act=0,nExp=0,medal=0,total=0,stockMedal=0,stockBall=0;
@@ -2847,7 +2864,7 @@ function toEnvelope(s){
   s.events.forEach(ev=>{const g=gsText(ev,md);logs.push({t:new Date(ev.at).getTime(),type:"memo",text:(g?g+"G　":"")+evTxt(ev)})});
   if(s.endAt)logs.push({t:new Date(s.endAt).getTime(),type:"memo",text:gsText({realG:s.realG,lcdG:s.lcdG},md)+"G　"+(s.endNote||"ヤメ")});
   const memo=[s.machine+((s.shop||s.dai)?"　"+[s.shop,s.dai?s.dai+"番":null].filter(Boolean).join(" "):"")];if(s.expected!=null)memo.push("想定期待値 "+sgn(expectedTotal(s))+"円");if(p)memo.push("差枚 "+sgn(p.medalDiff)+"枚");memo.push("開始持 "+(m.startMedal||0)+"枚／再プレイ "+replayed(m)+"枚／終了持 "+(m.endMedal||0)+"枚（回収は純増枚数）");
-  return{schema:"slot-session",schemaVer:2,sessionId:s.id||uuidV4(),machineId:s.machine,payloadVer:condOk(s.cond)?"rec-4":"rec-3",startedAt:isoOffset(new Date(s.startAt)),endedAt:isoOffset(new Date(s.endAt||s.startAt)),invest:invested(m),payout:(m.endMedal||0)-(m.startMedal||0)-replayed(m),storeId:null,storeName:s.shop||null,unitNo:s.dai||null,lendRate:condOk(s.cond)?s.cond.lend:s.lend,exchangeRate:condOk(s.cond)?s.cond.exchPer1000:s.lend,memo:memo.join(" ／ "),estimated:false,payload:{...(condOk(s.cond)?{recStoreId:s.storeId,recCondId:s.condId,cond:JSON.parse(JSON.stringify(s.cond))}:{}),machine:s.machine,machineDef:s.machineId,startRealG:s.startRealG,startLcdG:s.startLcdG,endRealG:s.realG,endLcdG:s.lcdG,startMedal:m.startMedal,replays:replayed(m),endMedal:m.endMedal,expected:s.expected??null,follow:s.follow||[],expectedTotal:expectedTotal(s),rare:s.rare||null,c3:s.c3,revive:s.revive||0,pendingReward:s.pendingReward||null,modeHints:s.modeHints||[],modeEra:s.modeEra||0,logs}};
+  return{schema:"slot-session",schemaVer:2,sessionId:s.id||uuidV4(),machineId:s.machine,payloadVer:sessCond(s)?"rec-4":"rec-3",startedAt:isoOffset(new Date(s.startAt)),endedAt:isoOffset(new Date(s.endAt||s.startAt)),invest:invested(m),payout:(m.endMedal||0)-(m.startMedal||0)-replayed(m),storeId:null,storeName:s.shop||null,unitNo:s.dai||null,lendRate:sessCond(s)?s.cond.lend:s.lend,exchangeRate:sessCond(s)?s.cond.exchPer1000:s.lend,memo:memo.join(" ／ "),estimated:false,payload:{...(sessCond(s)?{recStoreId:s.storeId,recCondId:s.condId,cond:JSON.parse(JSON.stringify(s.cond))}:{}),machine:s.machine,machineDef:s.machineId,startRealG:s.startRealG,startLcdG:s.startLcdG,endRealG:s.realG,endLcdG:s.lcdG,startMedal:m.startMedal,replays:replayed(m),endMedal:m.endMedal,expected:s.expected??null,follow:s.follow||[],expectedTotal:expectedTotal(s),rare:s.rare||null,c3:s.c3,revive:s.revive||0,pendingReward:s.pendingReward||null,modeHints:s.modeHints||[],modeEra:s.modeEra||0,logs}};
 }
 el("nExpNote").addEventListener("click",()=>{const done=S.sessions.filter(s=>s.endAt);if(!done.length){toast("終わった台がありません");return}outSheet("振り返りノート用",JSON.stringify(done.map(toEnvelope),null,2),"kado-note の「JSON取り込み」でファイルを選んでください。")});
 el("nDlNote").addEventListener("click",()=>{const done=S.sessions.filter(s=>s.endAt);if(!done.length){toast("終わった台がありません");return}dlJson(done.map(toEnvelope),"kadonote-"+ymd(nowISO()).replace(/\//g,"")+".json")});
@@ -2933,6 +2950,11 @@ el("hdMenu").addEventListener("click",()=>{sheet("メニュー",b=>{const tags=m
 document.querySelectorAll("[data-lend]").forEach(b=>b.addEventListener("click",()=>{el("stLend").value=b.dataset.lend}));
 el("stStart").addEventListener("click",()=>{
   acctAutoDeposit();if(staleShown||loadBroken)return;
+  if(acctStartChoice&&acctStartChoice.day!==jstDay()){
+    const value=el("stMedal").value,manual=int(value)!==acctStartChoice.autoMedal;
+    acctSelectStart(acctStartChoice);if(manual)el("stMedal").value=value;
+    const e=el("stErr");e.textContent="日付が変わったため、手持ちを更新しました。内容を確認して、もう一度『打ち始める』を押してください";e.classList.remove("hide");return;
+  }
   if(acctStartChoice&&!acctStartReviewed){const days=acctPendingDays(acctStartChoice);if(days.length){acctSettleSheet(acctStartChoice,days[0],()=>{acctStartReviewed=true;el("stStart").click()});return}}
   const m=el("stMachine").value.trim(),lend=int(el("stLend").value),e=el("stErr");
   if(!m){e.textContent="機種名を入れてください";e.classList.remove("hide");return}
