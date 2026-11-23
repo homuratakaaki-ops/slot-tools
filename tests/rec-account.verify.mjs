@@ -13,7 +13,7 @@ const profile=fs.mkdtempSync(path.join(os.tmpdir(),'rec-account-chrome-'));
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
 const base=execFileSync('git',['-c','safe.directory='+root,'show','6dd1c73:tools/rec/index.html'],{cwd:root,encoding:'utf8'});
 const oldNisshi=execFileSync('git',['-c','safe.directory='+root,'show','6dd1c73:tools/nisshi/index.html'],{cwd:root,encoding:'utf8'});
-const hook=(html,old=false)=>html.replace(/\r\n/g,'\n').replace('\n})();\n</script>',`\nwindow.__rec={get S(){return S},get ready(){return !storageStarting&&!flushBusy},get broken(){return loadBroken},get stale(){return staleShown},profit,toEnvelope,validStore,fixStores,save,load,showNote,showSetup,render,agg,${old?'':'acctKey,jstDay,acctReplaysU,acctBalanceA,acctHandH,acctEvents,acctPendingDays,acctAutoDeposit,acctPut,acctImport,validAcctEvent,acctSheet,acctSettleSheet,'}};\n})();\n</script>`);
+const hook=(html,old=false)=>html.replace(/\r\n/g,'\n').replace('\n})();\n</script>',`\nwindow.__saves=0;const originalSave=save;save=function(...args){window.__saves++;return originalSave(...args)};window.__rec={get S(){return S},get ready(){return !storageStarting&&!flushBusy},get broken(){return loadBroken},get stale(){return staleShown},profit,toEnvelope,validStore,fixStores,save,load,showNote,showSetup,render,agg,${old?'':'acctEdit,acctBase,acctSelectStart,acctAllowReplay,closeSheet,acctKey,jstDay,acctReplaysU,acctBalanceA,acctHandH,acctEvents,acctPendingDays,acctAutoDeposit,acctPut,acctImport,validAcctEvent,acctSheet,acctSettleSheet,'}};\n})();\n</script>`);
 const server=http.createServer((req,res)=>{
   let url=decodeURIComponent(req.url.split('?')[0]);res.setHeader('Content-Type',url.endsWith('.js')?'text/javascript; charset=utf-8':'text/html; charset=utf-8');
   if(url==='/empty')return res.end('<html></html>');
@@ -60,6 +60,99 @@ try{
     const settle=()=>ev(`__rec.acctSettleSheet(${JSON.stringify(account)})`);
     const importSessions=async sessions=>{await ev('__rec.showNote()');await click('#nImpOpen');await ev(`document.querySelector('#shBody textarea').value=${JSON.stringify(JSON.stringify({sessions}))}`);await button('取り込む')};
     const history=async()=>{await ev('__rec.showNote()');await button('お金の履歴を直す','#scNote')};
+    await test('V103-1',async()=>{
+      for(const aligned of [false,true]){
+        await seed(state([session('today',600,0,0,23)]));await ev(`window.__time=Date.parse('${iso(23,21)}')`);
+        await settle();await button('記録する');const original=(await vals()).events.at(-1);
+        if(aligned)await ev(`window.__time+=60000;__rec.acctPut('balanceSet',${JSON.stringify(account)},'2026-11-23',2600)`);
+        await ev('window.__time+=60000');await settle();
+        if(aligned)assert.match(await ev('return document.querySelector("#shBody").textContent'),/残高は変わりません/);
+        await click('#shBody input');await number(550);await button('預入枚数を直す');
+        const v=await vals(),e=v.events.find(e=>e.id===original.id);assert.equal(v.A,aligned?2600:2550);
+        for(const f of ['at','dayKey','type','id','createdAt'])assert.equal(e[f],original[f]);
+        assert.ok(e.edits.some(x=>x.field==='amount'&&x.from===600&&x.to===550));
+        await ev(`const e=__rec.S.ledger.events.find(e=>e.id===${JSON.stringify(e.id)});for(const f of ['at','dayKey','type','id','createdAt'])__rec.acctEdit(e,f,'forbidden');__rec.acctEdit(e,'status','void');window.__time+=60000;__rec.acctPut('finalDeposit',${JSON.stringify(account)},'2026-11-23',550)`);
+        for(const f of ['at','dayKey','type','id','createdAt'])assert.equal((await vals()).events.find(x=>x.id===e.id)[f],original[f]);
+      }
+      await seed(state([session('auto',600,0,0,22)]));const auto=(await vals()).events.find(e=>e.type==='autoDeposit');
+      await ev(`window.__time+=60000;__rec.acctPut('balanceSet',${JSON.stringify(account)},'2026-11-23',2600);__rec.S.sessions[0].money.endMedal=550;__rec.acctSheet(${JSON.stringify(account)})`);
+      await button('合わせる');assert.equal((await vals()).A,2600);
+      await ev(`const b=[...document.querySelectorAll('#shBody button')].filter(b=>b.textContent==='直す').at(-1);b.click()`);await number(500);
+      assert.equal((await vals()).A,2600);assert.equal((await vals()).events.find(e=>e.id===auto.id).at,auto.at);
+      assert.match(await ev('return document.querySelector("#shBody").textContent'),/残高は変わりません/);
+    });
+    await test('V103-2',async()=>{
+      await seed(state([session('unknown',null,0,0,23)]));
+      await ev('__rec.showNote()');await button('今日の稼働を終える（貯メダルへ預ける）','#scNote');await button('A店／20スロ');
+      assert.match(await ev('return document.querySelector("#shBody").textContent'),/手持ち 未確定/);
+      assert.equal(await ev('return document.querySelector("#shBody input").value'),'');
+      await click('#shBody input');await number(300);await button('記録する');assert.equal((await vals()).A,2300);
+      assert.equal((await ev('return __confirms')).length,0);
+      await seed(state([session('unknown',null,0,0,23)]));await select();
+      assert.equal(await ev('return document.querySelector("#stMedal").value'),'');assert.match(await ev('return document.querySelector("#stAccountInfo").textContent'),/手持ち 未確定/);
+      await seed(state());await importSessions([session('import-null',null,0,0,23)]);await settle();assert.match(await ev('return document.querySelector("#shBody").textContent'),/未確定/);
+      await seed(state([session('auto',600,0,0,22)]));await ev(`__rec.S.sessions[0].money.endMedal=null;__rec.acctSheet(${JSON.stringify(account)})`);
+      assert.match(await ev('return document.querySelector("#shBody").textContent'),/今の最終持ち 未確定/);assert.equal(await ev(`return [...document.querySelectorAll('#shBody button')].some(b=>b.textContent==='合わせる')`),false);
+      for(const width of [360,390,412]){
+        await send('Emulation.setDeviceMetricsOverride',{width,height:530,deviceScaleFactor:1,mobile:true});
+        await seed(state([session('unknown',null,0,0,23)]));await settle();await capture('v103-unknown',width);
+        await ev(`window.__time=Date.parse('${iso(23,21)}');__rec.acctPut('finalDeposit',${JSON.stringify(account)},'2026-11-23',300);window.__time+=60000;__rec.acctPut('balanceSet',${JSON.stringify(account)},'2026-11-23',2300)`);await settle();await capture('v103-unchanged',width);
+      }
+    });
+    await test('V103-3',async()=>{
+      const b=balance(account,30);b.at=iso(23,9);b.dayKey='2026-11-23';await seed(state([session('past',600,0,0,22)],[b]));
+      await history();await button('再プレイ +100');assert.equal((await vals()).A,30);assert.equal((await vals()).oldU,100);assert.deepEqual(await ev('return __confirms'),[]);
+      await seed(state([],[b]));await start();await click('#bStock');await button('枚数を入れる');await number(100);assert.match((await ev('return __confirms')).at(-1),/マイナス/);
+    });
+    await test('V103-4',async()=>{
+      await seed(state([session('done',600,0,0,23)]));await settle();await button('記録する');await settle();
+      assert.equal(await ev(`return [...document.querySelectorAll('#shBody button')].some(b=>b.textContent==='預けていない・分からない')`),false);
+      const before=(await vals()).events;assert.equal(await ev(`return __rec.acctPut('settleSkip',${JSON.stringify(account)},'2026-11-23',null)`),null);assert.deepEqual((await vals()).events,before);
+    });
+    await test('V103-I',async()=>{
+      const seedValue=0x1032026;await seed(state([session('initial',600,0,0,23)]));
+      // 200個の独立した操作列。各列は全操作を含むシャッフル＋24操作。
+      for(let run=0;run<200;run++){
+        const report=await ev(`
+          const seed=${seedValue}+${run},a=${JSON.stringify(account)},initial=${JSON.stringify(state([session('initial',600,0,0,23)]))};
+          let t=seed;const rand=()=>{t+=0x6D2B79F5;let x=t;x=Math.imul(x^x>>>15,x|1);x^=x+Math.imul(x^x>>>7,x|61);return ((x^x>>>14)>>>0)/4294967296};
+          const r=__rec,ops=['liveReplay','pastReplay','end','final','correct','skip','void','verify','balance','auto','unknown','align'];
+          for(let i=ops.length-1;i>0;i--){const j=Math.floor(rand()*(i+1));[ops[i],ops[j]]=[ops[j],ops[i]]}for(let i=0;i<24;i++)ops.push(ops[Math.floor(rand()*12)]);
+          Object.assign(r.S,structuredClone(initial));window.__time=Date.parse('${iso(23,21)}');r.save();
+          const eq=(x,y,msg)=>{if(JSON.stringify(x)!==JSON.stringify(y))throw Error(msg+' '+JSON.stringify({x,y}))};
+          const fixed=e=>['at','dayKey','type','id','createdAt'].map(k=>e[k]);
+          const trace=[];let step=-1;
+          try{for(step=0;step<ops.length;step++){
+            window.__time+=60000;const at=new Date().toISOString(),day=r.jstDay(at),op=ops[step],n=Math.floor(rand()*1000);trace.push({op,at,n});
+            const before=new Map(r.S.ledger.events.map(e=>[e.id,fixed(e)]));
+            const deposits=r.acctEvents(a).filter(e=>['finalDeposit','autoDeposit'].includes(e.type));const e=deposits[Math.floor(rand()*deposits.length)];
+            if(op==='liveReplay'||op==='pastReplay'){
+              let s;if(op==='pastReplay')s=r.S.sessions[0];else{if(!r.S.cur){r.S.cur=structuredClone(initial.sessions[0]);r.S.cur.id='live-'+step;r.S.cur.startAt=at;r.S.cur.endAt=null;r.S.cur.money.replays=[]}s=r.S.cur}
+              const when=op==='pastReplay'?s.endAt:at;if(r.acctAllowReplay(s,n,when))s.money.replays.push({at:when,amount:n});
+            }else if(op==='end'){
+              const s=r.S.cur||structuredClone(initial.sessions[0]);s.id='end-'+step;s.startAt=at;s.endAt=at;s.money.endMedal=n;r.S.sessions.push(s);r.S.cur=null;
+            }else if(op==='final')r.acctPut('finalDeposit',a,day,n);
+            else if(op==='skip')r.acctPut('settleSkip',a,day,null);
+            else if((op==='correct'||op==='align')&&e){
+              const amount=op==='align'?r.S.sessions.filter(s=>r.jstDay(s.startAt)===e.dayKey).at(-1)?.money.endMedal:n;
+              if(amount!=null){const old=r.acctBalanceA(a),delta=amount-e.amount,base=r.acctBase(a);r.acctEdit(e,'amount',amount);eq(r.acctBalanceA(a),old+(Date.parse(e.at)>Date.parse(base.at)?delta:0),'I2')}
+            }else if(op==='void'&&e)r.acctEdit(e,'status','void');
+            else if(op==='verify'&&e)r.acctEdit(e,'verified',true);
+            else if(op==='balance'){r.acctPut('balanceSet',a,day,n);eq(r.acctBalanceA(a),n,'I3')}
+            else if(op==='auto'){window.__time+=86400000;r.acctAutoDeposit()}
+            else if(op==='unknown')r.S.sessions.at(-1).money.endMedal=null;
+            for(const e of r.S.ledger.events)if(before.has(e.id))eq(fixed(e),before.get(e.id),'I1');
+            const active=r.acctEvents(a),days=[...new Set(active.map(e=>e.dayKey))];for(const d of days){const count=t=>active.filter(e=>e.dayKey===d&&e.type===t).length;for(const t of ['autoDeposit','finalDeposit','settleSkip'])if(count(t)>1)throw Error('I6 duplicate');if(count('finalDeposit')&&count('settleSkip'))throw Error('I6 final+skip')}
+            // メモリの変更も保存してから、実際の閉じるボタンでI4を検証。
+            r.save();while(!r.ready)await new Promise(resolve=>setTimeout(resolve,1));
+            const raw=localStorage.getItem(${JSON.stringify(key)}),saves=window.__saves;
+            for(const open of [()=>r.acctSettleSheet(a,r.jstDay()),()=>r.acctSheet(a)]){open();document.querySelector('#shClose').click();eq(localStorage.getItem(${JSON.stringify(key)}),raw,'I4 bytes');eq(window.__saves,saves,'I4 save')}
+            eq(window.__errs,[],'I5');
+          }return {ok:true}}catch(error){return {ok:false,seed,step,trace,ops,error:String(error)}}
+        `);assert.ok(report.ok,JSON.stringify(report));
+      }
+      console.log('V103-I seed='+seedValue+'..'+(seedValue+199)+' 200列 × 36操作 I1-I6 '+page);
+    });
     await test('V102-1: 日付またぎ・手入力保持・同日開始',async()=>{
       for(const manual of [false,true]){
         await seed(state([session('today',600,0,0,23)]));
