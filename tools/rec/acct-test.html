@@ -841,11 +841,14 @@ function validReplayUnit(v){return v===null||(Number.isInteger(v)&&v>0)}
 function validReplayLimit(v){return !!(v&&((v.mode==="fixed"&&Number.isInteger(v.value)&&v.value>=0)||((v.mode==="unset"||v.mode==="none")&&v.value===null)))}
 function acctKey(a){return a.storeId+"|"+a.condId}
 function jstDay(t=nowISO()){return new Date(Date.parse(t)+9*3600*1000).toISOString().slice(0,10)}
-function acctEventId(type,a,day){return ({autoDeposit:"auto",finalDeposit:"final",settleSkip:"skip"})[type]+":"+acctKey(a)+":"+day}
+function acctEventId(type,a,day,round=1){return ({autoDeposit:"auto",finalDeposit:"final",settleSkip:"skip"})[type]+":"+acctKey(a)+":"+day+(round>1?":"+round:"")}
+function acctRound(e){const base=acctEventId(e.type,e,e.dayKey);return e.id===base?1:Number(e.id.slice(base.length+1))}
+function acctLatestSettle(a,day,active=true){return acctEvents(a,active).filter(e=>e.dayKey===day&&["finalDeposit","settleSkip","autoDeposit"].includes(e.type)).sort((x,y)=>Date.parse(x.at)-Date.parse(y.at)).at(-1)}
+function acctUnsettled(a,day){const last=acctLast(a,day),latest=acctLatestSettle(a,day);return !!last&&(!latest||Date.parse(last.endAt)>Date.parse(latest.at))}
 function validAcctEvent(e){
   const iso=v=>typeof v==="string"&&/^\d{4}-\d\d-\d\dT/.test(v)&&Number.isFinite(Date.parse(v));
   if(!e||typeof e!=="object"||!["balanceSet","finalDeposit","autoDeposit","settleSkip"].includes(e.type))return false;
-  return typeof e.id==="string"&&!!e.id&&typeof e.storeId==="string"&&!!e.storeId&&typeof e.condId==="string"&&!!e.condId&&/^\d{4}-\d\d-\d\d$/.test(e.dayKey)&&iso(e.dayKey+"T00:00:00Z")&&(e.type==="balanceSet"||e.id===acctEventId(e.type,e,e.dayKey))&&(e.type==="settleSkip"?e.amount===null:Number.isInteger(e.amount)&&e.amount>=0)&&iso(e.at)&&iso(e.createdAt)&&iso(e.updatedAt)&&["active","void"].includes(e.status)&&typeof e.verified==="boolean"&&Array.isArray(e.edits)&&e.edits.every(x=>x&&iso(x.at)&&typeof x.field==="string"&&Object.hasOwn(x,"from")&&Object.hasOwn(x,"to"))&&(e.note===undefined||typeof e.note==="string");
+  return typeof e.id==="string"&&!!e.id&&typeof e.storeId==="string"&&!!e.storeId&&typeof e.condId==="string"&&!!e.condId&&/^\d{4}-\d\d-\d\d$/.test(e.dayKey)&&iso(e.dayKey+"T00:00:00Z")&&(e.type==="balanceSet"||e.id===acctEventId(e.type,e,e.dayKey)||(e.type!=="autoDeposit"&&Number.isSafeInteger(acctRound(e))&&acctRound(e)>=2&&e.id===acctEventId(e.type,e,e.dayKey,acctRound(e))))&&(e.type==="settleSkip"?e.amount===null:Number.isInteger(e.amount)&&e.amount>=0)&&iso(e.at)&&iso(e.createdAt)&&iso(e.updatedAt)&&["active","void"].includes(e.status)&&typeof e.verified==="boolean"&&Array.isArray(e.edits)&&e.edits.every(x=>x&&iso(x.at)&&typeof x.field==="string"&&Object.hasOwn(x,"from")&&Object.hasOwn(x,"to"))&&(e.note===undefined||typeof e.note==="string");
 }
 function fixLedger(){
   if(!S.ledger)S.ledger={ver:1,events:[],quarantine:[]};
@@ -858,12 +861,12 @@ function acctReplays(a){return acctSessions(a).flatMap(s=>s.money?.replays||[])}
 function acctReplaysU(a,day=jstDay()){return sum(acctReplays(a).filter(r=>Number.isFinite(Date.parse(r.at))&&jstDay(r.at)===day))}
 function acctBase(a){return acctEvents(a).filter(e=>e.type==="balanceSet").sort((x,y)=>Date.parse(x.at)-Date.parse(y.at)).at(-1)}
 function acctBalanceA(a){const base=acctBase(a);if(!base)return null;const after=e=>Date.parse(e.at)>Date.parse(base.at);return base.amount+sum(acctEvents(a).filter(e=>["finalDeposit","autoDeposit"].includes(e.type)&&after(e)))-sum(acctReplays(a).filter(after))}
-function acctLast(a,day){return acctSessions(a).filter(s=>s.endAt&&jstDay(s.startAt)===day).sort((x,y)=>Date.parse(x.endAt)-Date.parse(y.endAt)).at(-1)}
+function acctLast(a,day,before=null){return acctSessions(a).filter(s=>s.endAt&&jstDay(s.startAt)===day&&(before===null||Date.parse(s.endAt)<=Date.parse(before))).sort((x,y)=>Date.parse(x.endAt)-Date.parse(y.endAt)).at(-1)}
 function acctDayEnd(a,day){return acctLast(a,day)?.money.endMedal??null}
 function acctSettleBlocked(a,day){return S.cur&&sessCond(S.cur)&&acctKey(S.cur)===acctKey(a)?"この店舗・レートの台がまだ稼働中です。台を終えてから記録してください":!acctLast(a,day)?"この日に終わった台がありません":null}
 function acctHandH(a,day=jstDay()){
   const last=acctLast(a,day);if(!last)return 0;
-  if(acctEvents(a).some(e=>e.dayKey===day&&["finalDeposit","settleSkip","autoDeposit"].includes(e.type)&&Date.parse(e.at)>=Date.parse(last.endAt)))return 0;
+  if(!acctUnsettled(a,day))return 0;
   return last.money.endMedal??null;
 }
 function acctRemaining(a){const lim=a.cond?.replayLimit;return lim?.mode==="fixed"?yen(Math.max(0,lim.value-acctReplaysU(a)))+"枚":lim?.mode==="none"?"上限なし":"—（上限未登録）"}
@@ -874,20 +877,23 @@ function acctPendingDays(a){
   const first=acctEvents(a).filter(e=>e.type==="balanceSet").sort((x,y)=>Date.parse(x.at)-Date.parse(y.at))[0];
   if(!first)return [];
   const days=[...new Set(acctSessions(a).filter(s=>s.endAt&&Date.parse(s.endAt)>Date.parse(first.at)).map(s=>jstDay(s.startAt)))].filter(day=>day<jstDay());
-  return days.filter(day=>!acctEvents(a,false).some(e=>e.dayKey===day&&(e.type==="autoDeposit"||(e.status==="active"&&["finalDeposit","settleSkip"].includes(e.type))))).sort();
+  return days.filter(day=>acctUnsettled(a,day)&&!acctEvents(a,false).some(e=>e.dayKey===day&&e.type==="autoDeposit"&&Date.parse(e.at)>=Date.parse(acctLast(a,day).endAt))).sort();
 }
 function acctEdit(e,field,value){if(!["amount","status","verified","note"].includes(field)||JSON.stringify(e[field])===JSON.stringify(value))return;e.edits.push({at:nowISO(),field,from:e[field],to:value});e[field]=value;e.updatedAt=nowISO()}
 function acctPut(type,a,day,amount){
   if(["finalDeposit","settleSkip"].includes(type)&&acctSettleBlocked(a,day))return null;
-  if(type==="settleSkip"&&acctEvents(a).some(e=>e.dayKey===day&&e.type==="finalDeposit"))return null;
   fixLedger();const last=acctLast(a,day),time=nowISO();
-  const at=(type==="autoDeposit"||(type!=="balanceSet"&&day<jstDay()))?last?.endAt:time;
+  const latest=acctLatestSettle(a,day),history=acctEvents(a,false).filter(e=>e.dayKey===day&&["finalDeposit","settleSkip"].includes(e.type));
+  const previous=latest||acctLatestSettle(a,day,false),newRound=previous&&last&&Date.parse(last.endAt)>Date.parse(previous.at);
+  const round=newRound?Math.max(0,...history.map(acctRound))+1:previous&&previous.type!=="autoDeposit"?acctRound(previous):1;
+  if(type==="settleSkip"&&!newRound&&latest?.type==="finalDeposit")return null;
+  const at=type==="finalDeposit"&&!newRound&&previous?.type==="settleSkip"?previous.at:(type==="autoDeposit"||(type!=="balanceSet"&&day<jstDay()))?last?.endAt:time;
   if(!at)return null;
-  const id=type==="balanceSet"?uid():acctEventId(type,a,day);
+  const id=type==="balanceSet"?uid():acctEventId(type,a,day,type==="autoDeposit"?1:round);
   let e=S.ledger.events.find(x=>x.id===id);
   if(e){acctEdit(e,"amount",amount);acctEdit(e,"status","active")}
   else{e={id,type,storeId:a.storeId,condId:a.condId,dayKey:day,amount,at,createdAt:time,updatedAt:time,status:"active",verified:type!=="autoDeposit",edits:[]};S.ledger.events.push(e)}
-  if(type==="finalDeposit")acctEvents(a).filter(x=>x.dayKey===day&&["autoDeposit","settleSkip"].includes(x.type)).forEach(x=>acctEdit(x,"status","void"));
+  if(type==="finalDeposit")acctEvents(a).filter(x=>x.dayKey===day&&(x.type==="autoDeposit"||(x.type==="settleSkip"&&acctRound(x)===round))).forEach(x=>acctEdit(x,"status","void"));
   return e;
 }
 function acctAutoDeposit(){
@@ -952,12 +958,13 @@ function acctDepositBeforeBase(a,e){const base=acctBase(a);return e&&["finalDepo
 const acctUnchangedMessage="この預入の後に残高を合わせているため、残高は変わりません";
 function acctSettleSheet(a,day=jstDay(),after){sheet("今日の稼働を終える",b=>{
   const blocked=acctSettleBlocked(a,day);if(blocked){b.append(mk("div","hint",blocked));return}
-  const final=acctEvents(a).find(e=>e.dayKey===day&&e.type==="finalDeposit"),skip=acctEvents(a).find(e=>e.dayKey===day&&e.type==="settleSkip");
+  const latest=acctLatestSettle(a,day),unsettled=acctUnsettled(a,day);
+  const final=!unsettled&&latest?.type==="finalDeposit"?latest:null,skip=!unsettled&&latest?.type==="settleSkip"?latest:null;
   if(final)b.append(mk("div","hint","精算済み：預入 "+yen(final.amount)+"枚（記録 "+hm(final.at)+"）"));
   else if(skip)b.append(mk("div","hint","預けていない・分からない として締め済み"));
   const h=acctDayEnd(a,day);
-  if((final||skip)&&Date.parse(acctLast(a,day).endAt)>Date.parse((final||skip).at))b.append(mk("div","hint","精算の後に終わった台があります（最終持ち "+acctMedals(h)+"）"));
-  b.append(mk("div","lbl",a.shop+"／"+a.cond.label+"／"+day));b.append(mk("div","hint","手持ち "+acctMedals(h)));
+  if(unsettled&&latest)b.append(mk("div","hint","前回の精算："+(latest.type==="settleSkip"?"預けていない・分からない":"預入 "+yen(latest.amount)+"枚")+"（"+hm(latest.at)+"）"));
+  b.append(mk("div","lbl",a.shop+"／"+a.cond.label+"／"+day));b.append(mk("div","hint",(unsettled&&latest?"その後の台の手持ち ":"手持ち ")+acctMedals(h)));
   if(h===null)b.append(mk("div","hint","最後の台の終了持ちメダルが未確定です（台の記録から直せます）"));
   if(acctDepositBeforeBase(a,final))b.append(mk("div","hint",acctUnchangedMessage));
   const hint=mk("div","hint");const n=acctNum(b,"預けた枚数",final?final.amount:h,refresh);b.append(hint);
@@ -979,9 +986,10 @@ function acctSheet(a){sheet("口座",b=>{
   b.append(mk("div","lbl","履歴"));
   const names={balanceSet:"残高を合わせる",finalDeposit:"最終預入",autoDeposit:"自動預入",settleSkip:"預けていない・分からない"};
   acctEvents(a,false).slice().reverse().forEach(e=>{
-    b.append(mk("div","lbl",e.dayKey+" "+names[e.type]+(e.amount===null?"":" "+yen(e.amount)+"枚")+(e.status==="void"?"（取消）":e.verified?"":"（未照合）")));
+    const multi=["finalDeposit","settleSkip"].includes(e.type)&&acctEvents(a,false).some(x=>x.dayKey===e.dayKey&&["finalDeposit","settleSkip"].includes(x.type)&&acctRound(x)>1);
+    b.append(mk("div","lbl",e.dayKey+" "+names[e.type]+(multi?"（"+acctRound(e)+"回目）":"")+(e.amount===null?"":" "+yen(e.amount)+"枚")+(e.status==="void"?"（取消）":e.verified?"":"（未照合）")));
     if(e.status!=="active")return;
-    const h=acctDayEnd(a,e.dayKey);
+    const h=e.type==="finalDeposit"?acctLast(a,e.dayKey,e.at)?.money.endMedal??null:acctDayEnd(a,e.dayKey);
     if(acctDepositBeforeBase(a,e))b.append(mk("div","hint",acctUnchangedMessage));
     if(e.type==="finalDeposit"&&h!==null&&e.amount<h)b.append(mk("div","hint","行先未記録 "+yen(h-e.amount)+"枚"));
     const change=(field,value)=>{acctEdit(e,field,value);save();acctSheet(a)};
@@ -2955,13 +2963,18 @@ el("hdMenu").addEventListener("click",()=>{sheet("メニュー",b=>{const tags=m
 
 /* ---------- 開始 ---------- */
 document.querySelectorAll("[data-lend]").forEach(b=>b.addEventListener("click",()=>{el("stLend").value=b.dataset.lend}));
-el("stStart").addEventListener("click",()=>{
-  acctAutoDeposit();if(staleShown||loadBroken)return;
+function acctRefreshStartDay(){
   if(acctStartChoice&&acctStartChoice.day!==jstDay()){
+    acctAutoDeposit();
     const value=el("stMedal").value,manual=int(value)!==acctStartChoice.autoMedal;
     acctSelectStart(acctStartChoice);if(manual)el("stMedal").value=value;
-    const e=el("stErr");e.textContent="日付が変わったため、手持ちを更新しました。内容を確認して、もう一度『打ち始める』を押してください";e.classList.remove("hide");return;
+    const e=el("stErr");e.textContent="日付が変わったため、手持ちを更新しました。内容を確認して、もう一度『打ち始める』を押してください";e.classList.remove("hide");return true;
   }
+  return false;
+}
+el("stStart").addEventListener("click",()=>{
+  acctAutoDeposit();if(staleShown||loadBroken)return;
+  if(acctRefreshStartDay())return;
   if(acctStartChoice&&!acctStartReviewed){const days=acctPendingDays(acctStartChoice);if(days.length){acctSettleSheet(acctStartChoice,days[0],()=>{acctStartReviewed=true;el("stStart").click()});return}}
   const m=el("stMachine").value.trim(),lend=int(el("stLend").value),e=el("stErr");
   if(!m){e.textContent="機種名を入れてください";e.classList.remove("hide");return}
@@ -2975,6 +2988,8 @@ el("stStart").addEventListener("click",()=>{
   }
   const replayAt=nowISO();
   if(acctStartChoice&&int(el("stReplay0").value)>0&&!acctAllowReplay(acctStartChoice,int(el("stReplay0").value),replayAt))return;
+  if(acctStartChoice&&int(el("stMedal").value)===null&&!confirm("開始持ちメダルが空欄です。0枚で始めますか？"))return;
+  if(acctRefreshStartDay())return;
   e.classList.add("hide");S.settings.lend=lend;
   const machineId=pickedMachine||"generic",d=MACHINES[machineId];
   const rare={};d.rares.forEach(r=>{rare[r.key]=r.strong?{w:0,s:0}:{n:0,hit:0,nMission:0,nPending:0}});
