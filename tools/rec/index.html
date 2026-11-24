@@ -970,7 +970,7 @@ function acctSettleSheet(a,day=jstDay(),after){sheet("今日の稼働を終え�
   const final=!unsettled&&latest?.type==="finalDeposit"?latest:null,skip=!unsettled&&latest?.type==="settleSkip"?latest:null;
   if(final)b.append(mk("div","hint","精算済み：預入 "+yen(final.amount)+"枚（記録 "+hm(final.at)+"）"));
   else if(skip)b.append(mk("div","hint","預けていない・分からない として締め済み"));
-  if(!unsettled&&latest?.type==="autoDeposit")b.append(mk("div","hint",latest.verified?"締め済み":"自動預入（未照合）"));
+  if(!unsettled&&latest?.type==="autoDeposit")b.append(mk("div","hint",latest.verified?"自動預入（確認済み）":"自動預入（未照合）"));
   if(!unsettled)b.append(mk("div","hint","この回を直す"));
   const h=unsettled?acctDayEnd(a,day):acctLast(a,day,plan.target.at)?.money.endMedal??null;
   if(unsettled&&latest)b.append(mk("div","hint","前回の精算："+(latest.type==="settleSkip"?"預けていない・分からない":"預入 "+yen(latest.amount)+"枚")+"（"+hm(latest.at)+"）"));
@@ -1011,7 +1011,7 @@ function acctSheet(a){sheet("口座",b=>{
     }
   });
 })}
-let acctStartChoice=null,acctStartReviewed=false;
+let acctStartChoice=null,acctStartReviewed=false,acctStartWithoutStore=false;
 function acctSelectStart(a){
   acctStartChoice=a?{...a,day:jstDay(),autoMedal:acctHandH(a)}:null;acctStartReviewed=false;
   el("stAccount").textContent=a?a.shop+"／"+a.cond.label:"店舗を選ぶ";
@@ -1026,11 +1026,16 @@ const acctStartButton=mk("button","wide dim","店舗を選ぶ");acctStartButton.
 const acctStartInfo=mk("div","hint");acctStartInfo.id="stAccountInfo";
 const acctStartOptions=mk("div","opts");acctStartOptions.append(acctStartButton);
 el("stShop").closest(".two").before(acctStartOptions,acctStartInfo);
+function acctChooseStartStore(st,after){
+  const conds=st.conds.filter(c=>c.kind==="slot");
+  if(!conds.length){toast("この店にはスロットの条件がありません。店舗設定で登録してください");return}
+  const choose=c=>{acctSelectStart({storeId:st.id,condId:c.id,shop:st.name,cond:JSON.parse(JSON.stringify(c))});closeSheet();if(after)after()};
+  if(conds.length===1){choose(conds[0]);return}
+  sheet("スロットの条件",body=>conds.forEach(c=>acctButton(body,c.label,()=>choose(c))));
+}
 acctStartButton.addEventListener("click",()=>{acctAutoDeposit();sheet("店舗を選ぶ",b=>{
-  S.stores.forEach(st=>acctButton(b,st.name,()=>sheet("スロットの条件",body=>{
-    st.conds.filter(c=>c.kind==="slot").forEach(c=>acctButton(body,c.label,()=>{acctSelectStart({storeId:st.id,condId:c.id,shop:st.name,cond:JSON.parse(JSON.stringify(c))});closeSheet()}));
-  })));
-  acctButton(b,"店舗を選ばずに始める",()=>{acctSelectStart(null);closeSheet()});
+  S.stores.forEach(st=>acctButton(b,st.name,()=>acctChooseStartStore(st)));
+  acctButton(b,"店舗を選ばずに始める",()=>{acctStartWithoutStore=true;acctSelectStart(null);closeSheet()});
 })});
 const acctNoteActions=mk("div");el("nStores").parentElement.after(acctNoteActions);
 acctButton(acctNoteActions,"口座",()=>acctListSheet()).className="wide dim";
@@ -2504,6 +2509,7 @@ function storeEditSheet(store,after){
     b.append(mk("div","lbl","店舗名"));
     const nm=mk("input");nm.value=st.name||"";nm.placeholder="例：DSG高岡";b.append(nm);
     b.append(mk("div","lbl","交換条件"));
+    b.append(mk("div","hint","同じ店で別のレートのスロットを管理したいときは、別の店舗として登録してください（例：◯◯ 5円）"));
     if(!st.conds.length)b.append(mk("div","hint","条件がありません。「＋条件を追加」から登録してください。"));
     const list=mk("div","log");
     st.conds.forEach((c,i)=>{
@@ -2955,6 +2961,7 @@ function renderSetupFields(){
   });
 }
 function showSetup(){
+  acctStartWithoutStore=false;
   el("scSetup").classList.remove("hide");el("scMain").classList.add("hide");el("scNote").classList.add("hide");
   el("hdTitle").textContent="実戦記録";el("stLend").value=S.settings.lend;el("stShop").value=S.settings.lastShop||"";
   const w=el("stMachines");w.innerHTML="";pickedMachine=null;
@@ -2984,6 +2991,13 @@ function acctRefreshStartDay(){
 }
 el("stStart").addEventListener("click",()=>{
   acctAutoDeposit();if(staleShown||loadBroken)return;
+  if(!acctStartChoice&&!acctStartWithoutStore){
+    const normalize=s=>String(s??"").normalize("NFKC").replace(/\s+/g,"");
+    const st=S.stores.find(st=>normalize(st.name)===normalize(el("stShop").value)&&st.conds.some(c=>c.kind==="slot"));
+    if(st&&confirm("「"+st.name+"」は店舗設定に登録された店です。店舗設定の店として始めますか？")){
+      acctChooseStartStore(st,()=>{const e=el("stErr");e.textContent="店舗を選びました。内容を確認して、もう一度『打ち始める』を押してください";e.classList.remove("hide")});return;
+    }
+  }
   if(acctRefreshStartDay())return;
   if(acctStartChoice&&!acctStartReviewed){const days=acctPendingDays(acctStartChoice);if(days.length){acctSettleSheet(acctStartChoice,days[0],()=>{acctStartReviewed=true;el("stStart").click()});return}}
   const m=el("stMachine").value.trim(),lend=int(el("stLend").value),e=el("stErr");
