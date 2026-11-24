@@ -972,7 +972,7 @@ function acctSettleSheet(a,day=jstDay(),after){sheet("今日の稼働を終え�
   else if(skip)b.append(mk("div","hint","預けていない・分からない として締め済み"));
   if(!unsettled&&latest?.type==="autoDeposit")b.append(mk("div","hint",latest.verified?"締め済み":"自動預入（未照合）"));
   if(!unsettled)b.append(mk("div","hint","この回を直す"));
-  const h=acctDayEnd(a,day);
+  const h=unsettled?acctDayEnd(a,day):acctLast(a,day,plan.target.at)?.money.endMedal??null;
   if(unsettled&&latest)b.append(mk("div","hint","前回の精算："+(latest.type==="settleSkip"?"預けていない・分からない":"預入 "+yen(latest.amount)+"枚")+"（"+hm(latest.at)+"）"));
   b.append(mk("div","lbl",a.shop+"／"+a.cond.label+"／"+day));b.append(mk("div","hint",(unsettled?"その後の台の手持ち ":"手持ち ")+acctMedals(h)));
   if(h===null)b.append(mk("div","hint","最後の台の終了持ちメダルが未確定です（台の記録から直せます）"));
@@ -999,7 +999,7 @@ function acctSheet(a){sheet("口座",b=>{
     const multi=["finalDeposit","settleSkip"].includes(e.type)&&acctEvents(a,false).some(x=>x.dayKey===e.dayKey&&["finalDeposit","settleSkip"].includes(x.type)&&acctRound(x)>1);
     b.append(mk("div","lbl",e.dayKey+" "+names[e.type]+(multi?"（"+acctRound(e)+"回目）":"")+(e.amount===null?"":" "+yen(e.amount)+"枚")+(e.status==="void"?"（取消）":e.verified?"":"（未照合）")));
     if(e.status!=="active")return;
-    const h=e.type==="finalDeposit"?acctLast(a,e.dayKey,e.at)?.money.endMedal??null:acctDayEnd(a,e.dayKey);
+    const h=acctLast(a,e.dayKey,e.at)?.money.endMedal??null;
     if(acctDepositBeforeBase(a,e))b.append(mk("div","hint",acctUnchangedMessage));
     if(e.type==="finalDeposit"&&h!==null&&e.amount<h)b.append(mk("div","hint","行先未記録 "+yen(h-e.amount)+"枚"));
     const change=(field,value)=>{acctEdit(e,field,value);save();acctSheet(a)};
