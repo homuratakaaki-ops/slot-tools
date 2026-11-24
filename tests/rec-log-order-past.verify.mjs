@@ -1,5 +1,8 @@
 // Run: node tests/rec-log-order-past.verify.mjs
 import assert from 'node:assert/strict';
+
+// Only omit the two added top-level keys; preserve nested values.
+function legacyTopLevel({ledger,storageKey,...rest}){return rest}
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -93,7 +96,7 @@ const split=(text,n)=>{
 };
 const compare=(a,b,indices)=>{
   const n=a.storage.sessions[0].events.length;
-  assert.deepEqual(a.storage,b.storage,'entire persisted data unchanged, including event IDs/order');
+  assert.deepEqual(legacyTopLevel(a.storage),legacyTopLevel(b.storage),'entire persisted data unchanged, including event IDs/order');
   assert.deepEqual(a.envelope,b.envelope,'entire downloaded envelope unchanged');
   const x=split(a.card,n),y=split(b.card,n);
   assert.deepEqual(x.before,y.before,'header/start unchanged');assert.deepEqual(x.after,y.after,'end/summary unchanged');

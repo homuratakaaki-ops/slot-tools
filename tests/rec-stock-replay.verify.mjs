@@ -1,5 +1,8 @@
 // Run: node tests/rec-stock-replay.verify.mjs
 import assert from 'node:assert/strict';
+
+// Only omit the two added top-level keys; preserve nested values.
+function legacyTopLevel({ledger,storageKey,...rest}){return rest}
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -158,7 +161,7 @@ try{
   const reloadedOutputs=await compare();
   const baseBackup=await backup('/old/tools/rec/index.html',oldFixture);
   const baseOutputs=await compare();assert.deepEqual(reloadedOutputs,baseOutputs);
-  delete currentBackup.cur.money.stockStart;assert.deepEqual(currentBackup,baseBackup);
+  delete currentBackup.cur.money.stockStart;assert.deepEqual(legacyTopLevel(currentBackup),legacyTopLevel(baseBackup));
   // BASE creates the same total via its real custom replay buttons.
   await setup('/old/tools/rec/index.html');for(let i=0;i<2;i++){await click('#bReplay');await custom(46);}assert.equal((await compare()).profit.medalDiff,outputs.profit.medalDiff);
   const legacyBackup=await backup('/tools/rec/index.html',oldFixture);
