@@ -27,7 +27,7 @@ for(const id of ['seiya12','ragnador','ggo']){
   // 11/18は参照表だけを追加。11/6公開時の完全一致は固定コミットで保持し、
   // 現行の参照以外の完全一致は reference-20261118.test.mjs で確認する。
   assert.equal(['ggo','seiya12'].includes(id)?git('show',`20ead2ae5f3bcd6348d654ebf8573953c9c5ce27:checker-data/${id}.js`):source,tested);assert.ok(!/-test\b|_test_/.test(source));
-  assert.equal(read(`${id}-checker.html`),git('show',`${BASE}:${id}-checker.html`).replace(new RegExp('checker-data/'+id+'\\.js\\?v=[^"\\s]+'),`checker-data/${id}.js?v=${id==='ragnador'?'20261106-addl':'20261119-reference-release'}`));
+  assert.equal(read(`${id}-checker.html`),git('show',`${BASE}:${id}-checker.html`).replace(new RegExp('checker-data/'+id+'\\.js\\?v=[^"\\s]+'),`checker-data/${id}.js?v=${id==='ragnador'?'20261106-addl':id==='seiya12'?'20261123-seiya-reference':'20261119-reference-release'}`));
   const defaults=clone(c.defaults);if(id==='seiya12')delete defaults.gfLamp;if(id==='ragnador')delete defaults.counts.czKakutei;
   assert.deepEqual(defaults,clone(b.defaults));
   // 公開APIのうち許可のない定義・関数は本番と同じ。
