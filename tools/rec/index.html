@@ -44,6 +44,10 @@ textarea{min-height:80px;resize:vertical}
 .mpill{flex:1;min-height:44px;display:flex;align-items:center;justify-content:center;padding:7px 4px;background:var(--panel);border:1px solid var(--line);border-radius:10px;text-align:center;font-size:11px;color:var(--dim)}
 .mpill b{font-family:var(--mono);font-size:14px;color:var(--ink);margin-left:3px}
 #bStock{min-width:0;white-space:nowrap}
+#mRepLine{display:contents}
+#bStock.acct-stock{flex-direction:column;padding-top:4px;padding-bottom:4px}
+#bStock.acct-stock #mRepLine{display:block;max-width:100%;line-height:18px;overflow:hidden;text-overflow:ellipsis}
+#mStockBalance{width:100%;overflow:hidden;text-overflow:ellipsis;font-size:11px;line-height:14px}
 .r3{display:flex;gap:6px;margin-top:6px}
 .r3 button{flex:1;min-height:44px;white-space:nowrap;padding:11px 0;font-weight:600}
 .r3 .danger{background:rgba(224,87,74,.14);border-color:#5C2B26;color:#F0968C}
@@ -226,7 +230,7 @@ textarea{min-height:80px;resize:vertical}
     <div class="mrow">
       <div class="mpill">投資<b id="mCash">0円</b></div>
       <div class="mpill">残高<b id="mBal">0円</b></div>
-      <button class="mpill" id="bStock"><span id="mRepLabel">再</span><b id="mRep">0枚</b></button>
+      <button class="mpill" id="bStock"><span id="mRepLine"><span id="mRepLabel">再</span><b id="mRep">0枚</b></span><span id="mStockBalance" class="hide"></span></button>
       <div class="mpill">差枚<b id="mDiff">−</b></div>
     </div>
     <div class="r3"><button class="danger" id="bMinus">−1000</button><button id="bDeposit">入金</button><button id="bReplay">再プレイ</button></div>
@@ -958,8 +962,26 @@ function acctConditionFields(b,c){
 function acctReplaySheet(){sheet("再プレイ（貯メダルから入れる）",b=>{
   const a=S.cur,summary=mk("div","hint",acctSummary(a));b.append(summary);
   b.append(mk("div","hint","1回 "+yen(replayUnitOf(a))+"枚"));
-  acctButton(b,"再プレイ −"+yen(replayUnitOf(a))+"枚",()=>{recordReplay(replayUnitOf(a));summary.textContent=acctSummary(a)});
-  acctButton(b,"枚数を入れる",()=>askNum("再プレイ枚数",0,v=>{recordReplay(v);summary.textContent=acctSummary(a)}));
+  const refresh=()=>{summary.textContent=acctSummary(a);result.textContent="";actions.classList.add("hide")};
+  acctButton(b,"再プレイ −"+yen(replayUnitOf(a))+"枚",()=>{recordReplay(replayUnitOf(a));refresh()});
+  acctButton(b,"枚数を入れる",()=>askNum("再プレイ枚数",0,v=>{recordReplay(v);refresh()}));
+  b.append(mk("div","lbl","店の残高と照合"));
+  const n=acctNum(b,"店の残高（機械・レシートの数字）",null,refresh);
+  const result=mk("div","hint"),actions=mk("div","hide");
+  function compare(){
+    const v=int(n.value);if(v===null){toast("店の残高を入れてください");return}
+    if(!Number.isInteger(v)||v<0){toast("0以上の整数で入れてください");return}
+    const left=acctBalanceA(a),diff=left===null?null:v-left;
+    result.textContent=left===null?"記録上の残高が未登録です":"記録上 "+yen(left)+"枚／店 "+yen(v)+"枚　"+(diff===0?"一致しています":"差 "+(diff<0?"−":"+")+yen(Math.abs(diff))+"枚");
+    actions.classList.toggle("hide",diff===0);adjust.textContent=left===null?"店の残高で登録する":"店の残高に合わせる";
+  }
+  acctButton(b,"照合する",compare);b.append(result,actions);
+  acctButton(actions,"履歴を見る",()=>{const account=acctAccounts().find(x=>acctKey(x)===acctKey(S.cur));if(account)acctSheet(account)});
+  const adjust=acctButton(actions,"店の残高に合わせる",()=>{
+    const v=int(n.value);if(!Number.isInteger(v)||v<0)return;
+    if(!confirm("記録上の残高を "+yen(v)+"枚 にします。よろしいですか？"))return;
+    acctPut("balanceSet",a,jstDay(),v);save();renderMoney();summary.textContent=acctSummary(a);compare();
+  });
 })}
 function acctMedals(n){return n===null?"未確定":yen(n)+"枚"}
 function acctDepositBeforeBase(a,e){const base=acctBase(a);return e&&["finalDeposit","autoDeposit"].includes(e.type)&&base&&Date.parse(e.at)<=Date.parse(base.at)}
@@ -1330,8 +1352,15 @@ function renderMoney(){
   const c=S.cur,m=c.money;
   el("mCash").textContent=yen(invested(m))+"円";
   const bal=balance(m);el("mBal").textContent=yen(bal)+"円";el("mBal").style.color=bal<0?"var(--hot)":"";
-  const left=sessCond(c)?acctBalanceA(c):stockLeft(m);el("mRepLabel").textContent=left==null?"再":"貯";
-  el("mRep").textContent=yen(left==null?replayed(m):left)+"枚";el("mRep").style.color=left<0?"var(--hot)":"";
+  const linked=!!sessCond(c),stock=el("mStockBalance");el("bStock").classList.toggle("acct-stock",linked);
+  stock.classList.toggle("hide",!linked);stock.textContent="";
+  if(linked){
+    const left=acctBalanceA(c);el("mRepLabel").textContent="再";el("mRep").textContent=yen(replayed(m))+"枚";el("mRep").style.color="";
+    stock.textContent="貯 "+(left===null?"未登録":yen(left)+"枚");stock.style.color=left<0?"var(--hot)":"";
+  }else{
+    const left=stockLeft(m);el("mRepLabel").textContent=left==null?"再":"貯";
+    el("mRep").textContent=yen(left==null?replayed(m):left)+"枚";el("mRep").style.color=left<0?"var(--hot)":"";
+  }
   fitStockPill();
   el("bReplay").textContent="再 −"+yen(replayUnitOf(c));
   if(m.credit==null)el("mDiff").textContent="−";
