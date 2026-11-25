@@ -12,11 +12,13 @@ fs.mkdirSync(artifacts,{recursive:true});
 const profile=fs.mkdtempSync(path.join(os.tmpdir(),'rec-account-chrome-'));
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
 const base=execFileSync('git',['-c','safe.directory='+root,'show','6dd1c73:tools/rec/index.html'],{cwd:root,encoding:'utf8'});
+const prior=execFileSync('git',['-c','safe.directory='+root,'show','e052f6c:tools/rec/index.html'],{cwd:root,encoding:'utf8'});
 const oldNisshi=execFileSync('git',['-c','safe.directory='+root,'show','6dd1c73:tools/nisshi/index.html'],{cwd:root,encoding:'utf8'});
 const hook=(html,old=false)=>html.replace(/\r\n/g,'\n').replace('\n})();\n</script>',`\nwindow.__saves=0;const originalSave=save;save=function(...args){window.__saves++;return originalSave(...args)};window.__rec={get S(){return S},get ready(){return !storageStarting&&!flushBusy},get broken(){return loadBroken},get stale(){return staleShown},profit,toEnvelope,validStore,fixStores,save,load,showNote,showSetup,render,agg,${old?'':'acctEdit,acctBase,acctSelectStart,acctAllowReplay,closeSheet,acctKey,jstDay,acctReplaysU,acctBalanceA,acctHandH,acctEvents,acctPendingDays,acctAutoDeposit,acctPut,acctImport,validAcctEvent,acctSheet,acctSettleSheet,'}};\n})();\n</script>`);
 const server=http.createServer((req,res)=>{
   let url=decodeURIComponent(req.url.split('?')[0]);res.setHeader('Content-Type',url.endsWith('.js')?'text/javascript; charset=utf-8':'text/html; charset=utf-8');
   if(url==='/empty')return res.end('<html></html>');
+  if(url==='/prior/tools/rec/index.html')return res.end(hook(prior));
   if(url==='/old/tools/rec/index.html')return res.end(hook(base,true));
   if(url==='/old/tools/nisshi/index.html')return res.end(oldNisshi);
   if(url==='/tools/rec/index.html'||url==='/tools/rec/acct-test.html')return res.end(hook(fs.readFileSync(path.join(root,url),'utf8')));
@@ -85,6 +87,71 @@ try{
     const registeredPrompts=()=>ev('return __confirms.filter(t=>t.includes("店舗設定の店として始めますか？"))');
     const selectedMessage='店舗を選びました。内容を確認して、もう一度『打ち始める』を押してください';
     const rateHint='同じ店で別のレートのスロットを管理したいときは、別の店舗として登録してください（例：◯◯ 5円）';
+    const stockLines=()=>ev('return [document.querySelector("#mRepLabel").textContent+" "+document.querySelector("#mRep").textContent,document.querySelector("#mStockBalance").textContent]');
+    const compareStock=async value=>{await click('#shBody input');await number(value);await button('照合する')};
+    const persisted=()=>ev('return [localStorage.getItem('+JSON.stringify(key)+'),__saves,JSON.stringify(__rec.S)]');
+    const visibleActions=()=>ev('return [...document.querySelectorAll("#shBody button")].filter(b=>b.getClientRects().length).map(b=>b.textContent)');
+    await test('V108-1',async()=>{
+      await seed(state());await start();await click('#bReplay');assert.deepEqual(await stockLines(),['再 50枚','貯 1,950枚']);
+      await click('#bStock');await button('再プレイ −50枚');assert.deepEqual(await stockLines(),['再 100枚','貯 1,900枚']);
+      await click('#shClose');await click('#bUndo');assert.deepEqual(await stockLines(),['再 50枚','貯 1,950枚']);
+    });
+    await test('V108-2',async()=>{
+      await seed(state([],[]));await start();await click('#bReplay');assert.deepEqual(await stockLines(),['再 50枚','貯 未登録']);
+      await seed(state([],[balance(account,0)]));await start();await click('#bReplay');assert.deepEqual(await stockLines(),['再 50枚','貯 -50枚']);
+      assert.equal(await ev('return document.querySelector("#mStockBalance").style.color'),'var(--hot)');
+    });
+    await test('V108-3',async()=>{
+      const savedPage=page,savedKey=key;
+      try{for(const stock of [null,2000]){
+        const cur=structuredClone(fixture);cur.money.stockStart=stock;cur.money.replays=[{at:iso(23),amount:50}];const outputs=[];
+        for(const target of [savedPage,'/old/tools/rec/index.html']){page=target;key=target.startsWith('/old')?'slot-tools-rec':savedKey;await seed(state([],[],cur));outputs.push(await ev('return [document.querySelector("#bStock").textContent,document.querySelector("#mRep").parentElement.textContent]'))}
+        assert.deepEqual(outputs[0],outputs[1]);
+      }}finally{page=savedPage;key=savedKey;await open(page)}
+    });
+    await test('V108-4',async()=>{
+      for(const registered of [true,false]){
+        await seed(state([],registered?[balance()]:[]));await start();await click('#bReplay');await pause(150);await click('#bStock');
+        assert.deepEqual(await ev('const n=document.querySelector("#shBody input");return [n.value,n.readOnly]'),['',true]);
+        const before=await persisted();await button('照合する');assert.equal(await ev('return document.querySelector("#toast").textContent'),'店の残高を入れてください');
+        for(const [v,ending] of [[1950,'一致しています'],[1940,'差 −10枚'],[1960,'差 +10枚']]){
+          await compareStock(v);const expected=registered?'記録上 1,950枚／店 '+v.toLocaleString('en-US')+'枚　'+ending:'記録上の残高が未登録です';
+          assert.ok(await ev('return [...document.querySelectorAll("#shBody .hint")].some(x=>x.textContent==='+JSON.stringify(expected)+')'));
+          assert.equal((await visibleActions()).includes('履歴を見る'),!registered||v!==1950);assert.deepEqual(await persisted(),before);
+        }
+      }
+    });
+    await test('V108-5',async()=>{
+      for(const registered of [true,false]){
+        await seed(state([],registered?[balance()]:[]));await start();await click('#bReplay');await pause(150);await click('#bStock');await compareStock(1940);
+        const label=registered?'店の残高に合わせる':'店の残高で登録する',before=await persisted(),count=(await vals()).events.length;
+        await ev('window.__answer=false');await button(label);assert.deepEqual(await persisted(),before);
+        assert.equal((await ev('return __confirms')).at(-1),'記録上の残高を 1,940枚 にします。よろしいですか？');
+        await ev('window.__answer=true');await button(label);const v=await vals();assert.equal(v.events.length,count+1);assert.equal(v.events.at(-1).type,'balanceSet');assert.equal(v.A,1940);
+        assert.deepEqual(await stockLines(),['再 50枚','貯 1,940枚']);assert.ok(!(await visibleActions()).includes(label));
+        assert.match(await ev('return document.querySelector("#shBody > .hint").textContent'),/1,940/);
+      }
+    });
+    await test('V108-6',async()=>{
+      await seed(state());await start();await click('#bStock');await compareStock(1940);await button('履歴を見る');
+      assert.equal(await ev('return document.querySelector("#shTitle").textContent'),'口座');assert.equal(await ev('return document.querySelector("#shBody > .lbl").textContent'),'A店／20スロ');
+    });
+    await test('V108-7',async()=>{
+      const vertical=[];
+      for(const width of [360,390,412]){
+        await send('Emulation.setDeviceMetricsOverride',{width,height:530,deviceScaleFactor:1,mobile:true});await seed(state());await start();await click('#bReplay');
+        for(const huge of [false,true]){
+          if(huge)await ev('__rec.acctPut("balanceSet",'+JSON.stringify(account)+',__rec.jstDay(),123456789012);__rec.S.cur.money.replays[0].amount=123456789;__rec.render()');
+          const fit=await ev('const p=document.querySelector("#bStock"),r=p.getBoundingClientRect();return {height:r.height,min:getComputedStyle(p).minHeight,width:innerWidth,scroll:document.documentElement.scrollWidth,pageHeight:document.documentElement.scrollHeight,viewport:innerHeight,lines:["mRepLine","mStockBalance"].map(id=>{const x=document.getElementById(id),b=x.getBoundingClientRect();return {fits:x.scrollWidth<=x.clientWidth,ellipsis:getComputedStyle(x).textOverflow==="ellipsis",inside:b.left>=r.left&&b.right<=r.right&&b.top>=r.top&&b.bottom<=r.bottom}})}');
+          assert.equal(fit.min,'44px');assert.equal(fit.height,44);assert.ok(fit.scroll<=width,JSON.stringify(fit));vertical.push({width,huge,height:fit.pageHeight,viewport:fit.viewport});assert.ok(fit.lines.every(x=>(x.fits||x.ellipsis)&&x.inside),JSON.stringify(fit));
+          console.log('V108寸法 '+width+' '+JSON.stringify(fit));await capture('start-v108-count'+(huge?'-large':''),width);
+        }
+        await click('#bStock');await compareStock(1940);await capture('v108-compare',width);await ev('document.querySelector("#shBody").scrollTop=10000');await capture('v108-compare-result',width);
+        const savedPage=page,savedKey=key;page='/prior/tools/rec/index.html';key='slot-tools-rec';
+        try{await seed(state());await start();await click('#bReplay');const height=await ev('return document.documentElement.scrollHeight');console.log('V108改修前高さ '+width+' '+height);assert.equal(vertical.find(x=>x.width===width&&!x.huge).height,height)}finally{page=savedPage;key=savedKey}
+      }
+    });
+
     await test('V107-1a',async()=>{
       await seed(state([session('hand',350,0,0,23)]));await manualStart('A店');assert.equal((await registeredPrompts()).length,1);
       assert.equal(await ev('return __rec.S.cur'),null);await button('20スロ');
@@ -466,7 +533,7 @@ try{
 
     await test('表示幅360/390/412',async()=>{await seed(state([session()]));for(const width of [360,390,412]){await send('Emulation.setDeviceMetricsOverride',{width,height:530,deviceScaleFactor:1,mobile:true});await ev('__rec.showSetup()');await select();await capture('start',width);await ev(`document.querySelector('#stMachine').value='テスト汎用台';document.querySelector('#stStart').click()`);await click('#bStock');await capture('replay',width);await click('#shClose');await ev(`__rec.acctSettleSheet(${JSON.stringify(account)})`);await capture('settle',width);await ev(`__rec.acctSheet(${JSON.stringify(account)})`);await capture('account',width);await click('#shClose');await seed(state([session()]))}});
   }
-  await test('H: 本番保存先の分離',async()=>{page='/tools/rec/acct-test.html';key='slot-tools-rec-acct-test';await open('/empty');await ev(`localStorage.setItem('slot-tools-rec','PRODUCTION SENTINEL');localStorage.setItem('slot-tools-rec:cycleLabel','PRODUCTION LABEL')`);await seed(state());await start();await click('#bReplay');await pause(100);assert.deepEqual(await ev(`return [localStorage.getItem('slot-tools-rec'),localStorage.getItem('slot-tools-rec:cycleLabel')]`),['PRODUCTION SENTINEL','PRODUCTION LABEL'])});
+  await test('H: 本番保存先の分離',async()=>{page='/tools/rec/acct-test.html';key='slot-tools-rec-acct-test';await open('/empty');await ev(`localStorage.setItem('slot-tools-rec','PRODUCTION SENTINEL');localStorage.setItem('slot-tools-rec:cycleLabel','PRODUCTION LABEL')`);await seed(state());await start();await click('#bReplay');await click('#bStock');await click('#shBody input');await number(1940);await button('照合する');assert.equal(await ev("return localStorage.getItem('slot-tools-rec')"),'PRODUCTION SENTINEL');await button('店の残高に合わせる');await pause(100);assert.deepEqual(await ev(`return [localStorage.getItem('slot-tools-rec'),localStorage.getItem('slot-tools-rec:cycleLabel')]`),['PRODUCTION SENTINEL','PRODUCTION LABEL'])});
 }catch(e){console.error(e.stack);results.push({id:'driver',ok:false,error:e.stack})}
 finally{fs.writeFileSync(path.join(artifacts,'rec-account-results.json'),JSON.stringify(results,null,2));console.log('結果 '+results.filter(x=>x.ok).length+'/'+results.length+' 成果物 '+artifacts);ws?.close();browser?.kill();server.close();if(results.some(x=>!x.ok))process.exitCode=1}
 async function capture(name,width){await pause(100);const fit=await ev(`return {width:innerWidth,scroll:document.documentElement.scrollWidth,body:document.querySelector('#shBody').scrollWidth,pane:document.querySelector('#shBody').clientWidth,closeRight:document.querySelector('#shClose').getBoundingClientRect().right,closeWidth:document.querySelector('#shClose').getBoundingClientRect().width}`);assert.equal(fit.width,width);assert.ok(fit.scroll<=width,JSON.stringify(fit));if(!name.startsWith('start')){assert.ok(fit.body<=fit.pane,JSON.stringify(fit));assert.ok(fit.closeRight<=width&&fit.closeWidth>=44,JSON.stringify(fit));}if(name.includes('v107'))console.log('V107寸法 '+name+' '+JSON.stringify(fit));const s=await send('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(artifacts,(page.includes('acct-test')?'test-':'rec-')+name+'-'+width+'.png'),Buffer.from(s.data,'base64'))}
