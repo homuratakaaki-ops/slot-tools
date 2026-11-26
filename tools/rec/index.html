@@ -283,6 +283,7 @@ textarea{min-height:80px;resize:vertical}
 <div class="toast" id="toast"></div>
 
 <script src="../../js/rec-store.js?v=20261031"></script>
+<script src="../../js/machine-master.js?v=20261127"></script>
 <script>
 (function(){
 "use strict";
@@ -639,7 +640,41 @@ const MACHINES={
 };
 
 let S={version:2,settings:{lend:DEF_LEND},sessions:[],cur:null};
-let saveOK=true, logOpen=false, rareView="w", pickedMachine=null;
+let saveOK=true, logOpen=false, rareView="w", pickedMachine=null, pickedMid=null;
+function masterMachine(r){return window.MachineMaster?.resolve(r.machine,r.kind||"slot",r.mid)||null}
+function machineKey(r){return masterMachine(r)?.name||r.machine}
+function machineMatches(name,q){
+  const mm=window.MachineMaster;if(!mm)return name.includes(q);
+  const n=mm.norm(q);return [name,...mm.list.filter(m=>machineKey({machine:m.name,kind:m.kind})===name).flatMap(m=>m.aliases)].some(s=>mm.norm(s).includes(n));
+}
+function machineMark(r){return masterMachine(r)?"":" 未登録"}
+function machineCandidates(input,kind,onPick){
+  const row=mk("div","machine-candidates");
+  row.style.cssText="display:flex;flex-wrap:wrap;gap:6px;max-width:100%;margin-top:6px";
+  const update=()=>{row.replaceChildren();for(const m of window.MachineMaster?.search(input.value,typeof kind==="function"?kind():kind,6)||[]){
+    const b=mk("button","",m.name);b.style.cssText="min-height:44px;max-width:100%;white-space:normal;overflow-wrap:anywhere";
+    b.addEventListener("click",()=>{input.value=m.name;onPick(m);row.replaceChildren()});row.append(b);
+  }};
+  input.addEventListener("input",update);update();return row;
+}
+// 明示的な修正だけが過去の機種名を書き換える。対象の照合は完全一致。
+function machineEditControls(parent,record,after){
+  const fix=mk("button","sub","正式名に直す");parent.append(fix);
+  fix.addEventListener("click",()=>sheet("正式名に直す",b=>{
+    const input=mk("input");input.value=record.machine;b.append(input);
+    b.append(machineCandidates(input,record.kind||"slot",m=>{
+      const original=record.machine;
+      const others=[...S.sessions,...S.entries].filter(r=>r!==record&&[r.machine].includes(original));
+      const targets=[record];if(others.length&&confirm("同じ名前の記録が"+others.length+"件あります。まとめて直しますか？"))targets.push(...others);
+      for(const r of targets){if(!Object.hasOwn(r,"machineTyped"))r.machineTyped=r.machine;r.machine=m.name;r.mid=m.mid}
+      save();closeSheet();if(after)after();
+    }));
+  }));
+  if(Object.hasOwn(record,"machineTyped")){
+    const undo=mk("button","sub","元の名前に戻す");parent.append(undo);
+    undo.addEventListener("click",()=>{record.machine=record.machineTyped;delete record.mid;delete record.machineTyped;save();closeSheet();if(after)after()});
+  }
+}
 
 const el=i=>document.getElementById(i);
 const pad=n=>String(n).padStart(2,"0");
@@ -716,6 +751,7 @@ const dateOk=v=>typeof v==="string"&&!isNaN(new Date(v).getTime());
 // 起動時の判定：構造が壊れていなければ読む（型の乱れは fixSession が補正）。既存データを誤って退避しないため緩め
 function validSessionShape(c){
   if(!(c&&typeof c==="object"&&typeof c.id==="string"&&typeof c.machine==="string"&&Array.isArray(c.events)))return false;
+  if(["mid","machineTyped"].some(k=>Object.hasOwn(c,k)&&typeof c[k]!=="string"))return false;
   if(!dateOk(c.startAt))return false;
   if(!c.events.every(ev=>ev&&typeof ev==="object"&&dateOk(ev.at)))return false;
   if(c.money!=null){if(typeof c.money!=="object")return false;for(const k of ["cash","deposits","spends","replays"]){const arr=c.money[k];if(arr!=null&&(!Array.isArray(arr)||!arr.every(x=>x&&typeof x==="object")))return false}}
@@ -754,6 +790,7 @@ function validStore(s){
 // 取り込み用：簡易収支
 function validEntry(e){
   if(!(e&&typeof e==="object"&&typeof e.id==="string"&&typeof e.kind==="string"&&typeof e.machine==="string"))return false;
+  if(["mid","machineTyped"].some(k=>Object.hasOwn(e,k)&&typeof e[k]!=="string"))return false;
   if(!(e.kind==="slot"||e.kind==="pachinko"))return false;
   if(!(typeof e.date==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(e.date)))return false;
   for(const k of ["cashIn","cashOut","withdraw","deposit"]){const v=e[k];if(v==null)continue;if(!(typeof v==="number"&&Number.isFinite(v)&&v>=0))return false}
@@ -2702,7 +2739,7 @@ function editInfo(sess,after){
   sheet("打ち始め・終了の情報を直す",b=>{
     const F={};
     const row=(label,el)=>{b.append(mk("div","lbl",label));b.append(el);return el};
-    F.machine=row("機種名",mk("input"));F.machine.value=sess.machine||"";
+    F.machine=row("機種名",mk("input"));F.machine.value=sess.machine||"";F.machine.readOnly=true;machineEditControls(b,sess,after);
     F.shop=mk("input");F.shop.value=sess.shop||"";F.dai=mk("input");F.dai.setAttribute("inputmode","numeric");F.dai.value=sess.dai||"";
     F.lend=row("レート（1000円で何枚）",numInput(sess.lend));
     const two=(l1,e1,l2,e2)=>{const w=mk("div","setup");w.style.padding="0";const t=mk("div","two");const a=mk("div"),c=mk("div");a.append(mk("div","lbl",l1),e1);c.append(mk("div","lbl",l2),e2);t.append(a,c);b.append(t)};
@@ -2725,7 +2762,7 @@ function editInfo(sess,after){
        if(vals.some(v=>badNum(v)||(v!=null&&v<0))){toast("数字は整数で、0以上にしてください");return}
        if(badNum(int(F.expected.value))){toast("想定期待値は整数で入れてください（マイナス可）");return}
        const ts=int(F.totalStart.value),te=sess.endAt?int(F.totalEnd.value):null;if(ts!=null&&te!=null&&te<ts){toast("終了時の総回転数が開始時より小さくなっています");return}}
-      sess.shop=F.shop.value.trim()||null;sess.dai=F.dai.value.trim()||null;sess.machine=mach;sess.lend=lend;
+      sess.shop=F.shop.value.trim()||null;sess.dai=F.dai.value.trim()||null;sess.lend=lend;
       sess.startRealG=int(F.startRealG.value)||0;sess.startLcdG=int(F.startLcdG.value)||0;
       m.startMedal=int(F.startMedal.value)||0;
       sess.totalStart=int(F.totalStart.value);sess.expected=int(F.expected.value);
@@ -2922,11 +2959,13 @@ function entrySheet(entry,after,draft){
     const kr=mk("div","opts");
     [["パチスロ","slot"],["パチンコ","pachinko"]].forEach(([t,k])=>{
       const btn=mk("button","q2",t);if(k===kind)btn.classList.add("on");
-      btn.addEventListener("click",()=>{const d2=readDraft();d2.kind=k;d2.condId=undefined;entrySheet(entry,after,d2)});kr.append(btn);
+      btn.addEventListener("click",()=>{const d2=readDraft();d2.kind=k;delete d2.mid;d2.condId=undefined;entrySheet(entry,after,d2)});kr.append(btn);
     });b.append(kr);
-    b.append(mk("div","lbl","機種名"));const machine=mk("input");machine.value=d.machine||"";machine.setAttribute("list","entryMachines");b.append(machine);
-    const names=mk("datalist");names.id="entryMachines";
-    [...new Set([...Object.entries(MACHINES).filter(([k])=>k!=="generic").map(([,m])=>m.name),...S.entries.map(e=>e.machine),...S.sessions.map(s=>s.machine)])].filter(Boolean).forEach(n=>{const o=mk("option");o.value=n;names.append(o)});b.append(names);
+    b.append(mk("div","lbl","機種名"));const machine=mk("input");machine.value=d.machine||"";b.append(machine);
+    let entryMid=d.mid||null;
+    machine.addEventListener("input",()=>{entryMid=null});
+    b.append(machineCandidates(machine,kind,m=>{entryMid=m.mid}));
+    if(entry)machineEditControls(b,entry,after);
     b.append(mk("div","lbl","店舗"));const sr=mk("div","opts");
     storeUseOrder().forEach(({store:s})=>{const btn=mk("button","q4",s.name);if(st&&s.id===st.id)btn.classList.add("on");btn.addEventListener("click",()=>{const d2=readDraft();d2.storeId=s.id;d2.condId=undefined;entrySheet(entry,after,d2)});sr.append(btn)});
     const add=mk("button","q4","＋新しい店舗");add.addEventListener("click",()=>{const d2=readDraft(),ids=S.stores.map(s=>s.id);storeEditSheet(null,()=>{const added=S.stores.find(s=>!ids.includes(s.id));if(added){d2.storeId=added.id;d2.condId=undefined}entrySheet(entry,after,d2)})});sr.append(add);b.append(sr);
@@ -2949,7 +2988,7 @@ function entrySheet(entry,after,draft){
       [...candidates,null].forEach(s=>{const btn=mk("button","q4",s?hm(s.startAt)+" "+s.machine+(s.shop?" "+s.shop:""):"同じものはない");if(s?s.id===linkedSessionId:!linkedSessionId)btn.classList.add("on");btn.addEventListener("click",()=>{const d2=readDraft();d2.linkedSessionId=s?s.id:null;entrySheet(entry,after,d2)});row.append(btn)});links.append(row);
     }
     const pv=mk("div","hint");b.append(pv);
-    function readDraft(){return {date:dt.value,kind,machine:machine.value,storeId:st?st.id:null,condId:c?c.id:null,cashIn:cashIn.value,cashOut:cashOut.value,withdraw:withdraw.value,deposit:deposit.value,memo:memo.value,linkedSessionId}}
+    function readDraft(){return {date:dt.value,kind,machine:machine.value,mid:entryMid,storeId:st?st.id:null,condId:c?c.id:null,cashIn:cashIn.value,cashOut:cashOut.value,withdraw:withdraw.value,deposit:deposit.value,memo:memo.value,linkedSessionId}}
     function prev(){const e={kind,cond:c,cashIn:int(cashIn.value),cashOut:int(cashOut.value),withdraw:int(withdraw.value),deposit:int(deposit.value)};const sy=entryStockYen(e);pv.textContent="現金収支 "+sgn(entryCash(e))+"円 ／ 貯玉 "+sgn(entryStock(e))+unit+(sy==null?" ／ 条件なしのため円換算しません":"（"+sgn(sy)+"円）")+" ／ 合計 "+sgn(entryYen(e))+"円"}
     [cashIn,cashOut,withdraw,deposit,machine,memo].forEach(i=>i.addEventListener("input",prev));
     dt.addEventListener("input",()=>{if(!isPachi)renderLinks();prev()});if(!isPachi)renderLinks();prev();
@@ -2959,13 +2998,13 @@ function entrySheet(entry,after,draft){
       if(!/^\d{4}-\d{2}-\d{2}$/.test(v.date)){toast("実戦日を入れてください");return}
       const nums=[v.cashIn,v.cashOut,v.withdraw,v.deposit].map(int);if(nums.some(n=>badNum(n)||n<0)){toast("数字は整数で、0以上にしてください");return}
       const e=entry||{id:uid(),createdAt:nowISO()};
-      e.date=v.date;e.kind=kind;e.machine=v.machine.trim();
+      e.date=v.date;e.kind=kind;const resolved=masterMachine({machine:v.machine.trim(),kind,mid:entryMid});e.machine=resolved?.name||v.machine.trim();if(resolved)e.mid=resolved.mid;else delete e.mid;
       e.storeId=st?st.id:null;e.storeName=st?st.name:null;
       e.cond=c?JSON.parse(JSON.stringify(c)):null;
       [e.cashIn,e.cashOut,e.withdraw,e.deposit]=nums.map(n=>n==null?0:n);e.memo=v.memo.trim();
       e.linkedSessionId=v.linkedSessionId;e.updatedAt=nowISO();
       if(!entry){
-        const cand=S.sessions.filter(s=>sessDate(s)===e.date&&!linkedEntryOf(s.id)&&s.machine===e.machine&&(e.storeName?(s.shop||"")===e.storeName:true));
+        const cand=S.sessions.filter(s=>sessDate(s)===e.date&&!linkedEntryOf(s.id)&&machineKey(s)===machineKey(e)&&(e.storeName?(s.shop||"")===e.storeName:true));
         if(!isPachi&&!e.linkedSessionId&&cand.length===1&&confirm("同じ日に「"+cand[0].machine+"（"+hm(cand[0].startAt)+"〜）」の実戦記録があります。この実戦記録と同じ台ですか？\n（はい＝紐づけて二重計上を防ぐ）"))e.linkedSessionId=cand[0].id;
         S.entries.push(e);
       }
@@ -3065,8 +3104,8 @@ function dayKeyE(e){return e.date.replace(/-/g,"/")}                            
 function dayWd(k){const p=k.split("/");return wd(new Date(+p[0],+p[1]-1,+p[2]))}       // 「2026/09/28」→ 曜日
 // 日ごとに実戦記録と簡易収支をまとめる。新しい日が先頭。日の中は 実戦記録（新しい順）→ 簡易収支（登録順）
 let noteMonth=null,noteMachine=null,noteMachineQ=""; // 表示条件のみ。保存・出力には使わない
-function sessIn(s){return (!noteMonth||dayKey(s).slice(0,7)===noteMonth)&&(!noteMachine||s.machine===noteMachine)}
-function entMachine(e){const s=e.linkedSessionId?S.sessions.find(x=>x.id===e.linkedSessionId):null;return s?s.machine:e.machine}
+function sessIn(s){return (!noteMonth||dayKey(s).slice(0,7)===noteMonth)&&(!noteMachine||machineKey(s)===noteMachine)}
+function entMachine(e){const s=e.linkedSessionId?S.sessions.find(x=>x.id===e.linkedSessionId):null;return machineKey(s||e)}
 function entIn(e){return (!noteMonth||dayKeyE(e).slice(0,7)===noteMonth)&&(!noteMachine||entMachine(e)===noteMachine)}
 function monthLabel(k){const p=k.split("/");return p[0]+"年"+Number(p[1])+"月"}
 function noteDays(withCur,filtered=false){
@@ -3121,15 +3160,15 @@ function renderSummary(){
   const head=mk("div");head.style.cssText="display:flex;gap:6px;align-items:center";head.append(mk("div","lbl","月別"));
   const search=mk("input");search.placeholder="機種名で検索";search.style.cssText="flex:1;min-width:0;min-height:44px";search.value=noteMachineQ;head.append(search);
   const counts=new Map();
-  [...S.sessions.map(s=>s.machine),...S.entries.map(entMachine)].forEach(name=>{if(typeof name==="string"&&name.trim())counts.set(name,(counts.get(name)||0)+1)});
+  [...S.sessions.map(machineKey),...S.entries.map(entMachine)].forEach(name=>{if(typeof name==="string"&&name.trim())counts.set(name,(counts.get(name)||0)+1)});
   const names=[...counts.keys()].sort((a,b)=>counts.get(b)-counts.get(a)||a.localeCompare(b,"ja"));
   const machs=mk("div","machs");
-  const renderMachines=()=>{const q=noteMachineQ.trim().toLowerCase();machs.innerHTML="";[null,...names].forEach(name=>{if(name!==null&&name!==noteMachine&&!name.toLowerCase().includes(q))return;const b=mk("button","",name===null?"全部":name);if(noteMachine===name)b.classList.add("on");b.addEventListener("click",()=>{noteMachine=name;renderNote()});machs.append(b)})};
+  const renderMachines=()=>{const q=noteMachineQ.trim();machs.innerHTML="";[null,...names].forEach(name=>{if(name!==null&&name!==noteMachine&&!machineMatches(name,q))return;const b=mk("button","",name===null?"全部":name);if(noteMachine===name)b.classList.add("on");b.addEventListener("click",()=>{noteMachine=name;renderNote()});machs.append(b)})};
   search.addEventListener("input",()=>{noteMachineQ=search.value;renderMachines()});renderMachines();
   monthly.append(head,machs);
   const months=new Map();
   const grp=k=>{if(!months.has(k))months.set(k,{sess:[],ents:[]});return months.get(k)};
-  S.sessions.forEach(s=>{if(!noteMachine||s.machine===noteMachine)grp(dayKey(s).slice(0,7)).sess.push(s)});
+  S.sessions.forEach(s=>{if(!noteMachine||machineKey(s)===noteMachine)grp(dayKey(s).slice(0,7)).sess.push(s)});
   S.entries.forEach(e=>{if(!noteMachine||entMachine(e)===noteMachine)grp(dayKeyE(e).slice(0,7)).ents.push(e)});
   [...months.keys()].sort().reverse().forEach(k=>{const g=months.get(k),r=sumRow(monthLabel(k),agg(g.sess,g.ents));r.className="mrow";if(noteMonth===k)r.classList.add("on");r.addEventListener("click",()=>{noteMonth=noteMonth===k?null:k;renderNote()});monthly.append(r)});
   w.append(monthly);
@@ -3141,7 +3180,7 @@ function entryRow(e){
   const bg=mk("span","sm","簡易");bg.style.cssText="border:1px solid var(--line);border-radius:4px;padding:1px 5px;flex:none";
   hd.append(bg);
   const name=e.machine+(e.storeName?"　"+e.storeName:"");
-  hd.append(mk("span","sn",name));
+  hd.append(mk("span","sn",name),mk("small","sm",machineMark(e)));
   if(e.linkedSessionId)hd.append(mk("span","sm","詳しい記録あり"));
   const y=entryYen(e);const pl=mk("span","pl",sgn(y));pl.style.color=y>=0?"var(--ok)":"var(--hot)";hd.append(pl);
   hd.addEventListener("click",()=>entrySheet(e,renderNote));
@@ -3162,7 +3201,7 @@ function renderNote(){
     const sn=stockNote(t);if(sn)h.append(mk("div","c",sn));
     const v=mk("div","v",sgn(t.act)+"円");v.style.color=t.act>=0?"var(--ok)":"var(--hot)";h.append(v);w.append(h);
     g.sess.slice().reverse().forEach(s=>{
-    const p=profit(s),d=mk("details","sess"),sm=mk("summary");sm.append(mk("span","sm",hm(s.startAt)),mk("span","sn",s.machine+((s.shop||s.dai)?"　"+[s.shop,s.dai?s.dai+"番":null].filter(Boolean).join(" "):"")));
+    const p=profit(s),d=mk("details","sess"),sm=mk("summary");sm.append(mk("span","sm",hm(s.startAt)),mk("span","sn",s.machine+((s.shop||s.dai)?"　"+[s.shop,s.dai?s.dai+"番":null].filter(Boolean).join(" "):"")),mk("small","sm",machineMark(s)));
     if(entryOfSession(s))sm.append(mk("span","sm","簡易収支あり"));
     if(p){const pl=mk("span","pl",sgn(p.yen));pl.style.color=p.yen>=0?"var(--ok)":"var(--hot)";sm.append(pl)}
     const bd=mk("div","body");
@@ -3206,7 +3245,7 @@ function toEnvelope(s){
   if(s.endAt)logs.push({t:new Date(s.endAt).getTime(),type:"memo",text:gsText({realG:s.realG,lcdG:s.lcdG},md)+"G　"+(s.endNote||"ヤメ")});
   if(md.atGain)logs.push({t:new Date(s.endAt||s.events.at(-1)?.at||s.startAt).getTime(),type:"memo",text:"まとめ　"+recordSummary(s).join("／")});
   const memo=[s.machine+((s.shop||s.dai)?"　"+[s.shop,s.dai?s.dai+"番":null].filter(Boolean).join(" "):"")];if(s.expected!=null)memo.push("想定期待値 "+sgn(expectedTotal(s))+"円");if(p)memo.push("差枚 "+sgn(p.medalDiff)+"枚");memo.push("開始持 "+(m.startMedal||0)+"枚／再プレイ "+replayed(m)+"枚／終了持 "+(m.endMedal||0)+"枚（回収は純増枚数）");
-  return{schema:"slot-session",schemaVer:2,sessionId:s.id||uuidV4(),machineId:s.machine,payloadVer:sessCond(s)?"rec-4":"rec-3",startedAt:isoOffset(new Date(s.startAt)),endedAt:isoOffset(new Date(s.endAt||s.startAt)),invest:invested(m),payout:(m.endMedal||0)-(m.startMedal||0)-replayed(m),storeId:null,storeName:s.shop||null,unitNo:s.dai||null,lendRate:sessCond(s)?s.cond.lend:s.lend,exchangeRate:sessCond(s)?s.cond.exchPer1000:s.lend,memo:memo.join(" ／ "),estimated:false,payload:{...(sessCond(s)?{recStoreId:s.storeId,recCondId:s.condId,cond:JSON.parse(JSON.stringify(s.cond))}:{}),machine:s.machine,machineDef:s.machineId,startRealG:s.startRealG,startLcdG:s.startLcdG,endRealG:s.realG,endLcdG:s.lcdG,startMedal:m.startMedal,replays:replayed(m),endMedal:m.endMedal,expected:s.expected??null,follow:s.follow||[],expectedTotal:expectedTotal(s),rare:s.rare||null,c3:s.c3,revive:s.revive||0,pendingReward:s.pendingReward||null,modeHints:s.modeHints||[],modeEra:s.modeEra||0,logs}};
+  return{schema:"slot-session",schemaVer:2,sessionId:s.id||uuidV4(),machineId:s.machine,payloadVer:sessCond(s)?"rec-4":"rec-3",startedAt:isoOffset(new Date(s.startAt)),endedAt:isoOffset(new Date(s.endAt||s.startAt)),invest:invested(m),payout:(m.endMedal||0)-(m.startMedal||0)-replayed(m),storeId:null,storeName:s.shop||null,unitNo:s.dai||null,lendRate:sessCond(s)?s.cond.lend:s.lend,exchangeRate:sessCond(s)?s.cond.exchPer1000:s.lend,memo:memo.join(" ／ "),estimated:false,payload:{...(sessCond(s)?{recStoreId:s.storeId,recCondId:s.condId,cond:JSON.parse(JSON.stringify(s.cond))}:{}),...(s.mid!==undefined?{mid:s.mid}:{}),machine:s.machine,machineDef:s.machineId,startRealG:s.startRealG,startLcdG:s.startLcdG,endRealG:s.realG,endLcdG:s.lcdG,startMedal:m.startMedal,replays:replayed(m),endMedal:m.endMedal,expected:s.expected??null,follow:s.follow||[],expectedTotal:expectedTotal(s),rare:s.rare||null,c3:s.c3,revive:s.revive||0,pendingReward:s.pendingReward||null,modeHints:s.modeHints||[],modeEra:s.modeEra||0,logs}};
 }
 el("nExpNote").addEventListener("click",()=>{const done=S.sessions.filter(s=>s.endAt);if(!done.length){toast("終わった台がありません");return}outSheet("振り返りノート用",JSON.stringify(done.map(toEnvelope),null,2),"kado-note の「JSON取り込み」でファイルを選んでください。")});
 el("nDlNote").addEventListener("click",()=>{const done=S.sessions.filter(s=>s.endAt);if(!done.length){toast("終わった台がありません");return}dlJson(done.map(toEnvelope),"kadonote-"+ymd(nowISO()).replace(/\//g,"")+".json")});
@@ -3275,14 +3314,20 @@ function showSetup(){
   acctStartWithoutStore=false;
   el("scSetup").classList.remove("hide");el("scMain").classList.add("hide");el("scNote").classList.add("hide");
   el("hdTitle").textContent="実戦記録";el("stLend").value=S.settings.lend;el("stShop").value=S.settings.lastShop||"";
-  const w=el("stMachines");w.innerHTML="";pickedMachine=null;
-  Object.keys(MACHINES).filter(k=>k!=="generic").forEach(k=>{const b=mk("button","",MACHINES[k].name);b.addEventListener("click",()=>{pickedMachine=k;el("stMachine").value=MACHINES[k].name;w.querySelectorAll("button").forEach(x=>x.classList.remove("on"));b.classList.add("on");renderSetupFields()});w.append(b)});
-  const names=Object.keys(MACHINES).filter(k=>k!=="generic").map(k=>MACHINES[k].name);
-  const seen=[];S.sessions.slice().reverse().forEach(s=>{if(s.machineId==="generic"&&!seen.includes(s.machine)&&!names.includes(s.machine))seen.push(s.machine)});
-  seen.slice(0,4).forEach(m=>{const b=mk("button","",m);b.addEventListener("click",()=>{pickedMachine=null;el("stMachine").value=m;w.querySelectorAll("button").forEach(x=>x.classList.remove("on"));b.classList.add("on");renderSetupFields()});w.append(b)});
+  const w=el("stMachines");w.innerHTML="";pickedMachine=null;pickedMid=null;el("stCandidates").replaceChildren();
+  Object.keys(MACHINES).filter(k=>k!=="generic").forEach(k=>{const b=mk("button","",MACHINES[k].name);b.addEventListener("click",()=>{pickedMachine=k;const m=masterMachine({machine:MACHINES[k].name});pickedMid=m?.mid||null;el("stMachine").value=m?.name||MACHINES[k].name;el("stCandidates").replaceChildren();w.querySelectorAll("button").forEach(x=>x.classList.remove("on"));b.classList.add("on");renderSetupFields()});w.append(b)});
+  const names=Object.keys(MACHINES).filter(k=>k!=="generic").map(k=>machineKey({machine:MACHINES[k].name}));
+  const seen=[];S.sessions.slice().reverse().forEach(s=>{const name=machineKey(s);if(s.machineId==="generic"&&!seen.includes(name)&&!names.includes(name))seen.push(name)});
+  seen.slice(0,4).forEach(m=>{const b=mk("button","",m);b.addEventListener("click",()=>{const found=masterMachine({machine:m});pickedMachine=found?.recDef||null;pickedMid=found?.mid||null;el("stMachine").value=m;el("stCandidates").replaceChildren();w.querySelectorAll("button").forEach(x=>x.classList.remove("on"));b.classList.add("on");renderSetupFields()});w.append(b)});
   acctSelectStart(null);renderSetupFields();
 }
-el("stMachine").addEventListener("input",()=>{if(pickedMachine){pickedMachine=null;el("stMachines").querySelectorAll("button").forEach(x=>x.classList.remove("on"));renderSetupFields()}});
+el("stMachine").addEventListener("input",()=>{pickedMid=null;if(pickedMachine){pickedMachine=null;el("stMachines").querySelectorAll("button").forEach(x=>x.classList.remove("on"));renderSetupFields()}});
+const stCandidates=machineCandidates(el("stMachine"),"slot",m=>{
+  pickedMid=m.mid;pickedMachine=m.recDef||null;
+  el("stMachines").querySelectorAll("button").forEach(b=>b.classList.toggle("on",!!m.recDef&&b.textContent===MACHINES[m.recDef].name));
+  renderSetupFields();
+});
+stCandidates.id="stCandidates";el("stMachine").after(stCandidates);
 // 台の見出し：機種 ／ 店名 台番号 ／ 開始時刻〜
 function sessTitle(s){const w=[s.machine];const sd=[s.shop,s.dai?s.dai+"番":null].filter(Boolean).join(" ");if(sd)w.push(sd);w.push(hm(s.startAt)+"〜");return w.join(" ／ ")}
 function showMain(){el("scSetup").classList.add("hide");el("scMain").classList.remove("hide");el("scNote").classList.add("hide");el("hdTitle").textContent=sessTitle(S.cur);render()}
@@ -3317,7 +3362,7 @@ el("stStart").addEventListener("click",()=>{
    if(bad){const lb=el(bad.id).previousElementSibling;e.textContent="数字は整数で、0以上にしてください（"+((lb&&lb.textContent)||bad.id).replace(/任意|チェッカーに.*$/,"").trim()+"）";e.classList.remove("hide");return}}
   {const bad=Object.keys(setupVals).find(k=>badNum(setupVals[k])||(typeof setupVals[k]==="number"&&setupVals[k]<0));if(bad){e.textContent="打ち始めの項目は整数で、0以上にしてください";e.classList.remove("hide");return}}
   if(!pickedMachine){
-    const hit=Object.keys(MACHINES).find(k=>k!=="generic"&&MACHINES[k].name===m);
+    const hit=masterMachine({machine:m,mid:pickedMid})?.recDef||Object.keys(MACHINES).find(k=>k!=="generic"&&machineKey({machine:MACHINES[k].name})===machineKey({machine:m}));
     if(hit&&confirm("「"+m+"」には専用の記録画面があります。そちらで始めますか？")){pickedMachine=hit;renderSetupFields();e.textContent="専用の項目が出ました。内容を確認して、もう一度「打ち始める」を押してください。";e.classList.remove("hide");return}
   }
   if(acctStartChoice&&int(el("stMedal").value)===null&&!confirm("開始持ちメダルが空欄です。0枚で始めますか？"))return;
@@ -3333,7 +3378,8 @@ el("stStart").addEventListener("click",()=>{
   if(d.zenchou&&d.zenchou.autoEnterIfG!=null&&setup.stage0!=="リセット後"&&(int(el("stRealG").value)||0)<=d.zenchou.autoEnterIfG)zen0=0;
   const setupNote=d.setup.filter(f=>f.optionLabels?.[setup[f.key]]!=="不明"&&f.key!=="c3"&&f.key!=="melon"&&setup[f.key]!=null&&(setup[f.key]!=="不明"||f.optionLabels?.[setup[f.key]]!=null)).map(f=>f.label.replace(/（.*?）/,"")+"："+(f.optionLabels?.[setup[f.key]]??setup[f.key]));
   const noteParts=setupNote.concat(el("stNote").value.trim()?[el("stNote").value.trim()]:[]);
-  S.cur={id:uid(),machineId,machine:m,startAt:nowISO(),lend,setup,
+  const resolved=masterMachine({machine:m,mid:pickedMid});
+  S.cur={id:uid(),machineId,machine:resolved?.name||m,...(resolved?{mid:resolved.mid}:{}),startAt:nowISO(),lend,setup,
     startRealG:int(el("stRealG").value)||0,startLcdG:int(el("stLcdG").value)||0,
     realG:int(el("stRealG").value)||0,lcdG:int(el("stLcdG").value)||0,c3,
     shop:el("stShop").value.trim()||null,dai:el("stDai").value.trim()||null,

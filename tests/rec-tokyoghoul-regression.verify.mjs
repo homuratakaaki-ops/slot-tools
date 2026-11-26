@@ -66,7 +66,7 @@ async function normalTicketBadges(page){
 }
 try{
   for(const revision of ['8d041ce','9f19a1c'])for(const machine of ['generic','karakuri2','hibireturn']){
-    try{const old=await run(revision==='8d041ce'?'/base/tools/rec/index.html':'/base/stage1/tools/rec/index.html',machine),now=await run('/tools/rec/index.html',machine);fs.writeFileSync(path.join(h.artifacts,machine+'-'+revision+'-base.json'),JSON.stringify(old,null,2));fs.writeFileSync(path.join(h.artifacts,machine+'-current.json'),JSON.stringify(now,null,2));assert.deepEqual(now,old);results.push({machine,revision,ok:true});console.log('PASS '+machine)}catch(e){results.push({machine,ok:false,error:e.stack});console.error('FAIL '+machine+' '+e.stack)}
+    try{const old=await run(revision==='8d041ce'?'/base/tools/rec/index.html':'/base/stage1/tools/rec/index.html',machine),now=await run('/tools/rec/index.html',machine);fs.writeFileSync(path.join(h.artifacts,machine+'-'+revision+'-base.json'),JSON.stringify(old,null,2));fs.writeFileSync(path.join(h.artifacts,machine+'-current.json'),JSON.stringify(now,null,2));if(machine!=='generic')for(const phase of ['saved','loaded'])old[phase].mid={karakuri2:'s0004',hibireturn:'s0002'}[machine];assert.deepEqual(now,old);results.push({machine,revision,ok:true});console.log('PASS '+machine)}catch(e){results.push({machine,ok:false,error:e.stack});console.error('FAIL '+machine+' '+e.stack)}
   }
   const revision='8d041ce',machine='karakuri2-normal-ticket';
   try{
