@@ -644,7 +644,7 @@ let saveOK=true, logOpen=false, rareView="w", pickedMachine=null, pickedMid=null
 function masterMachine(r){return window.MachineMaster?.resolve(r.machine,r.kind||"slot",r.mid)||null}
 function machineKey(r){return masterMachine(r)?.name||r.machine}
 function machineMatches(name,q){
-  const mm=window.MachineMaster;if(!mm)return name.includes(q);
+  const mm=window.MachineMaster;if(!mm)return name.toLowerCase().includes(q.toLowerCase());
   const n=mm.norm(q);return [name,...mm.list.filter(m=>machineKey({machine:m.name,kind:m.kind})===name).flatMap(m=>m.aliases)].some(s=>mm.norm(s).includes(n));
 }
 function machineMark(r){return masterMachine(r)?"":" 未登録"}
@@ -664,7 +664,7 @@ function machineEditControls(parent,record,after){
     const input=mk("input");input.value=record.machine;b.append(input);
     b.append(machineCandidates(input,record.kind||"slot",m=>{
       const original=record.machine;
-      const others=[...S.sessions,...S.entries].filter(r=>r!==record&&[r.machine].includes(original));
+      const others=[...S.sessions,...S.entries].filter(r=>r!==record&&(r.kind||"slot")===(record.kind||"slot")&&r.machine===original);
       const targets=[record];if(others.length&&confirm("同じ名前の記録が"+others.length+"件あります。まとめて直しますか？"))targets.push(...others);
       for(const r of targets){if(!Object.hasOwn(r,"machineTyped"))r.machineTyped=r.machine;r.machine=m.name;r.mid=m.mid}
       save();closeSheet();if(after)after();
