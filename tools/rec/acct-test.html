@@ -179,6 +179,7 @@ textarea{min-height:80px;resize:vertical}
 #nSum .machs button{flex:0 0 auto;white-space:nowrap;min-height:44px;padding:8px 12px;font-size:13px;font-weight:700}
 #nSum .machs button.on{background:var(--accent);border-color:var(--accent);color:#1a1200}
 .warn{background:#3A2A16;color:#F0D9A8;font-size:12px;padding:8px 12px;text-align:center;border-radius:8px;margin-top:8px}
+.sheet.ed-sheet{padding-bottom:0}.ed-sheet .pane{height:100%;max-height:100%;width:100%;transform:none!important}.ed-row{display:grid;grid-template-columns:minmax(0,1fr) 44px 24px 44px 50px;align-items:center;gap:6px}.ed-row small{display:block}.ed-row button{min-height:44px;margin:0;padding:0}.ed-card{padding:8px 0}.ed-card summary{min-height:44px;display:flex;align-items:center;cursor:pointer}
 </style>
 </head>
 <body>
@@ -509,6 +510,101 @@ const MACHINES={
       at:[["hitEnd","memo"]]
     }
   }
+,tokyoghoul:{
+  name:"東京喰種",
+  lcdG:true,
+  // 着席時の項目（値はキー、表示は optionLabels）
+  setup:[
+    {key:"c3",label:"CZスルー回数",type:"num"},
+    {key:"seatState",label:"着席時の状況",type:"select",
+      options:["resetConfirmed","resetGuess","keepConfirmed","unknown"],
+      optionLabels:{resetConfirmed:"リセット確認",resetGuess:"リセット推定",keepConfirmed:"据え置き確認",unknown:"不明"}},
+    {key:"lastHit",label:"前回の当選",type:"select",
+      options:["czFail","atEnd","judgeFail","unknown"],
+      optionLabels:{czFail:"CZ失敗",atEnd:"AT終了",judgeFail:"有馬失敗",unknown:"不明"}}
+  ],
+  counter3:{label:"CZスルー",reset:"at",incOnCzFail:["レミニセンス","大喰いの利世"]},
+  noteSeparate:true,          // E3：メモを本文に連結せず ev.note に分ける
+  hitCredit:true,             // E4：当選シートにクレジット欄
+  rares:[],
+  lcdAdd:null,
+  stages:null,
+  zenchou:null,
+  hitTriggers:["規定G数","レア役","天井","引き戻し","不明"],
+  hits:[
+    {label:"レミニセンス",kind:"cz",grid:[["hitEnd","memo"]],
+      fixedEndG:[{real:6,lcd:0}],fixedEndGHint:"CZ後は実6／液晶0が基本です。ずれていれば直してください。",
+      czEnd:{groups:[{key:"czCard",label:"CZ終了画面（1枚絵）",options:[
+  {k:"kaneki",l:"金木研",h:"デフォルト"},
+  {k:"touka",l:"霧嶋董香",h:"モードB以上期待度UP"},{k:"hinami",l:"笛口雛実",h:"モードB以上期待度UP"},
+  {k:"amon",l:"亜門鋼太朗",h:"モードB以上濃厚"},
+  {k:"mado",l:"真戸呉緒",h:"モードC以上濃厚"},
+  {k:"kanekiG",l:"金木研（喰種）",h:"チャンスモード以上濃厚"},{k:"toukaG",l:"霧嶋董香（喰種）",h:"チャンスモード以上濃厚"},
+  {k:"tsukiyama",l:"月山習",h:"天国準備モード以上濃厚"},
+  {k:"rize",l:"神代利世",h:"天国モード濃厚"},
+  {k:"suzuya",l:"鈴屋什造",h:"偶数設定濃厚"},{k:"owl",l:"梟",h:"設定4以上濃厚"},{k:"arima",l:"有馬貴将",h:"設定6濃厚"}
+]}],successToAt:"AT",successSheet:true,successOneOp:true,credit:true}},
+    {label:"大喰いの利世",kind:"cz",grid:[["hitEnd","memo"]],
+      fixedEndG:[{real:6,lcd:0}],fixedEndGHint:"CZ後は実6／液晶0が基本です。ずれていれば直してください。",
+      czEnd:{groups:[{key:"czCard",label:"CZ終了画面（1枚絵）",options:[
+  {k:"kaneki",l:"金木研",h:"デフォルト"},
+  {k:"touka",l:"霧嶋董香",h:"モードB以上期待度UP"},{k:"hinami",l:"笛口雛実",h:"モードB以上期待度UP"},
+  {k:"amon",l:"亜門鋼太朗",h:"モードB以上濃厚"},
+  {k:"mado",l:"真戸呉緒",h:"モードC以上濃厚"},
+  {k:"kanekiG",l:"金木研（喰種）",h:"チャンスモード以上濃厚"},{k:"toukaG",l:"霧嶋董香（喰種）",h:"チャンスモード以上濃厚"},
+  {k:"tsukiyama",l:"月山習",h:"天国準備モード以上濃厚"},
+  {k:"rize",l:"神代利世",h:"天国モード濃厚"},
+  {k:"suzuya",l:"鈴屋什造",h:"偶数設定濃厚"},{k:"owl",l:"梟",h:"設定4以上濃厚"},{k:"arima",l:"有馬貴将",h:"設定6濃厚"}
+]}],successToAt:"AT",successSheet:true,successOneOp:true,credit:true}},
+    {label:"エピソードボーナス",kind:"at",grid:[["memo","hitEnd"]],
+      atStart:null,askGOnEnd:false,revive:null,
+      atEnd:{groups:[],credit:true},
+      afterAt:{hit:"AT",trig:"EP後"}},
+    {label:"AT直撃",kind:"at",enter:"AT"},
+    {label:"AT",kind:"at",hidden:true,atStart:null,revive:null,
+      atEnd:{note:"終了画面とトロフィーを確認してからBETしてください",
+        numsBefore:[{key:"shownGain",label:"画面の獲得枚数"}],
+        groups:[{"key":"screen","label":"AT終了画面","options":[{"k":"kaneki","l":"金木研","h":"デフォルト"},{"k":"amonMado","l":"亜門＆真戸","h":"奇数設定期待度UP"},{"k":"suzuyaShinohara","l":"鈴屋＆篠原","h":"偶数設定期待度UP"},{"k":"rize","l":"神代利世","h":"設定1否定"},{"k":"fueguchi","l":"笛口親子","h":"高設定期待度UP(弱)"},{"k":"yomoItoriUta","l":"四方＆イトリ＆ウタ","h":"高設定期待度UP(強)"},{"k":"kanekiKirishima","l":"金木＆霧嶋","h":"設定4以上濃厚"},{"k":"anteiku","l":"あんていく全員集合","h":"設定6濃厚"}]},{key:"trophy",label:"ナミちゃんトロフィー",options:[
+  {k:"none",l:"なし"},{k:"unseen",l:"見逃した"},
+  {k:"bronze",l:"銅",h:"設定2以上濃厚"},{k:"silver",l:"銀",h:"設定3以上濃厚"},{k:"gold",l:"金",h:"設定4以上濃厚"},
+  {k:"ghoul",l:"喰柄",h:"設定5以上濃厚"},{k:"rainbow",l:"虹",h:"設定6濃厚"},{k:"black",l:"黒",h:"次回トロフィー出現濃厚"}
+]}],
+        credit:true,
+        numsAfter:[{key:"totalG",label:"総回転数",kind:"totalG"}]},
+      ticket:{label:"有馬権利",autoBy:{extra:"喰種対決",result:"勝利",match:{opp:"有馬貴将"},count:1}},
+      afterAtWithTicket:{hit:"有馬ジャッジメント",trig:"有馬勝利"},
+      phases:{ed:{label:"エンディング",cards:true,noRevive:true,
+        grid:[["edCards","memo"],["hitEnd"]],
+        afterAt:{hit:"有馬ジャッジメント",trig:"エンディング後"}}},
+      grid:[["atx:0","phase:ed","memo"],["hitEnd"]]},
+    {label:"有馬ジャッジメント",kind:"cz",hidden:true,grid:[["hitEnd","memo"]],
+      fixedEndG:[{real:6,lcd:0}],fixedEndGHint:"ジャッジメント後は実6／液晶0が基本です。ずれていれば直してください。",
+      czEnd:{groups:[],successToAt:"CCGの死神",successSheet:true,successOneOp:true,credit:true,failMark:"有馬失敗後"}},
+    {label:"CCGの死神",kind:"at",hidden:true,grid:[["memo","hitEnd"]],
+      atStart:null,askGOnEnd:false,revive:null,atEnd:{groups:[]},
+      afterAt:{hit:"AT",trig:"死神後"}}
+  ],
+  atGain:{fromTrig:{"死神後":"有馬ジャッジメント"},excludeFirstHitTrigs:["死神後"]},   // E11
+  atExtras:[{label:"喰種対決",title:"喰種対決",
+  groups:[
+    {key:"opp",label:"相手",required:true,options:[
+      {k:"shachi",l:"鯱"},{k:"ayato",l:"霧嶋絢都"},{k:"yamori",l:"ヤモリ"},{k:"tokuto",l:"特等ら"},
+      {k:"amon",l:"亜門"},{k:"arima",l:"有馬貴将"},{k:"unknown",l:"不明"}]},
+    {key:"result",label:"勝敗",required:true,options:[{k:"win",l:"勝利"},{k:"lose",l:"敗北"}]}
+  ],
+  nums:[{key:"bites",label:"BITES獲得枚数",showWhen:{key:"result",in:["勝利"]}}],
+  memo:true}],
+  extras:[{"type":"menu","label":"示唆","title":"示唆","memo":true,"items":[{"kind":"eyecatch","label":"アイキャッチ","groups":[{"key":"v","label":"アイキャッチ","required":true,"options":[{"k":"ec_kaneki","l":"金木研","h":"デフォルト"},{"k":"ec_touka","l":"霧嶋董香","h":"通常B以上期待度UP"},{"k":"ec_hinami","l":"笛口雛実","h":"通常C以上期待度UP"},{"k":"ec_tsukiyama","l":"月山習","h":"本前兆期待度UP"},{"k":"ec_rize","l":"神代利世","h":"本前兆期待度大幅UP"},{"k":"ec_kaneki_g","l":"金木研（喰種化）","h":"規定G数まで残り100G以内濃厚"},{"k":"ec_touka_g","l":"霧嶋董香（喰種化）","h":"規定G数まで残り100G以内濃厚"},{"k":"ec_hinami_g","l":"笛口雛実（喰種化）","h":"規定G数まで残り100G以内濃厚"},{"k":"ec_tsukiyama_g","l":"月山習（喰種化）","h":"規定G数まで残り100G以内濃厚"},{"k":"ec_rize_g","l":"神代利世（喰種化）","h":"連続演出復活濃厚"}]}]},{"kind":"inviteG","label":"招待状（規定G数示唆）","groups":[{"key":"v","label":"招待状（規定G数示唆）","required":true,"options":[{"k":"ivg_dinner","l":"今夜のディナーを楽しもう","h":"デフォルト"},{"k":"ivg_party","l":"パーティーの時間は未定だ","h":"デフォルト"},{"k":"ivg_no600","l":"最悪の事態にはならないだろう","h":"600G否定"},{"k":"ivg_eat","l":"喰うか喰われるかは君次第だ","h":"残り200G以内 or 500G以上"},{"k":"ivg_135","l":"1時35分に…","h":"規定100・300・500G示唆"},{"k":"ivg_246","l":"2時46分に…","h":"規定200・400・600G示唆"},{"k":"ivg_3ji","l":"3時までに…","h":"残り300G以内濃厚"},{"k":"ivg_2ji","l":"2時までに…","h":"残り200G以内濃厚"},{"k":"ivg_now","l":"今すぐ…","h":"残り100G以内濃厚"}]}]},{"kind":"inviteSet","label":"招待状（設定示唆）","groups":[{"key":"v","label":"招待状（設定示唆）","required":true,"options":[{"k":"evenDinner","l":"偶にはディナーでもどうだい","h":"偶数設定期待度UP"},{"k":"strangeScent","l":"不思議な香りだ","h":"設定1否定"},{"k":"bookworm","l":"君はなかなかの活字中毒らしいね","h":"設定2否定"},{"k":"booksGood","l":"本は良いよね…","h":"設定3否定"},{"k":"sorry","l":"僕としたことがすまない","h":"設定4否定"},{"k":"enjoy","l":"存分に楽しもうじゃないか","h":"設定4以上濃厚"},{"k":"specialNight","l":"特別な夜を楽しもうじゃないか","h":"設定6濃厚"}]}]},{"kind":"zenchouG","label":"ゲーム数前兆","groups":[{"key":"v","label":"ゲーム数前兆","required":true,"options":[{"k":"zg50_up","l":"50G 前兆→東京上空","h":"CZ以上のチャンス（ハズレても天国濃厚）"},{"k":"zg50_noUp","l":"50G 前兆・移行なし","h":"チャンス以上濃厚"},{"k":"zg100_noUp","l":"100G 前兆・移行なし","h":"天国準備濃厚"},{"k":"zg150_up","l":"150G 前兆→東京上空","h":"本前兆濃厚"},{"k":"zg150_noUp","l":"150G 前兆・移行なし","h":"通常B以上濃厚"},{"k":"zg200_none","l":"200G 前兆なし","h":"天国準備濃厚"},{"k":"zg200_noUp","l":"200G 前兆・移行なし","h":"通常B以上期待度UP"},{"k":"zg250_up","l":"250G 前兆→東京上空","h":"本前兆濃厚"},{"k":"zg250_noUp","l":"250G 前兆・移行なし","h":"通常C以上濃厚"},{"k":"zg300_noUp","l":"300G 前兆・移行なし","h":"チャンス濃厚"},{"k":"zg400_none","l":"400G 前兆なし","h":"通常C濃厚"},{"k":"zg500_noUp","l":"500G 前兆・移行なし","h":"チャンス濃厚"},{"k":"zg600_up","l":"600G 前兆→東京上空","h":"本前兆濃厚"},{"k":"zg600_noUp","l":"600G 前兆・移行なし","h":"本前兆濃厚"}]}]}]}],
+  edCards:{"cats":[{"k":"edWhiteW","l":"白・弱","h":"奇数設定示唆(弱)","names":"金木・霧嶋・笛口・永近・西尾・月山"},{"k":"edWhiteS","l":"白・強","h":"奇数設定示唆(強)","names":"芳村・四方・ウタ・イトリ・古間・入見"},{"k":"edBlueW","l":"青・弱","h":"偶数設定示唆(弱)","names":"金木・霧嶋・笛口・ナキ・西尾・月山"},{"k":"edBlueS","l":"青・強","h":"偶数設定示唆(強)","names":"亜門・篠原・滝澤・真戸（暁）・真戸（呉緒）・丸手"},{"k":"edRedW","l":"赤・弱","h":"高設定示唆(弱)","names":"金木・霧嶋（董香）・ヤモリ・霧嶋（絢都）"},{"k":"edRedS","l":"赤・強","h":"高設定示唆(強)","names":"鯱・亜門・篠原・鈴屋"},{"k":"edBrz1","l":"銅・鈴屋什造","h":"設定1否定"},{"k":"edBrz2","l":"銅・高槻泉","h":"設定2否定"},{"k":"edBrz3","l":"銅・梟","h":"設定3否定"},{"k":"edBrz4","l":"銅・エト","h":"設定4否定"},{"k":"edSilver","l":"銀・金木研","h":"設定3以上濃厚"},{"k":"edGold4","l":"金・神代利世","h":"設定4以上濃厚"},{"k":"edGold5","l":"金・隻眼の梟","h":"設定5以上濃厚"},{"k":"edRainbow","l":"虹・有馬貴将","h":"設定6濃厚"}]},       // E10
+  parallel:[],
+  czEndStd:{groups:[]},
+  rareCounts:false,
+  grids:{
+    normal:[["extra:0","hit","memo"],["counter3"]],
+    cz:[["hitEnd","memo"]],
+    at:[["hitEnd","memo"]]
+  }
+}
 };
 
 let S={version:2,settings:{lend:DEF_LEND},sessions:[],cur:null};
@@ -599,6 +695,10 @@ function validSession(c){
   if(c&&Object.hasOwn(c,"cond")&&!condOk(c.cond))return false;
   if(!validSessionShape(c))return false;
   if(c.endAt!=null&&!dateOk(c.endAt))return false;
+  const countsOk=x=>x&&typeof x==="object"&&!Array.isArray(x)&&Object.values(x).every(v=>Number.isSafeInteger(v)&&v>=0);
+  if(c.nextMark!=null&&typeof c.nextMark!=="string")return false;
+  if(c.edRuns!==undefined&&(!Array.isArray(c.edRuns)||!c.edRuns.every(r=>r&&typeof r.id==="string"&&countsOk(r.counts))))return false;
+  if(!c.events.every(e=>["cr","bites","shownGain","totalG"].every(k=>e[k]==null||(Number.isSafeInteger(e[k])&&e[k]>=0))&&["note","afterMark","edId"].every(k=>e[k]==null||typeof e[k]==="string")&&(e.keys==null||(typeof e.keys==="object"&&!Array.isArray(e.keys)&&Object.values(e.keys).every(v=>typeof v==="string")))&&(e.type!=="edFix"||(countsOk(e.before)&&countsOk(e.after)))))return false;
   if(!c.events.every(ev=>ev&&typeof ev==="object"&&dateOk(ev.at)&&typeof ev.type==="string"&&typeof ev.text==="string"&&numOrNull(ev.realG)&&numOrNull(ev.lcdG)&&numOrNull(ev.c3)&&(ev.tags==null||(Array.isArray(ev.tags)&&ev.tags.every(t=>typeof t==="string")))))return false;
   if(c.money!=null){
     const m=c.money;if(typeof m!=="object")return false;
@@ -753,6 +853,7 @@ document.addEventListener("click",e=>{
   if(t.closest("#staleWarn")||t.id==="shClose"||t.id==="kpX")return;
   e.preventDefault();e.stopPropagation();toast("別のタブで更新されたため、このタブでは操作できません");
 },true);
+function hasFailMark(c){return (MACHINES[c.machineId]?.hits||[]).some(h=>h.czEnd?.failMark)}
 function fixSession(c){
   if(!c)return;
   if(condOk(c.cond)&&condExch(c.cond)!=null)c.cond.exch=condExch(c.cond);
@@ -775,6 +876,8 @@ function fixSession(c){
   if(!c.parallel)c.parallel={};
   if(!c.rare)c.rare={};
   const d=MACHINES[c.machineId]||MACHINES.generic;
+  if(hasFailMark(c)&&c.nextMark===undefined)c.nextMark=null;
+  if(d.edCards&&!Array.isArray(c.edRuns))c.edRuns=[];
   d.rares.forEach(r=>{
     const v=c.rare[r.key];
     if(r.strong){ if(v==null)c.rare[r.key]={w:0,s:0}; else if(typeof v==="number")c.rare[r.key]={w:v,s:0}; }
@@ -1064,7 +1167,7 @@ acctButton(acctNoteActions,"口座",()=>acctListSheet()).className="wide dim";
 acctButton(acctNoteActions,"今日の稼働を終える（貯メダルへ預ける）",()=>acctListSheet(true)).className="wide dim";
 
 /* ---------- シート ---------- */
-function sheet(title,build){el("shTitle").textContent=title;const b=el("shBody");b.innerHTML="";el("shFoot").innerHTML="";build(b);
+function sheet(title,build){el("sheet").classList.remove("ed-sheet");el("shTitle").textContent=title;const b=el("shBody");b.innerHTML="";el("shFoot").innerHTML="";build(b);
   const mh=mk("div","more-hint hide","↓ 下にも項目があります");b.append(mh);
   el("sheet").classList.add("open");positionSheet();
   requestAnimationFrame(()=>requestAnimationFrame(updateMoreHint));}
@@ -1195,11 +1298,11 @@ function groupSheet(title,groups,onDone,opts){
   if(opts.sheetDef)tagSheetDefs.set(sel,opts.sheetDef);
   // 選択肢が1グループだけで必須なら、選んだ瞬間に記録する（「記録する」を押させない）
   const instant=opts.instant===true||(opts.instant!==false&&groups.length===1&&groups[0].required&&!opts.after&&!opts.before);
-  const wraps=[];   // showWhen の再評価用
+  const wraps=[];let updateNums=()=>{};   // showWhen の再評価用
   const reeval=()=>{wraps.forEach(x=>{const sw=x.showWhen;if(!sw)return;const ok=sw.in.includes(sel[sw.key]);x.els.forEach(e=>e.classList.toggle("hide",!ok));
-    if(!ok&&x.key){delete sel[x.key];delete sel["_set_"+x.key];delete sel["_tag_"+x.key]}
-    if(!ok&&x.optOf&&sel[x.optOf]===x.optLabel){delete sel[x.optOf];delete sel["_set_"+x.optOf];delete sel["_tag_"+x.optOf];x.els.forEach(e=>e.classList.remove("on"))}   // 隠れた選択肢が選ばれていたら外す
-  })};
+    if(!ok&&x.key){delete sel[x.key];delete sel["_set_"+x.key];delete sel["_tag_"+x.key];delete sel["_key_"+x.key]}
+    if(!ok&&x.optOf&&sel[x.optOf]===x.optLabel){delete sel[x.optOf];delete sel["_set_"+x.optOf];delete sel["_tag_"+x.optOf];delete sel["_key_"+x.optOf];x.els.forEach(e=>e.classList.remove("on"))}   // 隠れた選択肢が選ばれていたら外す
+  });updateNums()};
   sheet(title,b=>{
     if(opts.before)opts.before(b,sel);
     const hideable=[];
@@ -1215,12 +1318,12 @@ function groupSheet(title,groups,onDone,opts){
         const btn=mk("button",g.options.length>6?"q4":(g.options.length<=2?"q2":""),label);
         if(o&&o.tone)btn.classList.add("tone-"+o.tone);
         if(hint)btn.append(mk("small","",hint));
-        if(sel[g.key]===label){btn.classList.add("on");selectHintTag(sel,g,o);if(setv)sel["_set_"+g.key]=setv}
+        if(sel[g.key]===label){btn.classList.add("on");if(o.k!=null)sel["_key_"+g.key]=o.k;selectHintTag(sel,g,o);if(setv)sel["_set_"+g.key]=setv}
         if(o&&o.showWhen)wraps.push({showWhen:o.showWhen,els:[btn],key:null,optOf:g.key,optLabel:label});
         btn.addEventListener("click",()=>{
           if(sel[g.key]===label&&instant){onDone(sel);return}
-          if(sel[g.key]===label){delete sel[g.key];delete sel["_set_"+g.key];delete sel["_tag_"+g.key];btn.classList.remove("on");reeval();return}
-          sel[g.key]=label;selectHintTag(sel,g,o);if(setv)sel["_set_"+g.key]=setv;else delete sel["_set_"+g.key];
+          if(sel[g.key]===label){delete sel[g.key];delete sel["_set_"+g.key];delete sel["_tag_"+g.key];delete sel["_key_"+g.key];btn.classList.remove("on");reeval();return}
+          sel[g.key]=label;if(o.k!=null)sel["_key_"+g.key]=o.k;selectHintTag(sel,g,o);if(setv)sel["_set_"+g.key]=setv;else delete sel["_set_"+g.key];
           w.querySelectorAll("button").forEach(x=>x.classList.remove("on"));
           btn.classList.add("on");
           reeval();
@@ -1237,6 +1340,7 @@ function groupSheet(title,groups,onDone,opts){
       b.append(w);
     });
     if(opts.after)opts.after(b,sel);
+    updateNums=()=>b.querySelectorAll("[data-num-field]").forEach(e=>e._reeval());
     reeval();
     if(!instant){
       const go=mk("button","go",opts.goLabel||"記録する");
@@ -1249,6 +1353,15 @@ function groupSheet(title,groups,onDone,opts){
     }
   });
 }
+function memoInput(b){b.append(mk("div","lbl","メモ"));const ta=mk("textarea");ta.style.minHeight="56px";b.append(ta);return ta}
+function numFields(b,defs,sel){
+  return (defs||[]).map(def=>{const w=mk("div");w.dataset.numField=def.key;const input=numInput("");input.dataset.field=def.key;w.append(mk("div","lbl",def.label+"（任意）"),input);b.append(w);
+    w._reeval=()=>{const hidden=def.showWhen&&!def.showWhen.in.includes(sel[def.showWhen.key]);w.classList.toggle("hide",!!hidden);if(hidden)input.value=""};w._reeval();return {def,input,w};});
+}
+function creditInput(b){return numFields(b,[{key:"cr",label:"今のクレジット"}],{})}
+function readNumFields(fields){const out={};for(const {def,input,w} of fields||[]){if(w.classList.contains("hide"))continue;const v=int(input.value);if(v!==null&&(!Number.isSafeInteger(v)||v<0)){toast(def.label+"は0以上の整数で入れてください");return false}
+    if(def.kind==="totalG"&&v!==null){const c=S.cur,prev=c.events.findLast(e=>e.type==="hitEnd"&&e.totalG!=null);if(v<(c.totalStart??0)||v<(prev?.totalG??0)){toast(def.label+"は着席時・前回AT終了以上で入れてください");return false}}out[def.key]=v}return out}
+function fieldsText(f){if(!f)return "";return [["cr","クレジット ",""],["bites","BITES ","枚"],["shownGain","画面の獲得 ","枚"],["totalG","総回転 ","G"]].filter(([k])=>f[k]!=null).map(([k,l,u])=>"　"+l+yen(f[k])+u).join("")}
 function selText(groups,sel){return groups.map(g=>sel[g.key]).filter(Boolean).join("、")}
 
 /* ---------- テンキー ---------- */
@@ -1261,8 +1374,8 @@ el("kpOk").addEventListener("click",()=>{const v=int(kpVal);el("kp").classList.r
 function askNum(title,init,cb){el("kpTitle").textContent=title;kpVal=(init==null||init===0)?"":String(init);kpFresh=!!kpVal;el("kpDisp").textContent=kpVal||"0";kpCb=cb;el("kp").classList.add("open")}
 
 /* ---------- 記録 ---------- */
-const SNAP_KEYS=["hit","mode","stage","prevStage","zenchou","realG","lcdG","c3","parallel","parCount","melonLeft","melonApprox","rewardHint","modeHint","revive","rare","ticket","judgeWins","returnHit","pendingReward","melonPhase","modeEra","modeHints","tags"];
-function snapshot(c){const o={};SNAP_KEYS.forEach(k=>{o[k]=JSON.parse(JSON.stringify(c[k]===undefined?null:c[k]))});return o}
+const SNAP_KEYS=["hit","mode","stage","prevStage","zenchou","realG","lcdG","c3","parallel","parCount","melonLeft","melonApprox","rewardHint","modeHint","revive","rare","ticket","judgeWins","returnHit","pendingReward","melonPhase","modeEra","modeHints","tags","nextMark"];
+function snapshot(c){const o={};SNAP_KEYS.forEach(k=>{if(k==="nextMark"&&!hasFailMark(c))return;o[k]=JSON.parse(JSON.stringify(c[k]===undefined?null:c[k]))});return o}
 // 終了した台では「直前を取り消す」を使わないので、events[].snap を最小形に縮めて容量を空ける
 function stripSnaps(sess){
   if(!sess||!Array.isArray(sess.events))return false;
@@ -1286,6 +1399,7 @@ function push(type,text,extra,sheetDef){
   const tags=extra&&Object.prototype.hasOwnProperty.call(extra,"tags")?extra.tags:autoTagsForEv(ev,DEF(),c,sheetDef);
   if(Array.isArray(tags)&&tags.length)ev.tags=[...new Set(tags)];else delete ev.tags;
   const selection=ev.sel||ev.hitSel;
+  if(selection){const keys=Object.fromEntries(Object.entries(selection).filter(([k])=>k.startsWith("_key_")).map(([k,v])=>[k.slice(5),v]));if(Object.keys(keys).length)ev.keys=keys}
   if(selection&&!(extra&&Object.prototype.hasOwnProperty.call(extra,"tags")))tagEvents.set(selection,{ev,sheetDef});
   if(!_op||(_op.closed&&_op.used)||(_op.closed&&!_op.snap)){_op={id:uid(),snap:null,used:false,closed:false}}
   else if(_op.closed&&_op.snap&&!_op.used){_op.closed=false}   // mark→シート→push：snap をまだ使っていなければ同じ操作
@@ -1318,8 +1432,9 @@ function renderBadges(){
   d.parallel.forEach(p=>{ if(c.parallel[p.key]){const x=mk("div","badge par",p.label+"中");x.addEventListener("click",()=>parallelEnd(p));b.append(x)} });
   if(c.pendingReward){const pr=mk("div","badge par","報酬待ち："+c.pendingReward.reward);pr.style.background="rgba(180,140,224,.3)";pr.addEventListener("click",firePending);b.append(pr)}
   if(c.hit&&c.hit.phase){const hd=curHitDef();const p=hd&&hd.phases&&hd.phases[c.hit.phase];if(p)b.append(mk("div","badge par",p.label+"中"))}
-  if(c.ticket){const tk=mk("div","badge par","一劇権利");b.append(tk)}
+  if(c.ticket){const tk=mk("div","badge par",(hitProp(curHitDef(),"ticket")||d.hits.find(h=>h.ticket)?.ticket)?.label||"");b.append(tk)}
   Object.keys(c.tags||{}).forEach(k=>{const tg=mk("div","badge",k);tg.style.color="var(--accent)";tg.style.borderColor="var(--accent2)";tg.addEventListener("click",()=>{if(confirm("タグ「"+k+"」を消しますか？")){mark();delete c.tags[k];push("tagClear","タグ解除："+k)}});b.append(tg)});
+  if(c.nextMark)b.append(mk("div","badge",c.nextMark));
   if(c.returnHit){const rt=mk("div","badge",c.returnHit.label+"に戻る");rt.style.color="var(--dim)";b.append(rt)}
   if(c.hit){const h=mk("div","badge hit",c.hit.label+" 終了");h.addEventListener("click",hitEnd);b.append(h)}
   (d.rareBadges||[]).forEach(k=>{const r=d.rares.find(x=>x.key===k);const v=c.rare[k];if(!r||!v)return;const rb=mk("div","badge",r.label+" "+(v.n||0));rb.style.color="var(--lcd)";rb.addEventListener("click",()=>editRareCount(r));b.append(rb)});
@@ -1397,7 +1512,8 @@ function makeGridButton(spec){
   if(spec.startsWith("atx:")){const x=(d.atExtras||[])[+spec.slice(4)];if(!x)return null;
     if(x.once&&c.hit){const cur=findExtraInHit(x.label);if(cur){const v=x.groups.map(g=>cur.sel&&cur.sel[g.key]).filter(Boolean).join("・");return mkb((x.short||x.label)+(v?" "+v:""),"on",()=>openExtra(x))}}
     return mkb(x.label,"",()=>openExtra(x))}
-  if(spec.startsWith("phase:")){const hd=curHitDef();const k=spec.slice(6);const p=hd&&hd.phases&&hd.phases[k];if(!p)return null;const on=c.hit.phase===k;return mkb(on?p.label+"中":p.label,"par"+(on?" on":""),()=>{if(on)return;mark();c.hit.phase=k;push("phase",p.label+" 突入",{phase:k});toast(p.label)})}
+  if(spec==="edCards")return d.edCards?mkb("EDカード","",()=>openEdCards()):null;
+  if(spec.startsWith("phase:")){const hd=curHitDef();const k=spec.slice(6);const p=hd&&hd.phases&&hd.phases[k];if(!p)return null;const on=c.hit.phase===k;return mkb(on?p.label+"中":p.label,"par"+(on?" on":""),()=>{if(on)return;mark();c.hit.phase=k;const extra={phase:k};if(p.cards&&d.edCards){const run={id:uid(),startedAt:nowISO(),counts:{},note:"",fixes:[]};(c.edRuns||=[]).push(run);extra.edId=run.id}push("phase",p.label+" 突入",extra);toast(p.label)})}
   if(spec==="ticket"){const t=hitProp(curHitDef(),"ticket");if(!t)return null;return mkb(t.label+(c.ticket?" あり":""),c.ticket?"par on":"",()=>{mark();c.ticket=!c.ticket;push("ticket",t.label+(c.ticket?" 獲得（手動）":" 取消（手動）"));toast(t.label+(c.ticket?" あり":" なし"))})}
   if(spec.startsWith("sub:")){const label=spec.slice(4);const t=hitDef(label);if(!t||!c.hit)return null;return mkb(label,"hot",()=>{
     if(!confirm(c.hit.label+" 中に "+label+" へ入りますか？（失敗なら元に戻ります）"))return;
@@ -1589,10 +1705,12 @@ function openHit(){
   if(d.hitTriggers)groups.push({key:"trig",label:"契機",options:d.hitTriggers});
   if(d.hitWhere)groups.push({key:"where",label:"告知された場所",options:d.hitWhere});
   (d.hitExtraGroups||[]).forEach(g=>groups.push(g));
+  let CF=null,memo;
   groupSheet("当選",groups,sel=>{
+    const values=readNumFields(CF);if(values===false)return;
     const ex=(d.hitExtraGroups||[]).map(g=>sel[g.key]).filter(Boolean).join("、");
-    startHit(hitDef(sel.type),sel.trig||null,{where:sel.where||null,hitSel:sel,extraTxt:ex?"　"+ex:""});
-  },{goLabel:"当選を記録"});
+    startHit(hitDef(sel.type),sel.trig||null,{where:sel.where||null,hitSel:sel,extraTxt:ex?"　"+ex:"",fields:values,note:memo?.value.trim()});
+  },{goLabel:"当選を記録",...(d.hitCredit||d.noteSeparate?{after:b=>{if(d.hitCredit)CF=creditInput(b);if(d.noteSeparate)memo=memoInput(b)}}:{})});
 }
 function startHit(h,trig,opts){
   const d=DEF(),c=S.cur;opts=opts||{};if(!opts.keepOp)mark();
@@ -1616,7 +1734,9 @@ function startHit(h,trig,opts){
   const me=d.modeEra;if(me&&me.advanceOn&&me.advanceOn.includes(target.label)&&!(me.skipTriggers&&trig&&me.skipTriggers.includes(trig))&&!opts.sub){c.modeEra=(c.modeEra||0)+1}
   c.hit={label:target.label,via:h.label,kind:target.kind,keepG:!!target.keepG,phase:null,at:nowISO(),realG:c.realG,lcdG:c.lcdG,c3:c.c3,trig};
   c.mode=target.kind;
-  push("hitStart",h.label+" 当選　"+gsText(c)+"G"+(trig?"（"+trig+"）":"")+(wasZen?"　"+wasZen+"から":"")+(opts.where?"　告知："+opts.where:"")+(opts.consumePending?"　報酬待ちから":"")+(opts.extraTxt||"")+stageTxt,{hit:target.label,via:h.label,trig,where:opts.where||null,zenFrom:wasZen,fromPending:!!opts.consumePending,hitSel:opts.hitSel||null},h);
+  const fields={...(opts.fields||{})};if(d.noteSeparate&&opts.note)fields.note=opts.note;
+  if(target.kind==="cz"&&c.nextMark){fields.afterMark=c.nextMark;c.nextMark=null}
+  push("hitStart",h.label+" 当選　"+gsText(c)+"G"+(trig?"（"+trig+"）":"")+(wasZen?"　"+wasZen+"から":"")+(opts.where?"　告知："+opts.where:"")+(opts.consumePending?"　報酬待ちから":"")+(opts.extraTxt||"")+stageTxt+fieldsText(fields),{...fields,hit:target.label,via:h.label,trig,where:opts.where||null,zenFrom:wasZen,fromPending:!!opts.consumePending,hitSel:opts.hitSel||null},h);
   if(opts.hitSel)applyHints(opts.hitSel);
   // G数は当選時に触らない。終了時に「今のG数」を入れて合わせる（SF6と同じ）
   c._steps=[];
@@ -1640,7 +1760,7 @@ function gInputs(b,keep,toNormal){
   a.append(mk("div","lbl","今の実G"),F.realG);d2.append(mk("div","lbl","今の液晶G"),F.lcdG);
   if(!d.lcdG)d2.classList.add("hide");
   t.append(a,d2);w.append(t);b.append(w);
-  b.append(mk("div","hint",fx?"この当選はG数が決まっています（実"+fx.real+"／液晶"+fx.lcd+"）。ずれていれば直してください。":(keep?"G数はそのまま続きます。ずれていれば直してください。":"終了後は0から数え直します。すでに回していれば今の数字を入れてください。")));
+  b.append(mk("div","hint",fx?(hd.fixedEndGHint||"この当選はG数が決まっています（実"+fx.real+"／液晶"+fx.lcd+"）。ずれていれば直してください。"):(keep?"G数はそのまま続きます。ずれていれば直してください。":"終了後は0から数え直します。すでに回していれば今の数字を入れてください。")));
   return F;
 }
 // 終了時の持ちメダル（任意）。入れると差枚が更新され、ログに残る
@@ -1679,25 +1799,26 @@ function czEndSheet(){
     const row=mk("div","opts");
     const fail=mk("button","q2 hot","失敗");const succ=mk("button","q2","成功");succ.style.background="var(--ok)";succ.style.borderColor="var(--ok)";succ.style.color="#10240f";
     row.append(fail,succ);b.append(row);
-    b.append(mk("div","hint",ce.successToAt?"成功はそのまま次に進みます。失敗は終了画面などを入れます。":"成功／失敗を選んでください。"));
+    b.append(mk("div","hint",ce.successSheet?"成功はクレジットとメモを入れてから次に進みます。失敗は終了画面などを入れます。":ce.successToAt?"成功はそのまま次に進みます。失敗は終了画面などを入れます。":"成功／失敗を選んでください。"));
     // 成功：即記録して次へ
-    succ.addEventListener("click",()=>{
+    const success=(fields={})=>{
       mark();
       c.returnHit=null;
       const prevTrig=h.trig;
       c.hit=null;c.mode="normal";
-      push("hitEnd",h.label+" 成功",{hit:h.label,sel:{result:"成功"},result:"成功"},ce);
+      push("hitEnd",h.label+" 成功"+fieldsText(fields),{hit:h.label,sel:{result:"成功"},result:"成功",...fields},ce);
       c.realG=0;c.lcdG=0;c._steps=[];
       afterHitEnd(h.label+" 成功");
       closeSheet();
-      if(ce.successToAt){const at=hitDef(ce.successToAt);const trig=(prevTrig==="AT後")?"引き戻し":h.label;if(at){startHit(at,trig);return}}
+      if(ce.successToAt){const at=hitDef(ce.successToAt);const trig=(prevTrig==="AT後")?"引き戻し":h.label;if(at){startHit(at,trig,ce.successOneOp?{keepOp:true}:undefined);return}}
       save();render();
-    });
+    };
+    succ.addEventListener("click",()=>{if(!ce.successSheet){success();return}sheet(h.label+" 成功",b=>{const CF=ce.credit?creditInput(b):[],ta=memoInput(b);const go=mk("button","go","成功を記録");go.addEventListener("click",()=>{const values=readNumFields(CF);if(values===false)return;if(d.noteSeparate&&ta.value.trim())values.note=ta.value.trim();success(values)});el("shFoot").append(go)})});
     // 失敗：終了画面などを入れてから記録。failTo があれば次の当選へ自動で入る
     fail.addEventListener("click",()=>{
       closeSheet();
       const groups=(ce.groups||[]).slice();
-      let memo="",GF=null,MF=null,yuuri=false;
+      let memo="",GF=null,MF=null,CF=null,yuuri=false;
       const keep=!!def.keepOnFail;
       const askY=d.yuuri&&d.yuuri.askOnEnd&&d.yuuri.askOnEnd.includes(h.label);
       // 失敗先が決まっていて、聞くことも無ければ、即次の当選へ（シートを出さない）
@@ -1718,13 +1839,15 @@ function czEndSheet(){
         save();render();return;
       }
       groupSheet(h.label+" 失敗",groups,sel=>{tagSheetDefs.set(sel,ce);
+        const fields=readNumFields(CF);if(fields===false)return;if(d.noteSeparate&&memo.trim())fields.note=memo.trim();
         {const err=validateEndInputs(GF,MF);if(err){toast(err);return}}
         mark();
-        let txt=h.label+" 失敗";const rest=selText(groups,sel);if(rest)txt+="　"+rest;if(memo)txt+="："+memo;
+        let txt=h.label+" 失敗";const rest=selText(groups,sel);if(rest)txt+="　"+rest;if(memo&&!d.noteSeparate)txt+="："+memo;
         if(d.counter3.incOnCzFail&&d.counter3.incOnCzFail.includes(h.label)){c.c3++;txt+="　"+c3Label(d)+" "+c.c3}
         if(sel.stage)c.stage=sel.stage;
         c.hit=null;c.mode="normal";
-        push("hitEnd",txt,{hit:h.label,sel:Object.assign(sel,{result:"失敗"}),result:"失敗"});
+        if(ce.failMark)c.nextMark=ce.failMark;
+        push("hitEnd",txt+fieldsText(fields),{hit:h.label,sel:Object.assign(sel,{result:"失敗"}),result:"失敗",...fields});
         if(c.returnHit){
           // AT中から入ったCZの失敗：元のATに戻る（ステージ・権利・復活回数はそのまま）
           const back=c.returnHit;c.returnHit=null;
@@ -1744,8 +1867,9 @@ function czEndSheet(){
         if(yuuri)yuuriReset(h.label+" 失敗後");
         closeSheet();save();render();
       },{goLabel:ce.failTo?"失敗を記録して "+ce.failTo+" へ":"失敗を記録",after:(bb)=>{
+        if(ce.credit&&!ce.failTo){GF=gInputs(bb,!!h.keepG,true);CF=creditInput(bb)}
         bb.append(mk("div","lbl",ce.failNote||"メモ"));const ta=mk("textarea");ta.style.minHeight="56px";ta.addEventListener("input",()=>memo=ta.value);bb.append(ta);
-        if(!ce.failTo){GF=gInputs(bb,!!h.keepG,true);MF=medalInput(bb)}
+        if(!ce.failTo&&!ce.credit){GF=gInputs(bb,!!h.keepG,true);MF=medalInput(bb)}
         if(askY){bb.append(mk("div","lbl","有利区間"));const yw=mk("div","opts");const yb=mk("button","q2","有利区間が切れた（引き継ぎ情報を消す）");yb.addEventListener("click",()=>{yuuri=!yuuri;yb.classList.toggle("on",yuuri)});yw.append(yb);bb.append(yw)}
         if(keep)bb.append(mk("div","hint","通常時が続くので、運命盤の回数・🍉・🍉残りはそのまま持ち越します。"));
       }});
@@ -1802,16 +1926,17 @@ function afterHitEnd(endedLabel,keep){
   // rewardHint・pendingReward は残す（CZ/ATをまたいでも報酬は引き継ぐ）
 }
 // AT を抜けて次へ（afterAt）または通常時へ
-function leaveAt(after,extraTxt,sel,GF,MF){
+function leaveAt(after,extraTxt,sel,GF,MF,fields){
   const d=DEF(),c=S.cur,h=c.hit;mark();
   if(!GF&&h){const lr=(d.lcdRestart!=null&&!after)?d.lcdRestart:0;GF={realG:{value:"0"},lcdG:{value:String(lr)}}}   // G数を聞かない機種：既定で進める
   const reset=d.counter3.reset==="at";
   let t=h.label+" 終了";if(extraTxt)t+="　"+extraTxt;
   if(reset){c.c3=0;t+="　"+c3Label(d)+"リセット"}
-  if(c.ticket&&after&&after.hit==="運命の一劇"){c.ticket=false;t+="　一劇権利を使用"}
+  if(c.ticket&&after&&after.hit===hitProp(curHitDef(),"afterAtWithTicket")?.hit){c.ticket=false;t+="　"+hitProp(curHitDef(),"ticket").label+"を使用"}
   c.returnHit=null;
   c.hit=null;c.mode="normal";
-  push("hitEnd",t,{hit:h.label,sel:sel||null});
+  push("hitEnd",t+fieldsText(fields),{hit:h.label,sel:sel||null,...fields});
+  if(d.edCards){const start=c.events.findLast(e=>e.type==="hitStart"&&e.hit===h.label);const phases=c.events.filter(e=>e.type==="phase"&&e.edId&&c.events.indexOf(e)>c.events.indexOf(start));phases.forEach(e=>{const run=c.edRuns.find(r=>r.id===e.edId);if(run)push("edSum",edRunText(run,d),{edId:run.id})})}
   if(GF)applyG(GF);else{c.realG=0;c.lcdG=0;c._steps=[]}
   {const md=applyMedal(MF);if(md)push("medal","持ちメダル "+yen(md.medal)+"枚（差枚 "+sgn(md.diff)+"）",{medal:md.medal,diff:md.diff,prevCredit:md.prev})}
   afterHitEnd(h.label);
@@ -1842,6 +1967,7 @@ function atEndSheet(){
   const sel={};tagSheetDefs.set(sel,ae);
   sheet(h.label+(ph?"（"+ph.label+"）":"")+" 終了",b=>{
     if(ae.note)b.append(mk("div","hint",ae.note));
+    const NF=numFields(b,ae.numsBefore,sel);
     groups.forEach(g=>{
       const lbl=mk("div","lbl",g.label);if(!g.required)lbl.append(mk("span","hint","任意"));b.append(lbl);
       const w=mk("div","opts");
@@ -1849,22 +1975,26 @@ function atEndSheet(){
         const label=Array.isArray(o)?o[0]:(o&&o.l!=null?o.l:o),hint=Array.isArray(o)?o[1]:(o&&o.h!=null?o.h:null),setv=(o&&o.set)||null;
         const btn=mk("button",g.options.length>6?"q2":(g.options.length<=2?"q2":""),label);
         if(hint)btn.append(mk("small","",hint));
-        btn.addEventListener("click",()=>{if(sel[g.key]===label){delete sel[g.key];delete sel["_set_"+g.key];delete sel["_tag_"+g.key];btn.classList.remove("on");return}sel[g.key]=label;selectHintTag(sel,g,o);if(setv)sel["_set_"+g.key]=setv;else delete sel["_set_"+g.key];w.querySelectorAll("button").forEach(x=>x.classList.remove("on"));btn.classList.add("on")});
+        btn.addEventListener("click",()=>{if(sel[g.key]===label){delete sel[g.key];delete sel["_set_"+g.key];delete sel["_tag_"+g.key];delete sel["_key_"+g.key];btn.classList.remove("on");return}sel[g.key]=label;if(o.k!=null)sel["_key_"+g.key]=o.k;selectHintTag(sel,g,o);if(setv)sel["_set_"+g.key]=setv;else delete sel["_set_"+g.key];w.querySelectorAll("button").forEach(x=>x.classList.remove("on"));btn.classList.add("on")});
         w.append(btn);
       });
       b.append(w);
     });
-    b.append(mk("div","lbl","メモ"));const ta=mk("textarea");ta.style.minHeight="56px";ta.addEventListener("input",()=>memo=ta.value);b.append(ta);
+    const ordered=ae.credit||ae.numsBefore||ae.numsAfter;
+    const addMemo=()=>{const ta=memoInput(b);ta.addEventListener("input",()=>memo=ta.value)};
+    if(!ordered)addMemo();
     const askG=hitProp(def,"askGOnEnd")!==false;
-    const GF=askG?gInputs(b,false,!after):null;
-    const MF=medalInput(b);
+    let GF=null,MF=null,CF=[];
+    if(ordered){if(ae.credit)CF=creditInput(b);else MF=medalInput(b);NF.push(...numFields(b,ae.numsAfter,sel));GF=askG?gInputs(b,false,!after):null;addMemo()}
+    else{GF=askG?gInputs(b,false,!after):null;MF=medalInput(b)}
     if(askY){b.append(mk("div","lbl","有利区間"));const yw=mk("div","opts");const yb=mk("button","q2","有利区間が切れた（引き継ぎ情報を消す）");yb.addEventListener("click",()=>{yuuri=!yuuri;yb.classList.toggle("on",yuuri)});yw.append(yb);b.append(yw)}
     if(ask){
       b.append(mk("div","lbl",c3Label(d)+"をリセットしますか（今 "+c.c3+"）"));
       const rw=optRow([{l:"0に戻す",v:true},{l:"そのまま",v:false}],(it,btn,w)=>{reset=it.v;w.querySelectorAll("button").forEach(x=>x.classList.remove("on"));btn.classList.add("on")},"q2");b.append(rw);
     }
-    const txt=()=>{let t=selText(groups,sel);if(memo)t+=(t?"　":"")+memo;return t};
+    const txt=()=>{let t=selText(groups,sel);if(memo&&!d.noteSeparate)t+=(t?"　":"")+memo;return t};
     const doEnd=(nextAfter)=>{
+      const fields=readNumFields([...NF,...CF]);if(fields===false)return;if(d.noteSeparate&&memo.trim())fields.note=memo.trim();
       {const err=validateEndInputs(GF,MF);if(err){toast(err);return}}
       if(ask&&reset===null){toast(c3Label(d)+"の扱いを選んでください");return}
       if(ask&&!nextAfter){ // 汎用（周期を聞いた場合）：選んだ結果に従う。それ以外は leaveAt に統一
@@ -1877,7 +2007,7 @@ function atEndSheet(){
         if(!nextAfter&&d.zenchou&&d.zenchou.enterOnHitEnd){c.zenchou=0;push("zenchou",zenStages()[0]+" 開始")}
         save();render();closeSheet();return;
       }
-      leaveAt(nextAfter,txt(),sel,GF,MF);
+      leaveAt(nextAfter,txt(),sel,GF,MF,fields);
       if(yuuri)yuuriReset(h.label+" 終了後");
     };
     const F=el("shFoot");
@@ -2076,6 +2206,7 @@ function findExtraInHit(label){
   return found;
 }
 function openExtra(x){
+  if(x.type==="menu"){sheet(x.title||x.label,b=>{b.append(optRow(x.items.map(it=>({...it,l:it.label})),it=>{let ta;groupSheet(it.label,it.groups,sel=>{const label=sel[it.groups[0].key],key=sel["_key_"+it.groups[0].key];if(!label)return;mark();push("extra",x.label+"："+it.label+"　"+label,{extra:x.label,sel:{kind:it.kind,key,label},...(DEF().noteSeparate&&ta.value.trim()?{note:ta.value.trim()}: {})});closeSheet()},{instant:false,after:bb=>{ta=memoInput(bb)}})}))});return}
   if(x.type==="melonLeft"){openMelonLeft();return}
   if(x.once&&S.cur.hit){
     const cur=findExtraInHit(x.label);
@@ -2112,19 +2243,60 @@ function openExtra(x){
     askNum(x.title||x.label,0,v=>{push("extra",(x.logAs||x.label)+" "+v+(x.unit||""),{extra:x.label,n:v});toast((x.logAs||x.label)+" "+v+(x.unit||""))});
     return;
   }
+  let NF=[],ta;
   groupSheet(x.title||x.label,x.groups,sel=>{tagSheetDefs.set(sel,x);
+    const fields=readNumFields(NF);if(fields===false)return;if(DEF().noteSeparate&&ta?.value.trim())fields.note=ta.value.trim();
     const t=selText(x.groups,sel);if(!t){toast("何も選ばれていません");return}
     mark();const hint=applyHints(sel);
     let extraTxt="";
     const tk=hitProp(curHitDef(),"ticket");
-    if(tk&&tk.autoBy&&tk.autoBy.extra===x.label&&sel.result===tk.autoBy.result){
+    if(tk&&tk.autoBy&&tk.autoBy.extra===x.label&&sel.result===tk.autoBy.result&&(!tk.autoBy.match||Object.entries(tk.autoBy.match).every(([k,v])=>sel[k]===v))){
       S.cur.judgeWins=(S.cur.judgeWins||0)+1;extraTxt="　成功"+S.cur.judgeWins+"回目";
       if(S.cur.judgeWins===tk.autoBy.count&&!S.cur.ticket){S.cur.ticket=true;extraTxt+="　→ "+tk.label+"獲得";}
     }
-    push("extra",x.label+"："+t+extraTxt+(hint?"　→ "+hint:""),{sel,extra:x.label});closeSheet();
+    push("extra",x.label+"："+t+extraTxt+(hint?"　→ "+hint:"")+fieldsText(fields)+(!DEF().noteSeparate&&ta?.value.trim()?"　"+ta.value.trim():""),{sel,extra:x.label,...fields});closeSheet();
     if(extraTxt.includes("獲得"))toast(tk.label+"を獲得");
-  });
+  },x.nums||x.memo?{instant:false,after:(b,sel)=>{NF=numFields(b,x.nums,sel);if(x.memo)ta=memoInput(b)}}:undefined);
 }
+
+/* ED counts live outside snapshots: later state undo must not undo card corrections. */
+function edCountTotal(counts){return Object.values(counts||{}).reduce((a,v)=>a+v,0)}
+function edTotals(c){
+  const sessions=c.dai?[...new Map([...S.sessions,...(S.cur?[S.cur]:[]),c].map(s=>[s.id,s])).values()].filter(s=>s.machineId===c.machineId&&s.shop===c.shop&&s.dai===c.dai&&jstDay(s.startAt)===jstDay(c.startAt)):[c];
+  const totals={};sessions.forEach(s=>(s.edRuns||[]).forEach(r=>Object.entries(r.counts).forEach(([k,v])=>totals[k]=(totals[k]||0)+v)));return totals;
+}
+function edRunText(run,d){return "EDカード 計"+edCountTotal(run.counts)+"枚（"+d.edCards.cats.filter(o=>run.counts[o.k]).map(o=>o.l+run.counts[o.k]).join("、")+"）"}
+function openEdCards(runId,before){
+  const c=S.cur,d=DEF();if(!d.edCards)return;const runs=c.edRuns||[],run=runId?runs.find(r=>r.id===runId):runs.at(-1);if(!run)return;
+  const fixing=!!before,counts=fixing?{...run.counts}:run.counts;
+  sheet((runs.indexOf(run)+1)+"回目のED"+(fixing?"を訂正":""),b=>{
+    const totals=edTotals(c);
+    d.edCards.cats.forEach(o=>{const box=mk("div","ed-card"),row=mk("div","ed-row"),label=mk("div","",o.l);label.append(mk("small","hint",o.h));
+      const count=mk("span","",String(counts[o.k]||0)),total=mk("span","hint","累計 "+(totals[o.k]||0));count.dataset.count=o.k;total.dataset.total=o.k;
+      const bump=delta=>{const old=counts[o.k]||0,next=Math.max(0,old+delta);if(next===old)return;if(next)counts[o.k]=next;else delete counts[o.k];totals[o.k]=(totals[o.k]||0)+next-old;count.textContent=next;total.textContent="累計 "+totals[o.k];if(!fixing)save()};
+      const minus=mk("button","sub","−"),plus=mk("button","sub","＋");minus.dataset.edMinus=o.k;plus.dataset.edPlus=o.k;minus.setAttribute("aria-label",o.l+"を減らす");plus.setAttribute("aria-label",o.l+"を増やす");minus.addEventListener("click",()=>bump(-1));plus.addEventListener("click",()=>bump(1));row.append(label,minus,count,plus,total);box.append(row);
+      if(o.names){const details=mk("details"),summary=mk("summary","hint","キャラ名");details.append(summary,mk("div","hint",o.names));box.append(details)}b.append(box);
+    });
+    const ta=memoInput(b);ta.value=run.note||"";ta.addEventListener("change",()=>{run.note=ta.value.trim();save()});
+    if(fixing){const done=mk("button","go","直した内容を記録");done.addEventListener("click",()=>{if([...new Set([...Object.keys(before),...Object.keys(counts)])].every(k=>(before[k]||0)===(counts[k]||0))){toast("変更はありません");return}mark();run.counts={...counts};push("edFix","EDカード 訂正",{edId:run.id,before:{...before},after:{...run.counts}});(run.fixes||=[]).push(c.events.at(-1).id);save();closeSheet()});el("shFoot").append(done)}
+    else if(runs.length>1){const edit=mk("button","sub","前回のEDを直す");edit.addEventListener("click",()=>sheet("前回のEDを直す",b=>runs.slice(0,-1).forEach((r,i)=>{const btn=mk("button","sub",(i+1)+"回目のED");btn.addEventListener("click",()=>openEdCards(r.id,{...r.counts}));b.append(btn)})));b.append(edit)}
+  });el("sheet").classList.add("ed-sheet");
+}
+/* All summaries are derived from primary events; never store them on a session. */
+function recordSummary(c){
+  const d=MACHINES[c.machineId],out=[];if(!d?.atGain)return out;const events=c.events||[],hits=d.hits;
+  const atLabel=hits.find(h=>h.enter)?.enter;
+  hits.filter(h=>h.kind==="cz").forEach(h=>{const starts=events.filter(e=>e.type==="hitStart"&&e.hit===h.label),ends=events.filter(e=>e.type==="hitEnd"&&e.hit===h.label);out.push(h.label+(h.hidden?" 成功":" 当選"+starts.length+"／成功")+ends.filter(e=>e.result==="成功").length+"／失敗"+ends.filter(e=>e.result==="失敗").length)});
+  const ats=events.filter(e=>e.type==="hitStart"&&e.hit===atLabel),first=ats.filter(e=>!d.atGain.excludeFirstHitTrigs.includes(e.trig));const trigs={};first.forEach(e=>trigs[e.trig||"不明"]=(trigs[e.trig||"不明"]||0)+1);out.push("AT初当たり "+first.length+"回（"+Object.entries(trigs).map(([k,n])=>k+" "+n).join("、")+"）");
+  (d.atExtras||[]).filter(x=>x.nums).forEach(x=>{const opponents={};events.filter(e=>e.type==="extra"&&e.extra===x.label).forEach(e=>{const k=e.sel.opp;const a=opponents[k]||={win:0,lose:0,bites:0};if(e.keys?.result==="win")a.win++;else if(e.keys?.result==="lose")a.lose++;a.bites+=e.bites||0});Object.entries(opponents).forEach(([k,a])=>out.push(x.label+" "+k+" 勝ち"+a.win+"／負け"+a.lose+" BITES "+a.bites))});
+  events.forEach((start,i)=>{if(start.type!=="hitStart")return;const h=hits.find(h=>h.label===start.hit);if(!h||(h.kind!=="cz"&&start.hit!==atLabel))return;
+    let endIndex=events.findIndex((e,j)=>j>i&&(e.type==="hitEnd"||e.type==="hitStart")&&e.hit===start.hit);if(endIndex>=0&&events[endIndex].type!=="hitEnd")endIndex=-1;const end=endIndex<0?null:events[endIndex];let credit=start.cr;
+    if(start.hit===atLabel&&credit==null){credit=events.slice(0,i).findLast(e=>e.op===start.op&&e.type==="hitEnd"&&e.cr!=null)?.cr;if(credit==null&&d.atGain.fromTrig[start.trig])credit=events.slice(0,i).findLast(e=>e.type==="hitEnd"&&e.hit===d.atGain.fromTrig[start.trig]&&e.result==="成功")?.cr}
+    const gain=end?.cr!=null&&credit!=null?sgn(end.cr-credit):"—",money=events.slice(i+1,endIndex<0?events.length:endIndex).some(e=>e.type==="money");out.push(start.hit+(h.kind==="cz"?" 差枚 ":" 獲得枚数 ")+gain+(money?" ※途中で投資あり":"")+(end?.shownGain!=null?"／画面の獲得 "+yen(end.shownGain)+"枚":""));
+  });
+  (c.edRuns||[]).forEach((r,i)=>out.push((i+1)+"回目 "+edRunText(r,d)));out.push("その日のその台 "+edRunText({counts:edTotals(c)},d));return out;
+}
+function showRecordSummary(c){sheet("記録のまとめ",b=>recordSummary(c).forEach(t=>b.append(mk("div","lbl",t))))}
 
 /* ---------- メモ・編集 ---------- */
 function openMemo(){sheet("メモ",b=>{const ta=mk("textarea");ta.placeholder="自由に書けます";b.append(ta);const getTags=tagPicker(b,[]);const go=mk("button","go","記録する");go.addEventListener("click",()=>{const t=ta.value.trim();if(!t)return;push("memo",t,{tags:getTags()});closeSheet()});b.append(go);setTimeout(()=>ta.focus(),80)})}
@@ -2135,9 +2307,12 @@ function undoLastOp(silent){
   const last=e[e.length-1];
   const grp=last.op?e.filter(x=>x.op===last.op):[last];
   const names=grp.map(x=>x.text.split("　")[0]);
+  const edCount=grp.filter(e=>e.type==="phase"&&e.edId).reduce((n,e)=>n+edCountTotal(c.edRuns?.find(r=>r.id===e.edId)?.counts),0);if(edCount)names.push("EDカード"+edCount+"枚も消えます");
   if(!silent&&!confirm((grp.length>1?"次の"+grp.length+"件をまとめて取り消します：\n":"取り消します：")+names.join("／")+"\nよろしいですか？"))return false;
   // 末尾から順に、行ごとの逆操作（お金・フォロー・持ち玉）
   grp.slice().reverse().forEach(ev=>{
+    if(ev.type==="phase"&&ev.edId)c.edRuns=(c.edRuns||[]).filter(r=>r.id!==ev.edId);
+    if(ev.type==="edFix"&&ev.edId){const run=c.edRuns?.find(r=>r.id===ev.edId);if(run){run.counts={...ev.before};run.fixes=(run.fixes||[]).filter(id=>id!==ev.id)}}
     if(ev.type==="money"&&ev.tk)["deposits","spends","replays"].forEach(k=>{c.money[k]=(c.money[k]||[]).filter(x=>x.tk!==ev.tk)});
     if((ev.type==="money"||ev.type==="medal")&&ev.prevCredit!==undefined)c.money.credit=ev.prevCredit;
     if(ev.type==="follow"&&ev.tk)c.follow=(c.follow||[]).filter(x=>x.tk!==ev.tk);
@@ -2146,7 +2321,7 @@ function undoLastOp(silent){
   });
   const first=grp[0];
   if(first.snap){
-    SNAP_KEYS.forEach(k=>{c[k]=first.snap[k]});
+    SNAP_KEYS.forEach(k=>{if(k==="nextMark"&&!hasFailMark(c))return;c[k]=first.snap[k]});
     if(c.zenchou===true||c.zenchou==="pre")c.zenchou=zenStages().indexOf("前兆");
     if(c.zenchou==="stage")c.zenchou=zenStages().length-1;
     if(typeof c.zenchou!=="number"&&c.zenchou!==false)c.zenchou=false;
@@ -2208,6 +2383,7 @@ el("bHint").addEventListener("click",()=>{
   const d=DEF();
   sheet("設定判別",b=>{
     const hs=mk("button","go","設定示唆のまとめを見る");hs.addEventListener("click",()=>{closeSheet();showHintSummary(S.cur)});b.append(hs);
+    if(d.atGain){const summary=mk("button","sub","記録のまとめ");summary.addEventListener("click",()=>showRecordSummary(S.cur));b.append(summary)}
     if(d.checker){
       const co=mk("button","sub",d.checker.name+" を開く");co.addEventListener("click",()=>{window.open(d.checker.url,"_blank")});b.append(co);
       const ck=mk("button","sub","今の記録をチェッカーへ送る");ck.style.color="var(--accent)";ck.addEventListener("click",()=>{closeSheet();sendToChecker(S.cur)});b.append(ck);
@@ -2923,6 +3099,7 @@ function toEnvelope(s){
   if(s.startNote)logs.push({t:new Date(s.startAt).getTime(),type:"memo",text:"打ち始め "+gsText({realG:s.startRealG,lcdG:s.startLcdG},md)+"G　"+s.startNote});
   s.events.forEach(ev=>{const g=gsText(ev,md);logs.push({t:new Date(ev.at).getTime(),type:"memo",text:(g?g+"G　":"")+evTxt(ev)})});
   if(s.endAt)logs.push({t:new Date(s.endAt).getTime(),type:"memo",text:gsText({realG:s.realG,lcdG:s.lcdG},md)+"G　"+(s.endNote||"ヤメ")});
+  if(md.atGain)logs.push({t:new Date(s.endAt||s.events.at(-1)?.at||s.startAt).getTime(),type:"memo",text:"まとめ　"+recordSummary(s).join("／")});
   const memo=[s.machine+((s.shop||s.dai)?"　"+[s.shop,s.dai?s.dai+"番":null].filter(Boolean).join(" "):"")];if(s.expected!=null)memo.push("想定期待値 "+sgn(expectedTotal(s))+"円");if(p)memo.push("差枚 "+sgn(p.medalDiff)+"枚");memo.push("開始持 "+(m.startMedal||0)+"枚／再プレイ "+replayed(m)+"枚／終了持 "+(m.endMedal||0)+"枚（回収は純増枚数）");
   return{schema:"slot-session",schemaVer:2,sessionId:s.id||uuidV4(),machineId:s.machine,payloadVer:sessCond(s)?"rec-4":"rec-3",startedAt:isoOffset(new Date(s.startAt)),endedAt:isoOffset(new Date(s.endAt||s.startAt)),invest:invested(m),payout:(m.endMedal||0)-(m.startMedal||0)-replayed(m),storeId:null,storeName:s.shop||null,unitNo:s.dai||null,lendRate:sessCond(s)?s.cond.lend:s.lend,exchangeRate:sessCond(s)?s.cond.exchPer1000:s.lend,memo:memo.join(" ／ "),estimated:false,payload:{...(sessCond(s)?{recStoreId:s.storeId,recCondId:s.condId,cond:JSON.parse(JSON.stringify(s.cond))}:{}),machine:s.machine,machineDef:s.machineId,startRealG:s.startRealG,startLcdG:s.startLcdG,endRealG:s.realG,endLcdG:s.lcdG,startMedal:m.startMedal,replays:replayed(m),endMedal:m.endMedal,expected:s.expected??null,follow:s.follow||[],expectedTotal:expectedTotal(s),rare:s.rare||null,c3:s.c3,revive:s.revive||0,pendingReward:s.pendingReward||null,modeHints:s.modeHints||[],modeEra:s.modeEra||0,logs}};
 }
@@ -3052,7 +3229,7 @@ el("stStart").addEventListener("click",()=>{
   if(setup.melon!=null&&rare.melon)rare.melon.n=setup.melon;
   let zen0=false;d.setup.forEach(f=>{if(f.applyStage&&setup[f.key]!=null&&f.applyStage[setup[f.key]]!=null)zen0=f.applyStage[setup[f.key]]});
   if(d.zenchou&&d.zenchou.autoEnterIfG!=null&&setup.stage0!=="リセット後"&&(int(el("stRealG").value)||0)<=d.zenchou.autoEnterIfG)zen0=0;
-  const setupNote=d.setup.filter(f=>f.key!=="c3"&&f.key!=="melon"&&setup[f.key]!=null&&(setup[f.key]!=="不明"||f.optionLabels?.[setup[f.key]]!=null)).map(f=>f.label.replace(/（.*?）/,"")+"："+(f.optionLabels?.[setup[f.key]]??setup[f.key]));
+  const setupNote=d.setup.filter(f=>f.optionLabels?.[setup[f.key]]!=="不明"&&f.key!=="c3"&&f.key!=="melon"&&setup[f.key]!=null&&(setup[f.key]!=="不明"||f.optionLabels?.[setup[f.key]]!=null)).map(f=>f.label.replace(/（.*?）/,"")+"："+(f.optionLabels?.[setup[f.key]]??setup[f.key]));
   const noteParts=setupNote.concat(el("stNote").value.trim()?[el("stNote").value.trim()]:[]);
   S.cur={id:uid(),machineId,machine:m,startAt:nowISO(),lend,setup,
     startRealG:int(el("stRealG").value)||0,startLcdG:int(el("stLcdG").value)||0,
@@ -3062,6 +3239,8 @@ el("stStart").addEventListener("click",()=>{
     rare,zenchou:zen0,hit:null,mode:"normal",parallel:{},stage:null,revive:0,melonLeft:null,melonApprox:false,rewardHint:null,modeHint:null,ticket:false,judgeWins:0,returnHit:null,pendingReward:null,melonPhase:"normal",modeEra:0,modeHints:[],tags:{},follow:[],events:[],_steps:[],
     money:{cash:[],deposits:[],spends:[],stockStart:int(el("stStock").value),replays:(int(el("stReplay0").value)>0?[{at:acctStartChoice?replayAt:nowISO(),amount:int(el("stReplay0").value),atStart:true}]:[]),startMedal:int(el("stMedal").value)||0,startReplay:0,credit:null,endMedal:null,endReplay:0},
     endAt:null,endNote:""};
+  if(hasFailMark(S.cur))S.cur.nextMark=null;
+  if(d.edCards)S.cur.edRuns=[];
   if(acctStartChoice){Object.assign(S.cur,{storeId:acctStartChoice.storeId,condId:acctStartChoice.condId,cond:JSON.parse(JSON.stringify(acctStartChoice.cond)),lend:acctStartChoice.cond.lend,shop:acctStartChoice.shop});delete S.cur.money.stockStart}
   ["stMachine","stRealG","stLcdG","stMedal","stReplay0","stStock","stNote","stExp","stTotal","stDai"].forEach(i=>el(i).value="");
   if(S.cur&&S.cur.shop){S.settings.lastShop=S.cur.shop}
