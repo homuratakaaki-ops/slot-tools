@@ -175,7 +175,9 @@ try{
   for(const page of ['/tools/rec/index.html','/old/tools/rec/index.html']){
     await setup(page,46,5612);
     for(let i=0;i<2;i++){await click('#bReplay');if(page.includes('/old/'))await custom(46);}
-    await click('#bUtil');await button('#shBody','残数調整',true);await number(500);
+    await click('#bUtil');
+    if(page.includes('/old/')){await button('#shBody','残数調整',true);await number(500);}
+    else{await button('#shBody','クレジットを入れる',true);for(const d of '500')await button('#calcKeys',d);await click('#calcOk');}
     diffs.push((await state()).diff);
   }
   assert.deepEqual(diffs,['+308枚','+308枚']);
