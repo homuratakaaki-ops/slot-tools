@@ -92,6 +92,16 @@ async function main(){
   async function quit(){await click('#bUtil');await button('やめる（終了して記録する）');await input('#shBody input',0);await button('終了する')}
   let edSession;
   try{
+    await test('cz-end-hint-tokyoghoul',async()=>{
+      await start();await hit('レミニセンス');await grid('レミニセンス 終了');
+      assert.equal(await ev('return document.querySelector("#shBody .hint").innerText'),'成功はクレジットとメモを入れてから次に進みます。失敗は終了画面などを入れます。');
+    });
+    await test('cz-end-hint-karakuri2',async()=>{
+      await seed(page);await button('からくりサーカス2','#scSetup');await click('#stStart');
+      assert.equal((await state()).machineId,'karakuri2');
+      await grid('当選');await button('機械仕掛けの女神');await button('当選を記録');await grid('機械仕掛けの女神 終了');
+      assert.equal(await ev('return document.querySelector("#shBody .hint").innerText'),'成功はそのまま次に進みます。失敗は終了画面などを入れます。');
+    });
     await test('example-1',async()=>{
       await start();await snapshot('normal-390');assert.equal((await state()).c3,1);assert.doesNotMatch((await state()).startNote,/不明/);
       await hit('レミニセンス');await snapshot('cz-390');await fail('亜門鋼太朗');assert.equal((await state()).c3,2);

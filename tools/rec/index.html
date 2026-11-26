@@ -1799,7 +1799,7 @@ function czEndSheet(){
     const row=mk("div","opts");
     const fail=mk("button","q2 hot","失敗");const succ=mk("button","q2","成功");succ.style.background="var(--ok)";succ.style.borderColor="var(--ok)";succ.style.color="#10240f";
     row.append(fail,succ);b.append(row);
-    b.append(mk("div","hint",ce.successToAt?"成功はそのまま次に進みます。失敗は終了画面などを入れます。":"成功／失敗を選んでください。"));
+    b.append(mk("div","hint",ce.successSheet?"成功はクレジットとメモを入れてから次に進みます。失敗は終了画面などを入れます。":ce.successToAt?"成功はそのまま次に進みます。失敗は終了画面などを入れます。":"成功／失敗を選んでください。"));
     // 成功：即記録して次へ
     const success=(fields={})=>{
       mark();
