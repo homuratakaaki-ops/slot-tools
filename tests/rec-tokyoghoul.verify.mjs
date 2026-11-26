@@ -81,6 +81,14 @@ async function main(){
   const summary=()=>ev('return __rec.recordSummary(__rec.S.cur).join("\\n")');
   const cards=()=>grid('EDカード');
   const plus=k=>click('[data-ed-plus="'+k+'"]'),minus=k=>click('[data-ed-minus="'+k+'"]');
+  async function realClick(selector){
+    const point=await ev(`const b=document.querySelector(${JSON.stringify(selector)});b.scrollIntoView({block:'center'});const r=b.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}`);
+    await h.send('Input.dispatchMouseEvent',{type:'mousePressed',...point,button:'left',clickCount:1});
+    await h.send('Input.dispatchMouseEvent',{type:'mouseReleased',...point,button:'left',clickCount:1});
+  }
+  const savedState=()=>ev('return JSON.parse(localStorage.getItem("slot-tools-rec-tg-test")).cur');
+  async function previousEd(){await cards();await button('前回のEDを直す');await button('1回目のED')}
+  async function twoEds(){await start();await hit();await grid('エンディング');await cards();await plus('edWhiteW');await close();await end({next:'有馬ジャッジメントへ（エンディング後）'});await fail();await hit();await grid('エンディング')}
   async function quit(){await click('#bUtil');await button('やめる（終了して記録する）');await input('#shBody input',0);await button('終了する')}
   let edSession;
   try{
@@ -101,6 +109,34 @@ async function main(){
     await test('example-5',async()=>{await start();await hit();await end();await hit('AT直撃',null,'引き戻し');assert.match(await summary(),/AT初当たり 2回/);assert.match(await summary(),/引き戻し 1/)});
     await test('example-6',async()=>{await start();await hit();await grid('エンディング');await cards();await plus('edWhiteW');await plus('edWhiteW');await close();await quit();edSession=await ev('return structuredClone(__rec.S.sessions.at(-1))');await start({sessions:[edSession]});await hit();await grid('エンディング');await cards();assert.equal(await ev('return document.querySelector("[data-total=edWhiteW]").textContent'),'累計 2')});
     await test('example-7',async()=>{await plus('edWhiteW');await plus('edWhiteW');await minus('edWhiteW');assert.equal((await state()).edRuns[0].counts.edWhiteW,1);await close();await end({next:'有馬ジャッジメントへ（エンディング後）'});await fail();await hit();await grid('エンディング');await cards();await button('前回のEDを直す');await button('1回目のED');await plus('edWhiteW');await button('直した内容を記録');assert.equal((await state()).events.at(-1).type,'edFix');assert.equal((await state()).edRuns[0].counts.edWhiteW,2);await undo();assert.equal((await state()).edRuns[0].counts.edWhiteW,1)});
+    await test('ED-fix-discard',async()=>{
+      await twoEds();const before=await state();await previousEd();await plus('edWhiteW');await minus('edWhiteW');await plus('edWhiteW');
+      assert.equal(await ev('return document.querySelector("[data-count=edWhiteW]").textContent'),'2');
+      assert.equal(await ev('return document.querySelector("[data-total=edWhiteW]").textContent'),'累計 2');
+      assert.deepEqual(await state(),before);assert.deepEqual(await savedState(),before);await realClick('#shClose');assert.deepEqual(await state(),before);assert.deepEqual(await savedState(),before);
+    });
+    await test('ED-fix-commit',async()=>{
+      await twoEds();const before=await state();await previousEd();await plus('edWhiteW');await button('直した内容を記録');const after=await state(),fix=after.events.at(-1);
+      assert.deepEqual(after.edRuns[0].counts,{edWhiteW:2});assert.equal(after.events.length,before.events.length+1);assert.equal(fix.type,'edFix');assert.equal(fix.edId,before.edRuns[0].id);assert.deepEqual(fix.before,before.edRuns[0].counts);assert.deepEqual(fix.after,after.edRuns[0].counts);assert.deepEqual(await savedState(),after);
+    });
+    await test('ED-fix-undo',async()=>{
+      const before=await state(),fix=before.events.at(-1);assert.equal(fix.type,'edFix');await undo();const after=await state();assert.deepEqual(after.edRuns[0].counts,fix.before);assert.equal(after.events.some(e=>e.id===fix.id),false);assert.equal(after.edRuns[0].fixes.includes(fix.id),false);assert.deepEqual(await savedState(),after);
+    });
+    await test('ED-fix-unchanged',async()=>{
+      await twoEds();const before=await state();await previousEd();
+      for(const revert of [false,true]){if(revert){await minus('edWhiteW');await plus('edWhiteW');await plus('edRedW');await minus('edRedW')}await button('直した内容を記録');assert.deepEqual(await state(),before);assert.deepEqual(await savedState(),before);assert.equal(await ev('return document.querySelector("#toast").textContent'),'変更はありません')}
+      await close();
+    });
+    await test('ED-note-real-close',async()=>{
+      await twoEds();
+      for(const fixing of [false,true]){
+        if(fixing)await previousEd();else await cards();const index=fixing?0:1,note=fixing?'訂正画面のメモ':'今回のEDメモ';const before=await state();
+        await realClick('#shBody textarea');await h.send('Input.insertText',{text:note});await realClick('#shClose');
+        assert.equal(await ev('return document.querySelector("#sheet").classList.contains("open")'),false);
+        assert.equal((await state()).edRuns[index].note,note);assert.equal((await savedState()).edRuns[index].note,note);assert.deepEqual((await state()).events,before.events);
+      }
+      await h.open('/empty');await h.open(page);assert.deepEqual((await state()).edRuns.map(r=>r.note),['訂正画面のメモ','今回のEDメモ']);
+    });
     await test('example-8',async()=>{await start();await hit();await quit();const s=await ev('return __rec.S.sessions.at(-1)');assert.equal(s.hit.label,'AT');assert.equal(s.events.filter(e=>e.type==='hitEnd').length,0);assert.match(await ev('return __rec.recordSummary(__rec.S.sessions.at(-1)).join("\\n")'),/AT 獲得枚数 —/)});
     await test('numeric-invalid',async()=>{
       for(const key of ['cr','bites','shownGain','totalG'])for(const value of ['-1','1.5','abc']){

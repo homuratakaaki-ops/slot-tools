@@ -2268,17 +2268,17 @@ function edTotals(c){
 function edRunText(run,d){return "EDカード 計"+edCountTotal(run.counts)+"枚（"+d.edCards.cats.filter(o=>run.counts[o.k]).map(o=>o.l+run.counts[o.k]).join("、")+"）"}
 function openEdCards(runId,before){
   const c=S.cur,d=DEF();if(!d.edCards)return;const runs=c.edRuns||[],run=runId?runs.find(r=>r.id===runId):runs.at(-1);if(!run)return;
-  const fixing=!!before;
+  const fixing=!!before,counts=fixing?{...run.counts}:run.counts;
   sheet((runs.indexOf(run)+1)+"回目のED"+(fixing?"を訂正":""),b=>{
     const totals=edTotals(c);
     d.edCards.cats.forEach(o=>{const box=mk("div","ed-card"),row=mk("div","ed-row"),label=mk("div","",o.l);label.append(mk("small","hint",o.h));
-      const count=mk("span","",String(run.counts[o.k]||0)),total=mk("span","hint","累計 "+(totals[o.k]||0));count.dataset.count=o.k;total.dataset.total=o.k;
-      const bump=delta=>{const old=run.counts[o.k]||0,next=Math.max(0,old+delta);if(next===old)return;if(next)run.counts[o.k]=next;else delete run.counts[o.k];totals[o.k]=(totals[o.k]||0)+next-old;count.textContent=next;total.textContent="累計 "+totals[o.k];save()};
+      const count=mk("span","",String(counts[o.k]||0)),total=mk("span","hint","累計 "+(totals[o.k]||0));count.dataset.count=o.k;total.dataset.total=o.k;
+      const bump=delta=>{const old=counts[o.k]||0,next=Math.max(0,old+delta);if(next===old)return;if(next)counts[o.k]=next;else delete counts[o.k];totals[o.k]=(totals[o.k]||0)+next-old;count.textContent=next;total.textContent="累計 "+totals[o.k];if(!fixing)save()};
       const minus=mk("button","sub","−"),plus=mk("button","sub","＋");minus.dataset.edMinus=o.k;plus.dataset.edPlus=o.k;minus.setAttribute("aria-label",o.l+"を減らす");plus.setAttribute("aria-label",o.l+"を増やす");minus.addEventListener("click",()=>bump(-1));plus.addEventListener("click",()=>bump(1));row.append(label,minus,count,plus,total);box.append(row);
       if(o.names){const details=mk("details"),summary=mk("summary","hint","キャラ名");details.append(summary,mk("div","hint",o.names));box.append(details)}b.append(box);
     });
     const ta=memoInput(b);ta.value=run.note||"";ta.addEventListener("change",()=>{run.note=ta.value.trim();save()});
-    if(fixing){const done=mk("button","go","直した内容を記録");done.addEventListener("click",()=>{mark();push("edFix","EDカード 訂正",{edId:run.id,before:{...before},after:{...run.counts}});(run.fixes||=[]).push(c.events.at(-1).id);save();closeSheet()});el("shFoot").append(done)}
+    if(fixing){const done=mk("button","go","直した内容を記録");done.addEventListener("click",()=>{if([...new Set([...Object.keys(before),...Object.keys(counts)])].every(k=>(before[k]||0)===(counts[k]||0))){toast("変更はありません");return}mark();run.counts={...counts};push("edFix","EDカード 訂正",{edId:run.id,before:{...before},after:{...run.counts}});(run.fixes||=[]).push(c.events.at(-1).id);save();closeSheet()});el("shFoot").append(done)}
     else if(runs.length>1){const edit=mk("button","sub","前回のEDを直す");edit.addEventListener("click",()=>sheet("前回のEDを直す",b=>runs.slice(0,-1).forEach((r,i)=>{const btn=mk("button","sub",(i+1)+"回目のED");btn.addEventListener("click",()=>openEdCards(r.id,{...r.counts}));b.append(btn)})));b.append(edit)}
   });el("sheet").classList.add("ed-sheet");
 }
