@@ -26,6 +26,8 @@
 | `rec-common-1-spec-v01.md` | tools/rec 共通改修 段1の仕様書 v0.1（開始画面の再プレイ欄の廃止・店舗を最近使った順に並べる） |
 | `rec-common-1-instructions-v01.md` | tools/rec 共通改修 段1の実装指示書 v0.1（テスト版 common-test.html の公開まで） |
 | `rec-common-1-release-instructions-v01.md` | tools/rec 共通改修 段1の本番反映指示書 v0.1 |
+| `rec-common-2-spec-v01.md` | tools/rec 共通改修 段2の仕様書 v0.1（クレジット・途中差枚・電卓） |
+| `rec-common-2-instructions-v01.md` | tools/rec 共通改修 段2の実装指示書 v0.1（テスト版なし・main へ直接反映） |
 
 ## 注記
 
