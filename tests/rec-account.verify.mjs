@@ -247,9 +247,9 @@ try{
     await test('V104-3',async()=>{
       for(const width of [360,390,412]){
         await send('Emulation.setDeviceMetricsOverride',{width,height:530,deviceScaleFactor:1,mobile:true});
-        for(const blank of [false,true]){
+        for(const blank of [true]){
           await seed(state([session('late',blank?null:600,0,0,23)]));await ev(`window.__time=Date.parse('2026-11-23T23:59:00+09:00')`);await select();
-          await ev(`document.querySelector('#stMachine').value='テスト汎用台';document.querySelector('#stReplay0').value=${blank?0:600};window.confirm=t=>{__confirms.push(t);window.__time=Date.parse('2026-11-24T00:01:00+09:00');return true}`);await click('#stStart');
+          await ev(`document.querySelector('#stMachine').value='テスト汎用台';window.confirm=t=>{__confirms.push(t);window.__time=Date.parse('2026-11-24T00:01:00+09:00');return true}`);await click('#stStart');
           assert.equal(await ev('return __rec.S.cur'),null);assert.equal(await ev('return document.querySelector("#stMedal").value'),'0');assert.match(await ev('return __confirms.at(-1)'),blank?/開始持ちメダルが空欄/:/上限/);
           assert.match(await ev('return document.querySelector("#stErr").textContent'),/日付が変わった/);await ev('document.querySelector("#stErr").scrollIntoView({block:"center"})');await capture('start-v104-confirm',width);
           assert.ok(await ev('const r=document.querySelector("#stErr").getBoundingClientRect();return r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<=innerHeight'));
@@ -520,7 +520,7 @@ try{
     });
     await test('C03: 残高警告の拒否・初期再プレイ',async()=>{
       await seed(state([],[balance(account,0)]));await start();await ev('window.__answer=false');await click('#bReplay');assert.equal((await vals()).U,0);assert.ok((await ev('return __confirms')).at(-1).includes('マイナス'));await ev('window.__answer=true');await click('#bReplay');assert.equal((await vals()).A,-50);
-      await seed(state([],[balance(account,0)]));await select();await ev('window.__answer=false;document.querySelector("#stMachine").value="テスト汎用台";document.querySelector("#stReplay0").value=50;document.querySelector("#stStart").click()');assert.equal(await ev('return __rec.S.cur'),null);
+      await seed(state([],[balance(account,0)]));await start();await ev('window.__answer=false');await click('#bReplay');assert.equal((await vals()).U,0);assert.equal(await ev('return __rec.S.cur.money.replays.length'),0);
     });
     await test('E: 全バックアップにledgerとKEY',async()=>{
       await seed(state());await ev('window.__blobs=[];const native=URL.createObjectURL;URL.createObjectURL=b=>{__blobs.push(b);return native(b)};HTMLAnchorElement.prototype.click=function(){};__rec.showNote()');

@@ -66,7 +66,11 @@ const stored=()=>ev(`return JSON.parse(localStorage.getItem('${KEY}')).cur.event
 const number=async n=>{await click('#kpClear');for(const d of String(n))await button('#kpKeys',d);await click('#kpOk');};
 const setup=async(page='/tools/rec/index.html',lend=46,stock=null,initial=0,width=390)=>{
   await open(page,width);await clearAll();await open(page,width);
-  await ev(`for(const [id,v] of Object.entries({stMachine:'テスト汎用台',stLend:${lend},stMedal:100,stReplay0:${initial},stStock:${JSON.stringify(stock)}})){const i=document.getElementById(id);if(i){i.value=v??'';i.dispatchEvent(new Event('input',{bubbles:true}));}}document.getElementById('stStart').click();if(!__rec.S.cur)throw Error('Start failed');`);
+  await ev(`for(const [id,v] of Object.entries({stMachine:'テスト汎用台',stLend:${lend},stMedal:100,stStock:${JSON.stringify(stock)}})){const i=document.getElementById(id);if(i){i.value=v??'';i.dispatchEvent(new Event('input',{bubbles:true}));}}document.getElementById('stStart').click();if(!__rec.S.cur)throw Error('Start failed');`);
+  if(initial>0){
+    if(initial%lend===0){for(let i=0;i<initial/lend;i++)await click('#bReplay');}
+    else{await click('#bStock');await custom(initial);await close();}
+  }
 };
 const state=()=>ev(`return {money:__rec.S.cur.money,events:__rec.S.cur.events,pill:document.querySelector('#mRep').textContent,label:document.querySelector('#mRep').parentElement.textContent,button:document.querySelector('#bReplay').textContent,diff:document.querySelector('#mDiff').textContent};`);
 const close=()=>click('#shClose');
