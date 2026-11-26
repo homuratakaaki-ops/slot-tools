@@ -92,6 +92,50 @@ async function main(){
   async function quit(){await click('#bUtil');await button('やめる（終了して記録する）');await input('#shBody input',0);await button('終了する')}
   let edSession;
   try{
+    await test('v04-grid-rares-add',async()=>{
+      await start();
+      assert.deepEqual(await ev('return [...document.querySelectorAll("#gridRows button")].map(b=>b.childNodes[0].textContent)'),['レア役','スイカ加算','当選','示唆','前兆','メモ']);
+      assert.equal(await ev('return document.querySelectorAll("#gridRows .tone-green").length'),1);
+      const roles=[['cherryW','弱🍒','red'],['cherryS','強🍒','red'],['melon','🍉','green'],['chance','チャンス目','purple'],['kakugan','赫眼リプ','blue'],['cherryK','確定🍒','red']];
+      for(const [key,label] of roles){
+        await grid('レア役');await button(label);assert.equal((await state()).rare[key].n,1);assert.equal((await state()).events.at(-1).rareKey,key);
+        assert.match(await ev('return document.querySelector("#log").textContent'),new RegExp(label));
+        await undo();assert.equal((await state()).rare[key].n,0);
+      }
+      await grid('スイカ加算');assert.deepEqual(await ev('return [...document.querySelectorAll("#shBody .opts button")].map(b=>b.textContent)'),['+10','+100','+600（MAX）']);
+      const before=(await state()).lcdG;await button('+600（MAX）');assert.equal((await state()).lcdG,before+600);assert.equal((await state()).events.at(-1).add,600);assert.equal((await state()).events.at(-1).text,'スイカ加算 +600');await undo();assert.equal((await state()).lcdG,before);
+      for(const mode of ['normal','cz','at']){if(mode==='cz')await hit('レミニセンス');if(mode==='at')await success();assert.equal(await ev('return document.querySelector("#rareCounts").getClientRects().length'),0)}
+      for(const w of [390,360]){
+        await width(w);await start();const normal=await ev('return {width:innerWidth,scroll:document.documentElement.scrollWidth,buttons:[...document.querySelectorAll("#gridRows button")].map(b=>b.getBoundingClientRect().height)}');assert.equal(normal.width,w);assert.ok(normal.scroll<=w);assert.ok(normal.buttons.every(h=>h>=44));fs.writeFileSync(path.join(h.artifacts,'v04-normal-'+w+'-dimensions.json'),JSON.stringify(normal,null,2));await snapshot('v04-normal-'+w);await grid('レア役');
+        const rows=await ev('return [...document.querySelectorAll("#shBody .opts")].map(row=>[...row.querySelectorAll("button")].map(b=>{const r=b.getBoundingClientRect(),s=getComputedStyle(b);return {text:b.textContent,cls:b.className,x:r.x,y:r.y,h:r.height,color:s.color,bg:s.backgroundColor}}))');
+        for(const row of rows){assert.equal(row.length,6);for(let i=0;i<6;i++){assert.ok(row[i].cls.includes('tone-'+roles[i][2]));assert.ok(row[i].h>=44)}assert.equal(new Set(row.map(b=>b.y)).size,2);assert.equal(row[0].y,row[2].y);assert.equal(row[3].y,row[5].y)}
+        assert.deepEqual(rows[0].map(b=>b.text),roles.map(r=>r[1]));
+        assert.equal(await ev('return innerWidth'),w);assert.ok(await ev('return document.documentElement.scrollWidth<=innerWidth&&document.querySelector("#shBody").scrollWidth<=document.querySelector("#shBody").clientWidth'));
+        fs.writeFileSync(path.join(h.artifacts,'v04-rares-'+w+'-dimensions.json'),JSON.stringify(rows,null,2));await snapshot('v04-rares-'+w);
+      }
+      await width(390);
+    });
+    await test('v04-persistence-and-unrelated-undo',async()=>{
+      await start();await grid('レア役');await button('🍉');await grid('スイカ加算');await button('+100');await grid('前兆');await button('前兆ステージ');
+      const before=await state();await grid('メモ');await input('#shBody textarea','独立操作');await button('記録する');await undo();
+      assert.deepEqual((await state()).rare,before.rare);assert.equal((await state()).lcdG,before.lcdG);assert.equal((await state()).zenchou,1);assert.deepEqual((await state()).events,before.events);
+      await h.open('/empty');await h.open(page);assert.deepEqual((await state()).rare,before.rare);assert.equal((await state()).lcdG,before.lcdG);assert.equal((await state()).zenchou,1);assert.deepEqual((await state()).events,before.events);
+      await grid('前兆ステージ');await grid('レア役');await button('🍉 1');await click('#kpClear');await button('3','#kpKeys');await click('#kpOk');assert.equal((await state()).rare.melon.n,3);await undo();assert.equal((await state()).rare.melon.n,1);
+    });
+    await test('v04-zenchou-undo',async()=>{
+      await start();const base=await state();
+      const choices=()=>ev('return [...document.querySelectorAll("#shBody button")].map(b=>b.textContent)');
+      await grid('前兆');assert.deepEqual(await choices(),['前兆','前兆ステージ']);await button('前兆');assert.equal((await state()).zenchou,0);
+      await grid('前兆中');assert.deepEqual(await choices(),['前兆ステージ','前兆ステージいかず']);await button('前兆ステージいかず');assert.equal((await state()).zenchou,false);assert.equal((await state()).events.at(-1).text,'前兆ステージいかず');await undo();assert.equal((await state()).zenchou,0);
+      await grid('前兆中');await button('前兆ステージ');assert.equal((await state()).zenchou,1);await undo();assert.equal((await state()).zenchou,0);await undo();assert.equal((await state()).zenchou,base.zenchou);
+      for(const badge of [false,true]){
+        await grid('前兆');await button('前兆ステージ');const before=await state();
+        if(badge){assert.equal(await ev('return document.querySelector("#badges .badge").textContent'),'前兆ステージ');await realClick('#badges .badge')}else await grid('前兆ステージ');
+        assert.equal(await ev('return document.querySelector("#sheet").classList.contains("open")'),false);const after=await state();assert.equal(after.zenchou,false);assert.equal(after.stage,base.stage);assert.equal(after.events.length,before.events.length+1);assert.equal(after.events.at(-1).text,'前兆ステージ 終了');await undo();assert.equal((await state()).zenchou,1);assert.equal((await state()).stage,before.stage);await undo();
+      }
+      for(const label of ['レミニセンス','AT直撃']){await start();await grid('前兆');await button('前兆ステージ');await hit(label);assert.equal((await state()).zenchou,false);assert.match((await state()).events.at(-1).text,/前兆ステージから/);await undo();assert.equal((await state()).zenchou,1)}
+      await start();for(const label of ['レミニセンス','大喰いの利世']){const n=(await state()).c3;await hit(label);await fail();assert.equal((await state()).c3,n+1)}
+    });
     await test('cz-end-hint-tokyoghoul',async()=>{
       await start();await hit('レミニセンス');await grid('レミニセンス 終了');
       assert.equal(await ev('return document.querySelector("#shBody .hint").innerText'),'成功はクレジットとメモを入れてから次に進みます。失敗は終了画面などを入れます。');

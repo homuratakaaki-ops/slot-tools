@@ -107,6 +107,11 @@ textarea{min-height:80px;resize:vertical}
 .opts button.tone-p{background:rgba(180,140,224,.18);border-color:rgba(180,140,224,.55)}
 .opts button.tone-c{background:rgba(110,170,240,.18);border-color:rgba(110,170,240,.55)}
 .opts button.tone-d{background:rgba(240,110,110,.18);border-color:rgba(240,110,110,.55)}
+.opts button.tone-red,.opts button.tone-green,.opts button.tone-purple,.opts button.tone-blue{min-height:44px}
+.grow button.tone-red,.opts button.tone-red{background:rgba(240,110,110,.18);border-color:rgba(240,110,110,.55);color:#F08E8E}
+.grow button.tone-green,.opts button.tone-green{background:rgba(105,192,138,.18);border-color:var(--ok);color:var(--ok)}
+.grow button.tone-purple,.opts button.tone-purple{background:rgba(180,140,224,.18);border-color:rgba(180,140,224,.55);color:#C5A2EA}
+.grow button.tone-blue,.opts button.tone-blue{background:rgba(110,170,240,.18);border-color:rgba(110,170,240,.55);color:#8BBAF3}
 .opts button.on.tone-p,.opts button.on.tone-c,.opts button.on.tone-d{background:var(--accent);border-color:var(--accent)}
 .sheet .sh{position:sticky;top:0;background:var(--panel);z-index:1}
 .sheet .sb .lbl{font-size:12px;color:var(--dim);margin:12px 0 6px}
@@ -526,10 +531,19 @@ const MACHINES={
   counter3:{label:"CZスルー",reset:"at",incOnCzFail:["レミニセンス","大喰いの利世"]},
   noteSeparate:true,          // E3：メモを本文に連結せず ev.note に分ける
   hitCredit:true,             // E4：当選シートにクレジット欄
-  rares:[],
-  lcdAdd:null,
+  rares:[
+    {key:"cherryW",label:"弱🍒",tone:"red"},
+    {key:"cherryS",label:"強🍒",tone:"red"},
+    {key:"melon",label:"🍉",tone:"green"},
+    {key:"chance",label:"チャンス目",tone:"purple"},
+    {key:"kakugan",label:"赫眼リプ",tone:"blue"},
+    {key:"cherryK",label:"確定🍒",tone:"red"}
+  ],
+  lcdAdd:{label:"スイカ加算",steps:[10,100,600],stepLabels:{600:"+600（MAX）"},chars:null,tone:"green"},
   stages:null,
-  zenchou:null,
+  zenchou:{stages:["前兆","前兆ステージ"],stageIndex:1,outGroups:[],
+    buttonLabels:{idle:"前兆",active:["前兆中","前兆ステージ"]},
+    cutLabel:"前兆ステージいかず",stageOneTapEnd:true},
   hitTriggers:["規定G数","レア役","天井","引き戻し","不明"],
   hits:[
     {label:"レミニセンス",kind:"cz",grid:[["hitEnd","memo"]],
@@ -598,9 +612,9 @@ const MACHINES={
   edCards:{"cats":[{"k":"edWhiteW","l":"白・弱","h":"奇数設定示唆(弱)","names":"金木・霧嶋・笛口・永近・西尾・月山"},{"k":"edWhiteS","l":"白・強","h":"奇数設定示唆(強)","names":"芳村・四方・ウタ・イトリ・古間・入見"},{"k":"edBlueW","l":"青・弱","h":"偶数設定示唆(弱)","names":"金木・霧嶋・笛口・ナキ・西尾・月山"},{"k":"edBlueS","l":"青・強","h":"偶数設定示唆(強)","names":"亜門・篠原・滝澤・真戸（暁）・真戸（呉緒）・丸手"},{"k":"edRedW","l":"赤・弱","h":"高設定示唆(弱)","names":"金木・霧嶋（董香）・ヤモリ・霧嶋（絢都）"},{"k":"edRedS","l":"赤・強","h":"高設定示唆(強)","names":"鯱・亜門・篠原・鈴屋"},{"k":"edBrz1","l":"銅・鈴屋什造","h":"設定1否定"},{"k":"edBrz2","l":"銅・高槻泉","h":"設定2否定"},{"k":"edBrz3","l":"銅・梟","h":"設定3否定"},{"k":"edBrz4","l":"銅・エト","h":"設定4否定"},{"k":"edSilver","l":"銀・金木研","h":"設定3以上濃厚"},{"k":"edGold4","l":"金・神代利世","h":"設定4以上濃厚"},{"k":"edGold5","l":"金・隻眼の梟","h":"設定5以上濃厚"},{"k":"edRainbow","l":"虹・有馬貴将","h":"設定6濃厚"}]},       // E10
   parallel:[],
   czEndStd:{groups:[]},
-  rareCounts:false,
+  rareCounts:"never",
   grids:{
-    normal:[["extra:0","hit","memo"],["counter3"]],
+    normal:[["rare","lcdAdd","hit"],["extra:0","zenchou","memo"]],
     cz:[["hitEnd","memo"]],
     at:[["hitEnd","memo"]]
   }
@@ -1496,9 +1510,9 @@ function renderGrid(){
 function makeGridButton(spec){
   const c=S.cur,d=DEF();
   const mkb=(label,cls,fn)=>{const b=mk("button",cls||"",label);b.addEventListener("click",fn);return b};
-  if(spec==="lcdAdd")return d.lcdAdd?mkb(d.lcdAdd.label||"液晶上乗せ","pri",openLcdAdd):null;
+  if(spec==="lcdAdd")return d.lcdAdd?mkb(d.lcdAdd.label||"液晶上乗せ","pri"+(d.lcdAdd.tone?" tone-"+d.lcdAdd.tone:""),openLcdAdd):null;
   if(spec==="rare")return mkb("レア役","pri",openRare);
-  if(spec.startsWith("rare:")){const r=d.rares.find(x=>x.key===spec.slice(5));if(!r)return null;const v=c.rare[r.key]||{};return mkb(r.label+(r.count===false?"":" "+(v.n||0)),"pri",()=>recordRare(r,false))}
+  if(spec.startsWith("rare:")){const r=d.rares.find(x=>x.key===spec.slice(5));if(!r)return null;const v=c.rare[r.key]||{};return mkb(r.label+(r.count===false?"":" "+(v.n||0)),"pri"+(r.tone?" tone-"+r.tone:""),()=>recordRare(r,false))}
   if(spec.startsWith("toggle:")){const t=d.toggles&&d.toggles[spec.slice(7)];if(!t)return null;const on=!!(c.tags&&c.tags[t.tag]);return mkb(t.label+(on?" ON":""),on?"par on":"",()=>{mark();c.tags=c.tags||{};if(on){delete c.tags[t.tag];push("toggle",t.label+" OFF")}else{c.tags[t.tag]=t.until||"hitEnd";push("toggle",t.log||(t.label+" ON"),null,t)}})}
   if(spec==="hit")return mkb("当選","hot",openHit);
   if(spec==="hitEnd")return mkb((c.hit?c.hit.label:"")+" 終了","hot",hitEnd);
@@ -1538,7 +1552,7 @@ function editRareCount(r){
 }
 function renderRare(){
   const c=S.cur,d=DEF(),w=el("rareCounts");w.innerHTML="";
-  w.classList.toggle("hide",d.rareCounts===false&&c.mode!=="at");
+  w.classList.toggle("hide",d.rareCounts==="never"||(d.rareCounts===false&&c.mode!=="at"));
   const rvDef=c.mode==="at"?hitProp(curHitDef(),"revive"):null;
   if(rvDef){
     const x=mk("div","rcv");x.append(mk("span","",rvDef.label),mk("b","",String(c.revive||0)));
@@ -1630,7 +1644,7 @@ function openLcdAdd(opts){
       b.append(w);
     }
     b.append(mk("div","lbl","上乗せ数"));
-    b.append(optRow(d.lcdAdd.steps.map(n=>({l:"+"+n,v:n})),it=>{fire();doLcdAdd(it.v,chr);closeSheet()},"q4"));
+    b.append(optRow(d.lcdAdd.steps.map(n=>({l:d.lcdAdd.stepLabels?.[n]||"+"+n,v:n})),it=>{fire();doLcdAdd(it.v,chr);closeSheet()},"q4"));
     const free=mk("button","sub","数値を入れて上乗せ");
     free.addEventListener("click",()=>{closeSheet();askNum("上乗せ数",0,v=>{if(v){fire();doLcdAdd(v,chr)}})});
     b.append(free);
@@ -1640,7 +1654,7 @@ function doLcdAdd(v,chr){const d=DEF();S.cur.lcdG+=v;push("lcdAdd",(d.lcdAdd.lab
 
 /* ---------- レア役 ---------- */
 function openRare(){
-  const d=DEF(),c=S.cur;const hasStrong=d.rares.some(r=>r.strong);let strong=false;
+  const d=DEF(),c=S.cur;const hasStrong=d.rares.some(r=>r.strong),cols=d.rares.some(r=>r.tone)?"":"q4";let strong=false;
   sheet("レア役",b=>{
     if(hasStrong){
       b.append(mk("div","lbl","強弱"));
@@ -1648,14 +1662,16 @@ function openRare(){
       sw.querySelector("button").classList.add("on");b.append(sw);
     }
     b.append(mk("div","lbl","引いた役"));
-    b.append(optRow(d.rares.map(r=>({l:r.label,r})),it=>{closeSheet();recordRare(it.r,strong)},"q4"));
+    const roles=optRow(d.rares.map(r=>({l:r.label,r})),it=>{closeSheet();recordRare(it.r,strong)},cols);
+    roles.querySelectorAll("button").forEach((btn,i)=>{if(d.rares[i].tone)btn.classList.add("tone-"+d.rares[i].tone)});
+    b.append(roles);
     b.append(mk("div","lbl","回数を直す（押し忘れ・押しすぎ）"));
     const rw=mk("div","opts");
     d.rares.forEach(r=>{
       if(r.count===false)return;
       const cell=c.rare[r.key];
       const lab=r.strong?(r.label+" 弱"+(cell.w||0)+"／強"+(cell.s||0)):(r.label+" "+(cell.n||0)+(r.track?"／当"+(cell.hit||0):""));
-      const btn=mk("button","q4",lab);btn.addEventListener("click",()=>{closeSheet();editRareCount(r)});rw.append(btn);
+      const btn=mk("button",cols+(r.tone?" tone-"+r.tone:""),lab);btn.addEventListener("click",()=>{closeSheet();editRareCount(r)});rw.append(btn);
     });
     b.append(rw);
     b.append(mk("div","hint","上のカウンターの数字を直接タップしても直せます。"));
@@ -2053,6 +2069,11 @@ function enterZen(i){
 }
 function openZenchou(){
   const d=DEF(),c=S.cur,st=zenStages(),cur=zenIdx();
+  if(d.zenchou?.stageOneTapEnd&&zenIsStage()){
+    mark();c.zenchou=false;c.stage=c.prevStage||null;
+    const extra=applyStageEnd();
+    push("zenchouEnd",st[cur]+" 終了"+extra);toast(st[cur]+" 終了");return;
+  }
   sheet(cur<0?"前兆":st[cur],b=>{
     const items=[];
     const sis=zenStageIdxs();
@@ -2062,7 +2083,7 @@ function openZenchou(){
     if(cur>=0&&canCut){
       b.append(mk("div","lbl","終わる"));
       const isStage=zenIsStage();
-      const el_=d.zenchou&&d.zenchou.endLabel;
+      const el_=(!isStage&&d.zenchou?.cutLabel)||(d.zenchou&&d.zenchou.endLabel);
       const end=mk("button","sub",el_?el_:(isStage?st[cur]+" 失敗（最終幕・ワイプなどを入れる）":st[cur]+" 発展せず"));end.style.color="var(--hot)";
       end.addEventListener("click",()=>{closeSheet();if(isStage)zenchouEnd();else zenchouCut()});b.append(end);
     }
@@ -2100,12 +2121,12 @@ function checkAutoStage(){
     c._steps.push({autoOp:opId});save();   // 「元に戻す」で先にこの自動終了を戻す（保存まで行う）
   }
 }
-function zenchouLabel(){const d=DEF(),cur=zenIdx();if(cur>=0&&d.zenchou&&d.zenchou.endLabel)return d.zenchou.endLabel;return cur<0?zenStages()[0]:zenStages()[cur]}
+function zenchouLabel(){const d=DEF(),cur=zenIdx();if(d.zenchou?.buttonLabels)return cur<0?d.zenchou.buttonLabels.idle:d.zenchou.buttonLabels.active[cur];if(cur>=0&&d.zenchou&&d.zenchou.endLabel)return d.zenchou.endLabel;return cur<0?zenStages()[0]:zenStages()[cur]}
 // 前兆ステージに入る前に終わった（発展せず）
 function zenchouCut(){
   const d=DEF(),c=S.cur,st=zenStages(),cur=zenIdx();
   mark();c.zenchou=false;
-  const lab=(d.zenchou&&d.zenchou.endLabel)||((cur>=0?st[cur]:"前兆")+" 発展せず");
+  const lab=d.zenchou?.cutLabel||(d.zenchou&&d.zenchou.endLabel)||((cur>=0?st[cur]:"前兆")+" 発展せず");
   const extra=applyStageEnd();
   push("zenchouEnd",lab+extra);toast(lab);
 }
