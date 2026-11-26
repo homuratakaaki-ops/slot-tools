@@ -22,6 +22,9 @@
 | `tokyoghoul-rec-spec-v01.md` | tools/rec 東京喰種専用記録の仕様書 v0.1。**東京喰種記録の正本** |
 | `tokyoghoul-rec-instructions-v01.md` | tools/rec 東京喰種 第1弾の実装指示書（テスト版 tg-test.html の公開まで） |
 | `tokyoghoul-rec-instructions-v04.md` | tools/rec 東京喰種 第2弾の実装指示書 v0.4（レア役・スイカ加算・前兆ボタン、本番即反映） |
+| `rec-common-skeleton-v03.md` | tools/rec 共通改修（機種マスター・店舗の利用順・開始時再プレイ欄の廃止・クレジット電卓）の骨格書 v0.3（夢爽裁可 11/26） |
+| `rec-common-1-spec-v01.md` | tools/rec 共通改修 段1の仕様書 v0.1（開始画面の再プレイ欄の廃止・店舗を最近使った順に並べる） |
+| `rec-common-1-instructions-v01.md` | tools/rec 共通改修 段1の実装指示書 v0.1（テスト版 common-test.html の公開まで） |
 
 ## 注記
 
