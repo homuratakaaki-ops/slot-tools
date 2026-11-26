@@ -1674,7 +1674,7 @@ function openRare(){
       const btn=mk("button",cols+(r.tone?" tone-"+r.tone:""),lab);btn.addEventListener("click",()=>{closeSheet();editRareCount(r)});rw.append(btn);
     });
     b.append(rw);
-    b.append(mk("div","hint","上のカウンターの数字を直接タップしても直せます。"));
+    if(DEF().rareCounts!=="never")b.append(mk("div","hint","上のカウンターの数字を直接タップしても直せます。"));
   });
 }
 function recordRare(r,strong,extra){
