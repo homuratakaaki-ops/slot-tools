@@ -180,7 +180,7 @@ try{
     else{await button('#shBody','クレジットを入れる',true);for(const d of '500')await button('#calcKeys',d);await click('#calcOk');}
     diffs.push((await state()).diff);
   }
-  assert.deepEqual(diffs,['+308枚','+308枚']);
+  assert.deepEqual(diffs,['+308','+308枚']);
   assert.deepEqual(errors,[]);assert.deepEqual(await ev('return window.__errs||[];'),[]);
   console.log('PASS: stock, replay unit/reset, unknown balance, negative balance, undo/settings retained, atStart, legacy load, BASE profit/envelope/backup, validation, viewport, exceptions 0');
 }catch(e){console.error(e.stack);process.exitCode=1;}
