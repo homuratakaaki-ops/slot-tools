@@ -49,6 +49,14 @@ try{
     await ev(`await mutate(data=>{data.aliases=[];putMeta(data,'notSameName',[{kind:'machine',a:'東京喰種',b:'L東京喰種'}])});`);
     assert.equal(await ev('return new Set(plays.map(p=>p.machine)).size'),2);
   });
+  await test('M16',async()=>{const fixed={...structuredClone(base),machine:'ラグナドール',mid:'s0027',machineTyped:'テスト新台X'};const d=fresh();d.sessions=[fixed];d.entries=[entry('ラグナドール',{mid:'s0027',machineTyped:'テスト新台X'})];await seed(d);await note();
+    const pick=r=>[r.machine,r.mid,r.machineTyped];const v2=await ev('return MachineMaster.byMid("s0006").name');
+    await edit();await button('この内容で直す');assert.deepEqual(pick((await state()).sessions[0]),['ラグナドール','s0027','テスト新台X']);
+    await edit();await input('#shBody input','ヴァルヴレイヴ2');await button('この内容で直す');assert.deepEqual(pick((await state()).sessions[0]),[v2,'s0006',undefined]);
+    await edit();await input('#shBody input','テスト新台Y');await button('この内容で直す');assert.deepEqual(pick((await state()).sessions[0]),['テスト新台Y',undefined,undefined]);
+    const openEntry=()=>ev('[...document.querySelectorAll("#nList span.sm")].find(x=>x.textContent==="簡易").parentElement.click()');
+    await openEntry();await button('この内容で直す');assert.deepEqual(pick((await state()).entries[0]),['ラグナドール','s0027','テスト新台X']);
+    await openEntry();await input('#shBody input:not([type=date])','テスト新台Z');await button('この内容で直す');assert.deepEqual(pick((await state()).entries[0]),['テスト新台Z',undefined,undefined])});
   await test('M15',async()=>{for(const width of [360,390]){await send('Emulation.setDeviceMetricsOverride',{width,height:530,deviceScaleFactor:1,mobile:true});await seed();await input('#stMachine','モン');const check=async label=>{const dims=await ev('return [...document.querySelectorAll(".machine-candidates button")].filter(b=>b.getClientRects().length).map(b=>{const r=b.getBoundingClientRect();return {left:r.left,right:r.right,height:r.height,overflow:b.scrollWidth>b.clientWidth}})');assert.ok(dims.length);assert.ok(dims.every(r=>r.left>=0&&r.right<=width&&r.height>=44&&!r.overflow),JSON.stringify(dims));assert.ok(await ev('return document.documentElement.scrollWidth<=innerWidth'));console.log(label+' '+JSON.stringify(dims));await snapshot(label)};await check('M15-start-'+width);await note();await click('#nEntryAdd');await input('#shBody input:not([type=date])','モン');await check('M15-entry-'+width)}});
 }finally{fs.writeFileSync(path.join(h.artifacts,'results.json'),JSON.stringify(results,null,2));console.log(JSON.stringify({pass:results.filter(r=>r.ok).length,fail:results.filter(r=>!r.ok).length,artifacts:h.artifacts}));await h.close()}
 if(results.some(r=>!r.ok))process.exitCode=1;
