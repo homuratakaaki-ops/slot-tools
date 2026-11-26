@@ -1,0 +1,367 @@
+[
+ {
+  "kind": "pachinko",
+  "name": "PA大海物語5 スペシャル",
+  "expect": "P大海物語5スペシャル"
+ },
+ {
+  "kind": "pachinko",
+  "name": "PA大海物語Withアグネス・ラムPE",
+  "expect": "PA大海物語WithアグネスPE"
+ },
+ {
+  "kind": "pachinko",
+  "name": "P大海物語5スペシャル",
+  "expect": "P大海物語5スペシャル"
+ },
+ {
+  "kind": "pachinko",
+  "name": "スーパー海物語イン沖縄6",
+  "expect": "Pスーパー海物語IN沖縄6"
+ },
+ {
+  "kind": "pachinko",
+  "name": "リコリス・リコイル",
+  "expect": "eリコリス・リコイル"
+ },
+ {
+  "kind": "slot",
+  "name": "7つの魔剣が支配する",
+  "expect": "七つの魔剣が支配する"
+ },
+ {
+  "kind": "slot",
+  "name": "L攻殻機動隊",
+  "expect": "攻殻機動隊"
+ },
+ {
+  "kind": "slot",
+  "name": "SアイムジャグラーEX",
+  "expect": "アイムジャグラーEX"
+ },
+ {
+  "kind": "slot",
+  "name": "Sウルトラミラクルジャグラー",
+  "expect": "ウルトラミラクルジャグラー"
+ },
+ {
+  "kind": "slot",
+  "name": "Sゴーゴージャグラー3",
+  "expect": "ゴーゴージャグラー3"
+ },
+ {
+  "kind": "slot",
+  "name": "SジャグラーガールズSS",
+  "expect": "ジャグラーガールズSS"
+ },
+ {
+  "kind": "slot",
+  "name": "SネオアイムジャグラーEX",
+  "expect": "ネオアイムジャグラーEX"
+ },
+ {
+  "kind": "slot",
+  "name": "SハッピージャグラーVⅢ",
+  "expect": "ハッピージャグラーVⅢ"
+ },
+ {
+  "kind": "slot",
+  "name": "SマイジャグラーV",
+  "expect": "マイジャグラーV"
+ },
+ {
+  "kind": "slot",
+  "name": "S甲鉄城のカバネリ",
+  "expect": "甲鉄城のカバネリ"
+ },
+ {
+  "kind": "slot",
+  "name": "ToLOVEる",
+  "expect": "Lとらぶるダークネス"
+ },
+ {
+  "kind": "slot",
+  "name": "VIVY",
+  "expect": "ViVY"
+ },
+ {
+  "kind": "slot",
+  "name": "いざ番長",
+  "expect": "いざ！番長"
+ },
+ {
+  "kind": "slot",
+  "name": "ヴァルヴレイヴ",
+  "expect": "革命機ヴァルヴレイヴ"
+ },
+ {
+  "kind": "slot",
+  "name": "ヴァルヴレイヴ2",
+  "expect": "革命機ヴァルヴレイヴ2"
+ },
+ {
+  "kind": "slot",
+  "name": "ガールズ&パンツァー",
+  "expect": "Lガルパン最終章"
+ },
+ {
+  "kind": "slot",
+  "name": "カイジ",
+  "expect": "Lカイジ"
+ },
+ {
+  "kind": "slot",
+  "name": "からくりサーカス",
+  "expect": "からくりサーカス2"
+ },
+ {
+  "kind": "slot",
+  "name": "からくりサーカス2",
+  "expect": "からくりサーカス2"
+ },
+ {
+  "kind": "slot",
+  "name": "キングパルサー",
+  "expect": "キングパルサー"
+ },
+ {
+  "kind": "slot",
+  "name": "ゴッドイーター",
+  "expect": "ゴッドイーターリザレクション"
+ },
+ {
+  "kind": "slot",
+  "name": "スーパーブラックジャック",
+  "expect": "スーパーブラックジャック"
+ },
+ {
+  "kind": "slot",
+  "name": "ストーリーファイター6",
+  "expect": "ストリートファイター6"
+ },
+ {
+  "kind": "slot",
+  "name": "ストリートファイター",
+  "expect": "ストリートファイター6"
+ },
+ {
+  "kind": "slot",
+  "name": "ストリートファイター6",
+  "expect": "ストリートファイター6"
+ },
+ {
+  "kind": "slot",
+  "name": "スマスロ北斗の拳",
+  "expect": "北斗の拳"
+ },
+ {
+  "kind": "slot",
+  "name": "ダークハイビ",
+  "expect": "Lダークハイビ"
+ },
+ {
+  "kind": "slot",
+  "name": "ダンベル何キロ持てる？",
+  "expect": "Lダンベル何キロ持てる?"
+ },
+ {
+  "kind": "slot",
+  "name": "チバリヨ2+",
+  "expect": "チバリヨ2プラス"
+ },
+ {
+  "kind": "slot",
+  "name": "バイオハザード5",
+  "expect": "バイオハザード5"
+ },
+ {
+  "kind": "slot",
+  "name": "ハイビリターン",
+  "expect": "ハイビリターン30"
+ },
+ {
+  "kind": "slot",
+  "name": "ハイビリターン30",
+  "expect": "ハイビリターン30"
+ },
+ {
+  "kind": "slot",
+  "name": "バジリスク天膳",
+  "expect": "バジリスク絆2 天膳"
+ },
+ {
+  "kind": "slot",
+  "name": "パリピ孔明",
+  "expect": "パリピ孔明"
+ },
+ {
+  "kind": "slot",
+  "name": "マギアレコード",
+  "expect": "Lマギアレコード"
+ },
+ {
+  "kind": "slot",
+  "name": "ミリオンゴッド",
+  "expect": "ミリオンゴッド-神々の軌跡-"
+ },
+ {
+  "kind": "slot",
+  "name": "モンキーターン",
+  "expect": "モンキーターンV"
+ },
+ {
+  "kind": "slot",
+  "name": "モンスターハンターサンブレイク",
+  "expect": "モンスターハンターライズ：サンブレイク"
+ },
+ {
+  "kind": "slot",
+  "name": "モンスターハンターサンライズ",
+  "expect": "モンスターハンターライズ：サンブレイク"
+ },
+ {
+  "kind": "slot",
+  "name": "モンスターハンターライズ",
+  "expect": "モンスターハンターライズ"
+ },
+ {
+  "kind": "slot",
+  "name": "モンスターハンターライズ　サンブレイク",
+  "expect": "モンスターハンターライズ：サンブレイク"
+ },
+ {
+  "kind": "slot",
+  "name": "ようこそ実力至上主義の教室へ",
+  "expect": "ようこそ実力至上主義の教室へ"
+ },
+ {
+  "kind": "slot",
+  "name": "ラグナドール",
+  "expect": "ラグナドール"
+ },
+ {
+  "kind": "slot",
+  "name": "ラブ嬢",
+  "expect": "ラブ嬢3"
+ },
+ {
+  "kind": "slot",
+  "name": "リコリス・リコイル",
+  "expect": "リコリス・リコイル"
+ },
+ {
+  "kind": "slot",
+  "name": "沖ドキBLACK",
+  "expect": "沖ドキ！BLACK"
+ },
+ {
+  "kind": "slot",
+  "name": "沖ドキDUOアンコール",
+  "expect": "沖ドキ！DUOアンコール"
+ },
+ {
+  "kind": "slot",
+  "name": "沖ドキGOLD",
+  "expect": "沖ドキGOLD"
+ },
+ {
+  "kind": "slot",
+  "name": "牙狼",
+  "expect": "牙狼 闇を照らす者"
+ },
+ {
+  "kind": "slot",
+  "name": "攻殻機動隊",
+  "expect": "攻殻機動隊"
+ },
+ {
+  "kind": "slot",
+  "name": "甲鉄城のカバネリ海門決戦",
+  "expect": "甲鉄城のカバネリ 海門決戦"
+ },
+ {
+  "kind": "slot",
+  "name": "獣王",
+  "expect": "獣王"
+ },
+ {
+  "kind": "slot",
+  "name": "新鬼武者2",
+  "expect": "新鬼武者2"
+ },
+ {
+  "kind": "slot",
+  "name": "真打吉宗",
+  "expect": "真打吉宗"
+ },
+ {
+  "kind": "slot",
+  "name": "戦国コレクション6",
+  "expect": "L戦国コレクション6"
+ },
+ {
+  "kind": "slot",
+  "name": "痛いのは嫌なので防御力に",
+  "expect": "痛いのは嫌なので防御力に極振りしたいと思います"
+ },
+ {
+  "kind": "slot",
+  "name": "鉄拳6",
+  "expect": "鉄拳6"
+ },
+ {
+  "kind": "slot",
+  "name": "転生したらスライムだった件",
+  "expect": "転生したらスライムだった件"
+ },
+ {
+  "kind": "slot",
+  "name": "東京喰種",
+  "expect": "L東京喰種"
+ },
+ {
+  "kind": "slot",
+  "name": "桃太郎電鉄",
+  "expect": "桃太郎電鉄"
+ },
+ {
+  "kind": "slot",
+  "name": "南国育ち",
+  "expect": "南国育ち SPECIAL"
+ },
+ {
+  "kind": "slot",
+  "name": "南国育ちスペシャル",
+  "expect": "南国育ち SPECIAL"
+ },
+ {
+  "kind": "slot",
+  "name": "番長ゼロ",
+  "expect": "押忍！番長ZERO"
+ },
+ {
+  "kind": "slot",
+  "name": "彼女、お借りします",
+  "expect": "彼女、お借りします"
+ },
+ {
+  "kind": "slot",
+  "name": "彼女お借りします",
+  "expect": "彼女、お借りします"
+ },
+ {
+  "kind": "slot",
+  "name": "北斗の拳",
+  "expect": "北斗の拳"
+ },
+ {
+  "kind": "slot",
+  "name": "北斗の拳転生",
+  "expect": "北斗の拳 転生の章2"
+ },
+ {
+  "kind": "slot",
+  "name": "北斗の拳転生2",
+  "expect": "北斗の拳 転生の章2"
+ }
+]
