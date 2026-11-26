@@ -186,6 +186,21 @@ textarea{min-height:80px;resize:vertical}
 .warn{background:#3A2A16;color:#F0D9A8;font-size:12px;padding:8px 12px;text-align:center;border-radius:8px;margin-top:8px}
 .sheet.ed-sheet{padding-bottom:0}.ed-sheet .pane{height:100%;max-height:100%;width:100%;transform:none!important}.ed-row{display:grid;grid-template-columns:minmax(0,1fr) 44px 24px 44px 50px;align-items:center;gap:6px}.ed-row small{display:block}.ed-row button{min-height:44px;margin:0;padding:0}.ed-card{padding:8px 0}.ed-card summary{min-height:44px;display:flex;align-items:center;cursor:pointer}
 .sheet .sub.store-top{min-height:56px;font-size:1.15em;font-weight:700;background:var(--accent);border-color:var(--accent);color:#1A1509;white-space:normal;overflow-wrap:anywhere;max-width:100%}
+#bCredit{flex-direction:column;min-width:0;padding:4px 2px}
+#bCredit span{white-space:nowrap}
+.calc{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.72);display:none;align-items:flex-end}
+.calc.open{display:flex}
+.calc .pane{width:100%;max-width:520px;max-height:100dvh;overflow-y:auto;margin:0 auto;padding:12px 12px 18px;background:var(--panel);border-radius:16px 16px 0 0}
+.calc .head{display:flex;align-items:center;justify-content:space-between}
+.calc button{min-height:44px}
+.calc .previous{font-size:12px;color:var(--dim);margin:6px 0}
+.calc .expression{font-family:var(--mono);font-size:28px;min-height:36px;text-align:right;overflow-wrap:anywhere}
+.calc .preview{text-align:right;min-height:22px}
+.calc .error{color:var(--hot);font-size:13px;min-height:20px}
+.calc .keys{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.calc .keys button{font-family:var(--mono);font-size:20px;font-weight:700}
+.calc .acts{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:6px}
+.calc .clear{font-size:12px;margin-top:6px;width:100%}
 </style>
 </head>
 <body>
@@ -237,7 +252,7 @@ textarea{min-height:80px;resize:vertical}
       <div class="mpill">投資<b id="mCash">0円</b></div>
       <div class="mpill">残高<b id="mBal">0円</b></div>
       <button class="mpill" id="bStock"><span id="mRepLine"><span id="mRepLabel">再</span><b id="mRep">0枚</b></span><span id="mStockBalance" class="hide"></span></button>
-      <div class="mpill">差枚<b id="mDiff">−</b></div>
+      <button class="mpill" id="bCredit"><span>クレ<b id="mCredit">—</b></span><span>差枚<b id="mDiff">—</b></span></button>
     </div>
     <div class="r3"><button class="danger" id="bMinus">−1000</button><button id="bDeposit">入金</button><button id="bReplay">再プレイ</button></div>
     <div class="badges" id="badges"></div>
@@ -263,6 +278,7 @@ textarea{min-height:80px;resize:vertical}
 
 <div class="sheet" id="sheet"><div class="pane"><div class="sh"><div class="st" id="shTitle">入力</div><button id="shClose" style="padding:8px 14px;min-height:44px">閉じる</button></div><div class="sb" id="shBody"></div><div class="sf" id="shFoot"></div></div></div>
 <div class="kp" id="kp"><div class="pane"><div class="sh"><div class="st" id="kpTitle">数値</div><button id="kpX" style="padding:8px 14px;min-height:44px">キャンセル</button></div><div class="disp" id="kpDisp">0</div><div class="keys" id="kpKeys"></div><div class="acts"><button id="kpClear">C</button><button id="kpBack">⌫</button><button class="ok" id="kpOk">決定</button></div></div></div>
+<div class="calc" id="calc"><div class="pane"><div class="head"><b>クレジット</b><button id="calcX">キャンセル</button></div><div class="previous" id="calcPrevious"></div><div class="expression" id="calcExpr"></div><div class="preview" id="calcPreview"></div><div class="error" id="calcError" role="status"></div><div class="keys" id="calcKeys"></div><div class="acts"><button id="calcBack">⌫</button><button id="calcRecall">前回の値</button><button id="calcOk">確定</button></div><button class="clear" id="calcUnset">未入力に戻す</button></div></div>
 <div class="toast" id="toast"></div>
 
 <script src="../../js/rec-store.js?v=20261031"></script>
@@ -720,6 +736,7 @@ function validSession(c){
       const arr=m[k];if(arr==null)continue;if(!Array.isArray(arr))return false;
       if(!arr.every(x=>x&&typeof x==="object"&&dateOk(x.at)&&typeof x.amount==="number"&&Number.isFinite(x.amount)))return false;
     }
+    if(m.creditAt!=null&&!dateOk(m.creditAt))return false;
     if(!numOrNull(m.startMedal)||!numOrNull(m.endMedal)||!numOrNull(m.credit)||!numOrNull(m.startReplay)||!numOrNull(m.endReplay)||!numOrNull(m.stockStart)||!numOrNull(m.replayUnit))return false;
   }
   if(c.rare!=null){if(typeof c.rare!=="object")return false;if(!Object.values(c.rare).every(v=>v&&typeof v==="object"&&Object.values(v).every(numOrNull)))return false}
@@ -879,6 +896,7 @@ function fixSession(c){
   if(!c.money||typeof c.money!=="object")c.money={cash:[],deposits:[],spends:[],replays:[],startMedal:0,startReplay:0,credit:null,endMedal:null,endReplay:0};
   if(!Array.isArray(c.events))c.events=[];
   if(!Array.isArray(c.follow))c.follow=[];
+  if(c.money.credit==null&&c.money.creditAt!=null)c.money.creditAt=null;
   fixMoney(c.money);
   if(!c.machineId)c.machineId="generic";
   if(c.c3===undefined)c.c3=c.cycle||0;
@@ -1419,6 +1437,7 @@ function push(type,text,extra,sheetDef){
   const c=S.cur;
   const ev={id:uid(),at:nowISO(),type,text,realG:c.realG,lcdG:DEF().lcdG?c.lcdG:null,c3:c.c3,mode:c.mode};
   if(extra)Object.assign(ev,extra);
+  if(typeof ev.cr==="number"&&Number.isFinite(ev.cr))Object.assign(ev,setCredit(ev.cr,ev.at));
   const tags=extra&&Object.prototype.hasOwnProperty.call(extra,"tags")?extra.tags:autoTagsForEv(ev,DEF(),c,sheetDef);
   if(Array.isArray(tags)&&tags.length)ev.tags=[...new Set(tags)];else delete ev.tags;
   const selection=ev.sel||ev.hitSel;
@@ -1501,8 +1520,10 @@ function renderMoney(){
   }
   fitStockPill();
   el("bReplay").textContent="再 −"+yen(replayUnitOf(c));
-  if(m.credit==null)el("mDiff").textContent="−";
-  else{const bought=Math.round(invested(m)/1000*c.lend);el("mDiff").textContent=sgn(m.credit-m.startMedal-bought-replayed(m))+"枚"}
+  const {diff,stale}=midDiff(c);
+  el("mCredit").textContent=m.credit==null?"—":String(m.credit);
+  el("mDiff").textContent=diff==null?"—":sgn(diff)+"枚"+(stale?"※":"");
+  el("mDiff").style.color=diff<0?"var(--hot)":"";
 }
 function renderGrid(){
   const c=S.cur,d=DEF();
@@ -1805,9 +1826,8 @@ function validateEndInputs(GF,MF){
 }
 function applyMedal(F){
   if(!F||!F.medal)return null;const v=int(F.medal.value);if(v==null||badNum(v)||v<0)return null;
-  const c=S.cur,m=c.money;const prev=m.credit;m.credit=Math.max(0,v);
-  const bought=Math.round(invested(m)/1000*c.lend);const diff=m.credit-m.startMedal-bought-replayed(m);
-  return {medal:m.credit,diff,prev:prev==null?null:prev};
+  const prev=setCredit(v,nowISO()),{diff}=midDiff(S.cur);
+  return {medal:v,diff,...prev};
 }
 function applyG(F){const c=S.cur;let r=int(F.realG.value),l=int(F.lcdG.value);if(badNum(r))r=null;if(badNum(l))l=null;c.realG=r==null?0:Math.max(0,r);c.lcdG=l==null?0:Math.max(0,l);c._steps=[]}
 function hitEnd(){
@@ -1887,7 +1907,7 @@ function czEndSheet(){
           if(nx){startHit(nx,h.label+" 失敗");return}
         }
         if(GF)applyG(GF);
-        const md=applyMedal(MF);if(md)push("medal","持ちメダル "+yen(md.medal)+"枚（差枚 "+sgn(md.diff)+"）",{medal:md.medal,diff:md.diff,prevCredit:md.prev});
+        const md=applyMedal(MF);if(md)push("medal","持ちメダル "+yen(md.medal)+"枚（差枚 "+sgn(md.diff)+"）",{medal:md.medal,diff:md.diff,prevCredit:md.prevCredit,prevCreditAt:md.prevCreditAt});
         afterHitEnd(h.label+" 失敗",keep);applyHints(sel);
         if(yuuri)yuuriReset(h.label+" 失敗後");
         closeSheet();save();render();
@@ -1963,7 +1983,7 @@ function leaveAt(after,extraTxt,sel,GF,MF,fields){
   push("hitEnd",t+fieldsText(fields),{hit:h.label,sel:sel||null,...fields});
   if(d.edCards){const start=c.events.findLast(e=>e.type==="hitStart"&&e.hit===h.label);const phases=c.events.filter(e=>e.type==="phase"&&e.edId&&c.events.indexOf(e)>c.events.indexOf(start));phases.forEach(e=>{const run=c.edRuns.find(r=>r.id===e.edId);if(run)push("edSum",edRunText(run,d),{edId:run.id})})}
   if(GF)applyG(GF);else{c.realG=0;c.lcdG=0;c._steps=[]}
-  {const md=applyMedal(MF);if(md)push("medal","持ちメダル "+yen(md.medal)+"枚（差枚 "+sgn(md.diff)+"）",{medal:md.medal,diff:md.diff,prevCredit:md.prev})}
+  {const md=applyMedal(MF);if(md)push("medal","持ちメダル "+yen(md.medal)+"枚（差枚 "+sgn(md.diff)+"）",{medal:md.medal,diff:md.diff,prevCredit:md.prevCredit,prevCreditAt:md.prevCreditAt})}
   afterHitEnd(h.label);
   if(sel)applyHints(sel);
   closeSheet();
@@ -2027,7 +2047,7 @@ function atEndSheet(){
         let t=h.label+" 終了";const r=txt();if(r)t+="　"+r;
         if(reset){c.c3=0;t+="　"+c3Label(d)+"リセット"}
         c.hit=null;c.mode="normal";push("hitEnd",t,{hit:h.label,sel});if(GF)applyG(GF);else{c.realG=0;c.lcdG=0;c._steps=[]}
-        {const md=applyMedal(MF);if(md)push("medal","持ちメダル "+yen(md.medal)+"枚（差枚 "+sgn(md.diff)+"）",{medal:md.medal,diff:md.diff,prevCredit:md.prev})}
+        {const md=applyMedal(MF);if(md)push("medal","持ちメダル "+yen(md.medal)+"枚（差枚 "+sgn(md.diff)+"）",{medal:md.medal,diff:md.diff,prevCredit:md.prevCredit,prevCreditAt:md.prevCreditAt})}
         afterHitEnd(h.label);applyHints(sel);
         if(!nextAfter&&d.zenchou&&d.zenchou.enterOnHitEnd){c.zenchou=0;push("zenchou",zenStages()[0]+" 開始")}
         save();render();closeSheet();return;
@@ -2344,7 +2364,7 @@ function undoLastOp(silent){
     if(ev.type==="phase"&&ev.edId)c.edRuns=(c.edRuns||[]).filter(r=>r.id!==ev.edId);
     if(ev.type==="edFix"&&ev.edId){const run=c.edRuns?.find(r=>r.id===ev.edId);if(run){run.counts={...ev.before};run.fixes=(run.fixes||[]).filter(id=>id!==ev.id)}}
     if(ev.type==="money"&&ev.tk)["deposits","spends","replays"].forEach(k=>{c.money[k]=(c.money[k]||[]).filter(x=>x.tk!==ev.tk)});
-    if((ev.type==="money"||ev.type==="medal")&&ev.prevCredit!==undefined)c.money.credit=ev.prevCredit;
+    if(Object.hasOwn(ev,"prevCredit"))setCredit(ev.prevCredit,ev.prevCreditAt??null);
     if(ev.type==="follow"&&ev.tk)c.follow=(c.follow||[]).filter(x=>x.tk!==ev.tk);
     if(ev.type==="tagFix"&&ev.fixOf){const t=c.events.find(x=>x.id===ev.fixOf);if(t){if(ev.beforeTags==null)delete t.tags;else t.tags=ev.beforeTags.slice()}}
     if(ev.type==="extraFix"&&ev.fixOf){const t=c.events.find(x=>x.id===ev.fixOf);if(t){t.text=ev.before;t.edited=undefined;if(ev.beforeSel)t.sel=ev.beforeSel}}
@@ -2406,7 +2426,61 @@ el("bStock").addEventListener("click",()=>{
     const free=mk("button","sub","枚数を入れる");free.addEventListener("click",()=>askNum("再プレイ枚数",0,v=>{recordReplay(v);refresh()}));b.append(free);refresh();
   });
 });
-function askCredit(){askNum("今の持ち玉（枚）",S.cur.money.credit||0,v=>{const prev=S.cur.money.credit;S.cur.money.credit=v;push("money","残数 "+v+"枚",{prevCredit:prev==null?null:prev})})}
+// 更新と取り消しを同じ入口にまとめる。
+function setCredit(value,at){
+  const m=S.cur.money,prev={prevCredit:m.credit??null,prevCreditAt:m.creditAt??null};
+  m.credit=value;m.creditAt=value===null?null:at;
+  return prev;
+}
+function midDiff(c){
+  const m=c.money;if(m.credit==null)return {diff:null,stale:false};
+  const at=m.creditAt==null?null:Date.parse(m.creditAt),spends=m.spends||m.cash||[],replays=m.replays||[];
+  const before=rows=>rows.filter(x=>at===null||Date.parse(x.at)<=at);
+  const cash=sum(before(spends));
+  return {diff:m.credit-(m.startMedal||0)-Math.round(cash/1000*c.lend)-sum(before(replays)),stale:at!==null&&[...spends,...replays].some(x=>Date.parse(x.at)>at)};
+}
+// 中間値も整数のまま正確に計算し、除算は各段階で割り切れる場合だけ採用する。
+function calcResult(expr){
+  if(!expr)return {empty:true};
+  if(/[＋−×÷]$/.test(expr))return {error:"式が途中です"};
+  const parts=expr.match(/\d+|[＋−×÷]/g),terms=[];let value=BigInt(parts[0]),sign=1n;
+  for(let i=1;i<parts.length;i+=2){const op=parts[i],n=BigInt(parts[i+1]);
+    if(op==="×")value*=n;
+    else if(op==="÷"){if(n===0n)return {error:"0では割れません"};if(value%n!==0n)return {error:"割り切れません"};value/=n}
+    else{terms.push(sign*value);sign=op==="−"?-1n:1n;value=n}
+  }
+  const result=terms.reduce((a,b)=>a+b,sign*value);
+  if(result<0n)return {error:"マイナスになります"};
+  if(result>BigInt(Number.MAX_SAFE_INTEGER))return {error:"大きすぎます"};
+  return {value:Number(result)};
+}
+let calcExpr="",calcPrevious=null;
+function refreshCalc(){const r=calcResult(calcExpr);el("calcExpr").textContent=calcExpr;el("calcPreview").textContent=r.value===undefined?"":"= "+r.value;el("calcError").textContent=""}
+function openCalc(){
+  calcExpr="";calcPrevious=S.cur.money.credit??null;const at=S.cur.money.creditAt;
+  el("calcPrevious").textContent=calcPrevious===null?"前回 未入力":"前回 "+calcPrevious+(at?"（"+new Date(at).toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"})+"）":"");
+  el("calcUnset").classList.toggle("hide",calcPrevious===null);refreshCalc();el("calc").classList.add("open");
+}
+function closeCalc(){el("calc").classList.remove("open")}
+function recordCredit(value){
+  const prev=setCredit(value,nowISO()),{diff}=midDiff(S.cur);
+  push("money",value===null?"クレジット 未入力に戻す":"クレジット "+value+"枚（途中差枚 "+sgn(diff)+"）",prev);closeCalc();
+}
+["7","8","9","÷","4","5","6","×","1","2","3","−","00","0","C","＋"].forEach(key=>{
+  const b=mk("button","",key);b.addEventListener("click",()=>{
+    if(key==="C")calcExpr="";
+    else if(/[＋−×÷]/.test(key)){if(calcExpr)calcExpr=calcExpr.replace(/[＋−×÷]$/,"")+key}
+    else calcExpr+=key;
+    refreshCalc();
+  });el("calcKeys").append(b);
+});
+el("calcBack").addEventListener("click",()=>{calcExpr=calcExpr.slice(0,-1);refreshCalc()});
+el("calcRecall").addEventListener("click",()=>{if(calcPrevious!==null)calcExpr+=String(calcPrevious);refreshCalc()});
+el("calcX").addEventListener("click",closeCalc);
+el("calc").addEventListener("click",e=>{if(e.target===el("calc"))closeCalc()});
+el("calcOk").addEventListener("click",()=>{const r=calcResult(calcExpr);if(r.empty){closeCalc();return}if(r.error){el("calcError").textContent=r.error;return}recordCredit(r.value)});
+el("calcUnset").addEventListener("click",()=>recordCredit(null));
+el("bCredit").addEventListener("click",openCalc);
 
 /* ---------- ユーティリティ・終了 ---------- */
 el("bHint").addEventListener("click",()=>{
@@ -2428,7 +2502,7 @@ el("bUtil").addEventListener("click",()=>{
     b.append(mk("div","lbl","想定期待値（今 "+(S.cur.expected!=null?sgn(S.cur.expected)+"円":"未入力")+(S.cur.follow&&S.cur.follow.length?"　＋フォロー "+sgn(S.cur.follow.reduce((a,f)=>a+f.amount,0))+"円":"")+"）"));
     const ex=mk("button","sub","最初の想定期待値を直す");ex.addEventListener("click",()=>{closeSheet();askNum("想定期待値（円）",S.cur.expected||0,v=>{S.cur.expected=v;save()})});b.append(ex);
     const fo=mk("button","sub","フォローで追加");fo.style.color="var(--accent)";fo.addEventListener("click",()=>{closeSheet();openFollow()});b.append(fo);
-    b.append(mk("div","lbl","持ち玉"));const cr=mk("button","sub","残数調整（今の持ち玉を入れて差枚を出す）");cr.addEventListener("click",()=>{closeSheet();askCredit()});b.append(cr);
+    b.append(mk("div","lbl","持ち玉"));const cr=mk("button","sub","クレジットを入れる（途中差枚を出す）");cr.addEventListener("click",()=>{closeSheet();openCalc()});b.append(cr);
     b.append(mk("div","lbl","直す"));
     const e1=mk("button","sub","打ち始めの情報を直す");e1.addEventListener("click",()=>{closeSheet();editInfo(S.cur,()=>{render();el("hdTitle").textContent=sessTitle(S.cur)})});b.append(e1);
     const e2=mk("button","sub","お金の履歴を直す");e2.addEventListener("click",()=>{closeSheet();editMoney(S.cur,render)});b.append(e2);
