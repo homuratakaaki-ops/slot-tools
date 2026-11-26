@@ -188,6 +188,7 @@ textarea{min-height:80px;resize:vertical}
 .sheet .sub.store-top{min-height:56px;font-size:1.15em;font-weight:700;background:var(--accent);border-color:var(--accent);color:#1A1509;white-space:normal;overflow-wrap:anywhere;max-width:100%}
 #bCredit{flex-direction:column;min-width:0;padding:4px 2px}
 #bCredit span{white-space:nowrap}
+#bCredit b{font-size:12px}
 .calc{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.72);display:none;align-items:flex-end}
 .calc.open{display:flex}
 .calc .pane{width:100%;max-width:520px;max-height:100dvh;overflow-y:auto;margin:0 auto;padding:12px 12px 18px;background:var(--panel);border-radius:16px 16px 0 0}
@@ -1521,8 +1522,8 @@ function renderMoney(){
   fitStockPill();
   el("bReplay").textContent="再 −"+yen(replayUnitOf(c));
   const {diff,stale}=midDiff(c);
-  el("mCredit").textContent=m.credit==null?"—":String(m.credit);
-  el("mDiff").textContent=diff==null?"—":sgn(diff)+"枚"+(stale?"※":"");
+  el("mCredit").textContent=m.credit==null?"—":yen(m.credit);
+  el("mDiff").textContent=diff==null?"—":sgn(diff)+(stale?"※":"");
   el("mDiff").style.color=diff<0?"var(--hot)":"";
 }
 function renderGrid(){
@@ -2464,7 +2465,7 @@ function openCalc(){
 function closeCalc(){el("calc").classList.remove("open")}
 function recordCredit(value){
   const prev=setCredit(value,nowISO()),{diff}=midDiff(S.cur);
-  push("money",value===null?"クレジット 未入力に戻す":"クレジット "+value+"枚（途中差枚 "+sgn(diff)+"）",prev);closeCalc();
+  push("money",value===null?"クレジット 未入力に戻す":"クレジット "+yen(value)+"枚（途中差枚 "+sgn(diff)+"）",prev);closeCalc();
 }
 ["7","8","9","÷","4","5","6","×","1","2","3","−","00","0","C","＋"].forEach(key=>{
   const b=mk("button","",key);b.addEventListener("click",()=>{
