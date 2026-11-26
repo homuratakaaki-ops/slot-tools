@@ -185,6 +185,7 @@ textarea{min-height:80px;resize:vertical}
 #nSum .machs button.on{background:var(--accent);border-color:var(--accent);color:#1a1200}
 .warn{background:#3A2A16;color:#F0D9A8;font-size:12px;padding:8px 12px;text-align:center;border-radius:8px;margin-top:8px}
 .sheet.ed-sheet{padding-bottom:0}.ed-sheet .pane{height:100%;max-height:100%;width:100%;transform:none!important}.ed-row{display:grid;grid-template-columns:minmax(0,1fr) 44px 24px 44px 50px;align-items:center;gap:6px}.ed-row small{display:block}.ed-row button{min-height:44px;margin:0;padding:0}.ed-card{padding:8px 0}.ed-card summary{min-height:44px;display:flex;align-items:center;cursor:pointer}
+.store-top{min-height:56px;font-size:1.15em;font-weight:700;border-color:var(--accent);white-space:normal;overflow-wrap:anywhere;max-width:100%}
 </style>
 </head>
 <body>
@@ -214,13 +215,12 @@ textarea{min-height:80px;resize:vertical}
     <input id="stTotal" class="num" inputmode="numeric" placeholder="0">
     <div class="lbl" style="margin-top:12px">想定期待値（円）</div>
     <input id="stExp" class="num" inputmode="numeric" placeholder="2000">
-    <div class="two" style="margin-top:12px">
+    <div style="margin-top:12px">
       <div><div class="lbl">持ちメダル（元から手元に）</div><input id="stMedal" class="num" inputmode="numeric" placeholder="0"></div>
-      <div><div class="lbl">再プレイでおろした分</div><input id="stReplay0" class="num" inputmode="numeric" placeholder="0"></div>
     </div>
     <div class="lbl" style="margin-top:12px">貯メダル残高（おろす前）<span class="hint"> 任意</span></div>
     <input id="stStock" class="num" inputmode="numeric" placeholder="未入力">
-    <div class="hint">打ち始めに貯メダルからおろした枚数は「再プレイ」に。途中でおろす分は打ち始めてから「再プレイ」ボタンで。</div>
+    <div class="hint">打ち始めに貯メダルからおろす分も、打ち始めてから「再プレイ」ボタンで記録します。</div>
     <div class="lbl">打ち始めのメモ</div>
     <textarea id="stNote" placeholder="リセット / 3スルー など" style="min-height:60px"></textarea>
     <div class="err hide" id="stErr"></div>
@@ -1172,8 +1172,17 @@ function acctChooseStartStore(st,after){
   if(conds.length===1){choose(conds[0]);return}
   sheet("スロットの条件",body=>conds.forEach(c=>acctButton(body,c.label,()=>choose(c))));
 }
+function normalizeStoreName(name){return String(name??"").normalize("NFKC").replace(/\s+/g,"")}
+function storeUseOrder(){
+  const rows=S.stores.map(store=>({store,last:null}));
+  for(const session of [...S.sessions,...(S.cur?[S.cur]:[])]){
+    const row=session.storeId?rows.find(x=>x.store.id===session.storeId):rows.find(x=>normalizeStoreName(x.store.name)===normalizeStoreName(session.shop));
+    if(row&&session.startAt&&(!row.last||session.startAt>row.last))row.last=session.startAt;
+  }
+  return rows.sort((a,b)=>a.last===b.last?0:!a.last?1:!b.last?-1:a.last>b.last?-1:1);
+}
 acctStartButton.addEventListener("click",()=>{acctAutoDeposit();sheet("店舗を選ぶ",b=>{
-  S.stores.forEach(st=>acctButton(b,st.name,()=>acctChooseStartStore(st)));
+  storeUseOrder().forEach(({store:st,last},i)=>{const btn=acctButton(b,st.name,()=>acctChooseStartStore(st));if(i===0&&last)btn.classList.add("store-top")});
   acctButton(b,"店舗を選ばずに始める",()=>{acctStartWithoutStore=true;acctSelectStart(null);closeSheet()});
 })});
 const acctNoteActions=mk("div");el("nStores").parentElement.after(acctNoteActions);
@@ -2844,7 +2853,7 @@ function entrySheet(entry,after,draft){
     const names=mk("datalist");names.id="entryMachines";
     [...new Set([...Object.entries(MACHINES).filter(([k])=>k!=="generic").map(([,m])=>m.name),...S.entries.map(e=>e.machine),...S.sessions.map(s=>s.machine)])].filter(Boolean).forEach(n=>{const o=mk("option");o.value=n;names.append(o)});b.append(names);
     b.append(mk("div","lbl","店舗"));const sr=mk("div","opts");
-    S.stores.forEach(s=>{const btn=mk("button","q4",s.name);if(st&&s.id===st.id)btn.classList.add("on");btn.addEventListener("click",()=>{const d2=readDraft();d2.storeId=s.id;d2.condId=undefined;entrySheet(entry,after,d2)});sr.append(btn)});
+    storeUseOrder().forEach(({store:s})=>{const btn=mk("button","q4",s.name);if(st&&s.id===st.id)btn.classList.add("on");btn.addEventListener("click",()=>{const d2=readDraft();d2.storeId=s.id;d2.condId=undefined;entrySheet(entry,after,d2)});sr.append(btn)});
     const add=mk("button","q4","＋新しい店舗");add.addEventListener("click",()=>{const d2=readDraft(),ids=S.stores.map(s=>s.id);storeEditSheet(null,()=>{const added=S.stores.find(s=>!ids.includes(s.id));if(added){d2.storeId=added.id;d2.condId=undefined}entrySheet(entry,after,d2)})});sr.append(add);b.append(sr);
     b.append(mk("div","lbl","条件"));const cr=mk("div","opts");
     const choices=c&&!conds.some(x=>x.id===c.id)?[...conds,c]:conds;
@@ -3219,8 +3228,7 @@ function acctRefreshStartDay(){
 el("stStart").addEventListener("click",()=>{
   acctAutoDeposit();if(staleShown||loadBroken)return;
   if(!acctStartChoice&&!acctStartWithoutStore){
-    const normalize=s=>String(s??"").normalize("NFKC").replace(/\s+/g,"");
-    const st=S.stores.find(st=>normalize(st.name)===normalize(el("stShop").value)&&st.conds.some(c=>c.kind==="slot"));
+    const st=S.stores.find(st=>normalizeStoreName(st.name)===normalizeStoreName(el("stShop").value)&&st.conds.some(c=>c.kind==="slot"));
     if(st&&confirm("「"+st.name+"」は店舗設定に登録された店です。店舗設定の店として始めますか？")){
       acctChooseStartStore(st,()=>{const e=el("stErr");e.textContent="店舗を選びました。内容を確認して、もう一度『打ち始める』を押してください";e.classList.remove("hide")});return;
     }
@@ -3230,15 +3238,13 @@ el("stStart").addEventListener("click",()=>{
   const m=el("stMachine").value.trim(),lend=int(el("stLend").value),e=el("stErr");
   if(!m){e.textContent="機種名を入れてください";e.classList.remove("hide");return}
   if(badNum(lend)||!lend||lend<=0){e.textContent="レートは整数で入れてください（例：46、52）";e.classList.remove("hide");return}
-  {const bad=["stRealG","stLcdG","stMedal","stReplay0","stStock","stTotal","stExp"].map(id=>{const v=int(el(id).value);return {id,v}}).find(x=>badNum(x.v)||(x.v!=null&&x.v<0&&x.id!=="stExp"));
+  {const bad=["stRealG","stLcdG","stMedal","stStock","stTotal","stExp"].map(id=>{const v=int(el(id).value);return {id,v}}).find(x=>badNum(x.v)||(x.v!=null&&x.v<0&&x.id!=="stExp"));
    if(bad){const lb=el(bad.id).previousElementSibling;e.textContent="数字は整数で、0以上にしてください（"+((lb&&lb.textContent)||bad.id).replace(/任意|チェッカーに.*$/,"").trim()+"）";e.classList.remove("hide");return}}
   {const bad=Object.keys(setupVals).find(k=>badNum(setupVals[k])||(typeof setupVals[k]==="number"&&setupVals[k]<0));if(bad){e.textContent="打ち始めの項目は整数で、0以上にしてください";e.classList.remove("hide");return}}
   if(!pickedMachine){
     const hit=Object.keys(MACHINES).find(k=>k!=="generic"&&MACHINES[k].name===m);
     if(hit&&confirm("「"+m+"」には専用の記録画面があります。そちらで始めますか？")){pickedMachine=hit;renderSetupFields();e.textContent="専用の項目が出ました。内容を確認して、もう一度「打ち始める」を押してください。";e.classList.remove("hide");return}
   }
-  const replayAt=nowISO();
-  if(acctStartChoice&&int(el("stReplay0").value)>0&&!acctAllowReplay(acctStartChoice,int(el("stReplay0").value),replayAt))return;
   if(acctStartChoice&&int(el("stMedal").value)===null&&!confirm("開始持ちメダルが空欄です。0枚で始めますか？"))return;
   if(acctRefreshStartDay())return;
   e.classList.add("hide");S.settings.lend=lend;
@@ -3258,12 +3264,12 @@ el("stStart").addEventListener("click",()=>{
     shop:el("stShop").value.trim()||null,dai:el("stDai").value.trim()||null,
     startNote:noteParts.join("　"),expected:int(el("stExp").value),totalStart:int(el("stTotal").value),totalEnd:null,
     rare,zenchou:zen0,hit:null,mode:"normal",parallel:{},stage:null,revive:0,melonLeft:null,melonApprox:false,rewardHint:null,modeHint:null,ticket:false,judgeWins:0,returnHit:null,pendingReward:null,melonPhase:"normal",modeEra:0,modeHints:[],tags:{},follow:[],events:[],_steps:[],
-    money:{cash:[],deposits:[],spends:[],stockStart:int(el("stStock").value),replays:(int(el("stReplay0").value)>0?[{at:acctStartChoice?replayAt:nowISO(),amount:int(el("stReplay0").value),atStart:true}]:[]),startMedal:int(el("stMedal").value)||0,startReplay:0,credit:null,endMedal:null,endReplay:0},
+    money:{cash:[],deposits:[],spends:[],stockStart:int(el("stStock").value),replays:[],startMedal:int(el("stMedal").value)||0,startReplay:0,credit:null,endMedal:null,endReplay:0},
     endAt:null,endNote:""};
   if(hasFailMark(S.cur))S.cur.nextMark=null;
   if(d.edCards)S.cur.edRuns=[];
   if(acctStartChoice){Object.assign(S.cur,{storeId:acctStartChoice.storeId,condId:acctStartChoice.condId,cond:JSON.parse(JSON.stringify(acctStartChoice.cond)),lend:acctStartChoice.cond.lend,shop:acctStartChoice.shop});delete S.cur.money.stockStart}
-  ["stMachine","stRealG","stLcdG","stMedal","stReplay0","stStock","stNote","stExp","stTotal","stDai"].forEach(i=>el(i).value="");
+  ["stMachine","stRealG","stLcdG","stMedal","stStock","stNote","stExp","stTotal","stDai"].forEach(i=>el(i).value="");
   if(S.cur&&S.cur.shop){S.settings.lastShop=S.cur.shop}
   save();showMain();
 });
