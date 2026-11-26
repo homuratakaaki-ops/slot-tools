@@ -18,6 +18,9 @@
 | `kanokari-def-v21.js` | 彼女、お借りします の機種定義 v0.21。**定義の正本** |
 | `rec-kanokari-engine-v01.md` | tools/rec-kanokari の器（エンジン）の拡張仕様 v0.1 |
 | `rec-ledger-spec-v01.md` | tools/rec 簡易収支帳 第1段の実装仕様（rec91） |
+| `tokyoghoul-rec-skeleton-v03.md` | tools/rec 東京喰種専用記録（MACHINES.tokyoghoul）の骨格書 v0.3（夢爽裁可 11/26） |
+| `tokyoghoul-rec-spec-v01.md` | tools/rec 東京喰種専用記録の仕様書 v0.1。**東京喰種記録の正本** |
+| `tokyoghoul-rec-instructions-v01.md` | tools/rec 東京喰種 第1弾の実装指示書（テスト版 tg-test.html の公開まで） |
 
 ## 注記
 
