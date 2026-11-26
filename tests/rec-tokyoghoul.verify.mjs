@@ -92,6 +92,17 @@ async function main(){
   async function quit(){await click('#bUtil');await button('やめる（終了して記録する）');await input('#shBody input',0);await button('終了する')}
   let edSession;
   try{
+    await test('rare-counter-hint-tokyoghoul-hidden',async()=>{
+      await start();await grid('レア役');
+      assert.equal(await ev('return document.querySelector("#sheet").classList.contains("open")'),true);
+      assert.equal(await ev('return document.querySelector("#shBody").textContent.includes("上のカウンターの数字を直接タップしても直せます。")'),false);
+    });
+    await test('rare-counter-hint-karakuri2-visible',async()=>{
+      await seed(page);await button('からくりサーカス2','#scSetup');await click('#stStart');
+      assert.equal((await state()).machineId,'karakuri2');await grid('レア役');
+      assert.equal(await ev('return document.querySelector("#sheet").classList.contains("open")'),true);
+      assert.equal(await ev('const hint=document.querySelector("#shBody > .hint");return hint?.textContent==="上のカウンターの数字を直接タップしても直せます。"&&hint.getClientRects().length>0&&getComputedStyle(hint).visibility==="visible"'),true);
+    });
     await test('v04-grid-rares-add',async()=>{
       await start();
       assert.deepEqual(await ev('return [...document.querySelectorAll("#gridRows button")].map(b=>b.childNodes[0].textContent)'),['レア役','スイカ加算','当選','示唆','前兆','メモ']);
