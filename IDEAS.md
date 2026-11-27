@@ -489,6 +489,7 @@ RB中のキャラ紹介が全15パターン判明し、エンディング中の�
 - [x] tools/rec 東京喰種専用記録（MACHINES.tokyoghoul）：第1弾を本番反映（11/26、夢爽決定で即反映）。正本 docs/specs/tokyoghoul-rec-spec-v01.md
 - [x] tools/rec 東京喰種 第2弾：通常時に「レア役」（6つ・色分け）・スイカ加算（10／100／600）・前兆ボタン（前兆ステージは一発終了）を追加、CZスルー+1ボタンを撤去（11/26）。指示書 docs/specs/tokyoghoul-rec-instructions-v04.md
 - [x] tools/rec 共通改修（機種マスター・店舗の利用順・開始時再プレイ欄の廃止・クレジット電卓）：骨格書 v0.3 裁可（11/26）。段1〜段3 本番反映済み。新台は js/machine-master.js の末尾に1行足す。正本 docs/specs/rec-common-skeleton-v03.md
+- [~] tools/rec 貯メダルの表示を店ごとに「払い出せる枚数」に（店舗の条件 cond.stockView・表示だけ切り替え、計算は総数のまま）：main 反映済み（11/27）、push は夢爽の承認待ち。指示書 docs/specs/rec-stock-view-instructions-v01.md
 
 ---
 
