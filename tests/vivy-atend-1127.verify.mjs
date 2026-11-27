@@ -72,12 +72,12 @@ check('本体の差分は指定9行・ヒント・出典コメントのみ',()=>
   assert.equal(source,lines.join('\n'));
   assert.equal(read('vivy-checker.html'),baseline('vivy-checker.html').replace('vivy.js?v=20261102-nana','vivy.js?v=20261128'));
 });
-check('NEWは11/28を先頭に追加・末尾1行だけ削除・8行',()=>{
+check('NEWは11/28のゴジエヴァ2・Vivyの順・末尾2行削除・8行',()=>{
   const before=baseline('index.html'),now=read('index.html');
   const news=s=>s.split('<div class="section-label">NEW</div>')[1].split('</section>')[0].match(/    <p>.*<\/p>\n/g);
   const previous=news(before),current=news(now);
   assert.equal(current.length,8);
-  assert.deepEqual(current,['    <p>11/28｜<a href="vivy-checker.html">Vivy AT終了画面の示唆を追加</a></p>\n',...previous.slice(0,-1)]);
+  assert.deepEqual(current,['    <p>11/28｜<a href="godzieva2-checker.html">ゴジエヴァ2 モスラ初期G数の記録と終了ボイスの示唆を追加</a></p>\n','    <p>11/28｜<a href="vivy-checker.html">Vivy AT終了画面の示唆を追加</a></p>\n',...previous.slice(0,-2)]);
   assert.equal(now,before.replace(previous.join(''),current.join('')));
 });
 check('ガイドは指定2文だけ変更・構成とCSSは不変',()=>{

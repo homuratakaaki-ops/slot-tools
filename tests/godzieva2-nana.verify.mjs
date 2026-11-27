@@ -23,13 +23,13 @@ const END=['shinji','rei','mari','asuka','mothra','xrei','reiBg','godzillaShogok
 // 11/6 追加解析（v04）：EDボイスは原典順の8種（マリ・レイ・加持を追加）。終了画面のボイス endVoice は記録のみでテンプレに出さない。
 const VOICE=['shinji','misato','mari','asuka','rei','kaji','gendo','kaworu'];
 const RATES=[['suika','normal'],['suika','at'],...['after','other'].flatMap(p=>G.map(g=>['kitei',p+g]))];
-const GROUPS=['counts','gRole','bonusRate','suika','kitei','endScreen','edVoice','endVoice'];
+const GROUPS=['counts','gRole','bonusRate','suika','kitei','endScreen','edVoice','endVoice','mothraG'];
 const COUNT=[['first','ボーナス初当り',[234.2,229.0,221.8,207.0,201.5,195.0]],['at','AT',[460.5,446.5,425.5,390.4,374.2,355.5]]];
 const PAY=[97.7,98.9,101.2,105.8,110.6,114.9],CZ=[21.9,23.4,25.0,28.1,29.7,31.3];
 const raw=read('docs/specs/godzieva2-nana-template-v02.txt');
 const roles=['henyaku','zoushoku','bunretsu','boost','kasseika','gesshoku','gRensa','shouri','kakutei'];
 const bonus=[['cbNormal',true],['cbHigh',true],['cbSuper',true],['blueNormal',true],['blueHigh',true],['blueSuper',false],['redNormal',true],['redHigh',true],['redSuper',false],['rainbowNormal',false],['rainbowHigh',false],['rainbowSuper',false]];
-const entries=[...roles.map(k=>['gRole',k,false]),...bonus.map(([k,r])=>['bonusRate',k,r]),...['normal','at'].map(k=>['suika',k,true]),...G.flatMap(g=>['after','other'].map(p=>['kitei',p+g,true])),...END.map(k=>['endScreen',k,false]),...VOICE.map(k=>['edVoice',k,false])];
+const entries=[...roles.map(k=>['gRole',k,false]),...bonus.map(([k,r])=>['bonusRate',k,r]),...['normal','at'].map(k=>['suika',k,true]),...G.flatMap(g=>['after','other'].map(p=>['kitei',p+g,true])),...END.map(k=>['endScreen',k,false]),...['g44','g55','g66'].map(k=>['mothraG',k,false]),...VOICE.map(k=>['edVoice',k,false])];
 // 行ごとに承認差分を適用。実装のTEMPLATEや定義は参照しない。
 let group='';let approved=raw.split('\n').map(line=>{
   if(line.startsWith('🍒🔔'))group='cb';if(line.startsWith('🌈'))group='rainbow';
@@ -42,6 +42,7 @@ let group='';let approved=raw.split('\n').map(line=>{
 // v04 の承認差分（夢爽判断・なな様へ事後報告）：■エンディング中ボイス を8行に。それ以外は原文のまま。
 const ED5='■エンディング中ボイス\nシンジ▶︎ \nアスカ▶︎ \nミサト▶︎ \nゲンドウ▶︎ \nカヲル▶︎',ED8='■エンディング中ボイス\nシンジ▶︎ \nミサト▶︎ \nマリ▶︎ \nアスカ▶︎ \nレイ▶︎ \n加持▶︎ \nゲンドウ▶︎ \nカヲル▶︎';
 if(!approved.endsWith(ED5))throw Error('原文のEDボイス5行が見つからない');approved=approved.slice(0,-ED5.length)+ED8;
+approved=approved.replace('■エンディング中ボイス','■ゴジエヴァアタック モスラ初期G\n44G(4以上)▶︎ 0回\n55G(5以上)▶︎ 0回\n66G(6濃厚)▶︎ 0回\n\n■エンディング中ボイス');
 function expectedBody(S){
   let i=0;return approved.split('\n').map(line=>{
     line=line.replace(/0\/0|0回/g,()=>{const [g,k,r]=entries[i++];return r?`${S[g][k+'W']}/${S[g][k+'D']}`:`${S[g][k]}回`;});
@@ -107,19 +108,20 @@ check('入力順・減算境界・終了画面の割合・EDは件数の内訳�
   const names=[...html.matchAll(/class="ct"><b>(.*?)<\/b>/g)].map(m=>m[1]);assert.deepEqual(names,['通常','高確','超高','通常','高確','通常','高確','通常時','AT中',...['AT後 ','AT後以外 '].flatMap(p=>G.map(g=>p+g+'G'))]);
   S.suika.normalD=2;S.suika.normalW=1;assert.ok(c.pages(ctx(S,-1),()=>'')[0]().includes('data-bump="suika.normalD"'));
   S.endScreen.shinji=3;S.endScreen.rei=1;S.edVoice.misato=1;const shisa=c.pages(ctx(S),()=>'')[1]();assert.ok(shisa.includes('計4回'));assert.ok(shisa.split('エンディング中ボイス')[0].includes('<div class="hint">ボーナス後のAT非当選時と、AT終了時に出ます。ATを獲得したボーナスの後は出ません。</div>'),'終了画面の説明（v04）');assert.equal((html.match(/class="crow cycle-row role-row"/g)||[]).length,2,'補足のある2行だけ role-row（v0.2.1）');assert.ok(shisa.includes('3/4 75%'));// v04：設定○以上・6濃厚の8行だけが強調。EDボイスも件数の内訳の％を出す。
-  assert.deepEqual([...shisa.matchAll(/data-c="([^"]+)" data-hot="true"/g)].map(m=>m[1]),['endScreen.reiBg','endScreen.godzillaShogoki','endScreen.allStars','endScreen.kaworu','edVoice.rei','edVoice.kaji','edVoice.gendo','edVoice.kaworu']);
+  assert.deepEqual([...shisa.matchAll(/data-c="([^"]+)" data-hot="true"/g)].map(m=>m[1]),['endScreen.reiBg','endScreen.godzillaShogoki','endScreen.allStars','endScreen.kaworu','mothraG.g44','mothraG.g55','mothraG.g66','edVoice.rei','edVoice.kaji','edVoice.gendo','edVoice.kaworu']);
   assert.ok(shisa.split('data-c="edVoice.misato"')[1].startsWith(' data-hot="false"><b>ミサト</b><small>偶数設定期待度UP</small><span class="pct">1/1 100%</span>'));
 });
-check('詳細カード既存項目45行（v04、40行超は共通エンジンが省略）・母数0非表示・終了画面割合',()=>{
+check('詳細カード51行（モスラ3行＋見出し・終了ボイス2行を追加）・母数0非表示・終了画面割合',()=>{
   const S=fresh();for(const group of GROUPS)for(const key of Object.keys(S[group]))S[group][key]=1;
   const sections=c.card.detail(ctx(S)).filter(sec=>!['G侵食役','ボーナス当選率'].includes(sec.title)),rows=sections.reduce((sum,sec)=>{const items=sec.items.filter(item=>item&&item.show!==false&&((item.value||0)>0||item.text));return sum+items.length+(items.length>1?1:0);},0);
-  // v04 で終了ボイス（5）・EDボイス3種が増えて45行。40行を超えた分の省略は共通エンジンの既存動作（仕様書 v04）。
-  assert.equal(rows,45);assert.deepEqual(clone(sections.map(s=>s.title)),['カウント系','スイカCZ','規定G','終了画面','終了ボイス','EDボイス']);
+  // v04 の45行にモスラ3行＋見出し、終了ボイス2行を追加。
+  assert.equal(rows,51);assert.deepEqual(clone(sections.map(s=>s.title)),['カウント系','スイカCZ','規定G','終了画面','モスラ初期G','終了ボイス','EDボイス']);
   assert.deepEqual(clone(sections[3].items.map(x=>x.label)),['シンジ(奇数)','レイ(偶数)','マリ(高弱)','アスカ(高強)','モスラ','Xレイ','レイ背景','ゴジラ初号機','全員集合','カヲル']);
   assert.equal(sections[3].percent,true);assert.equal(sections[3].denominator,10);
   // v04：終了ボイス・EDボイスも件数の内訳の％（母数は記録した回数）。
-  assert.equal(sections[4].percent,true);assert.equal(sections[4].denominator,5);assert.equal(sections[5].percent,true);assert.equal(sections[5].denominator,8);
-  assert.deepEqual(clone(sections[5].items.map(x=>x.label)),['シンジ','ミサト','マリ','アスカ','レイ','加持','ゲンドウ','カヲル']);
+  assert.deepEqual(clone(sections[4].items.map(x=>x.label)),['44G(4以上)','55G(5以上)','66G(6濃厚)']);assert.ok(sections[4].items.every(x=>x.hot));
+  assert.equal(sections[5].percent,true);assert.equal(sections[5].denominator,7);assert.equal(sections[6].percent,true);assert.equal(sections[6].denominator,8);
+  assert.deepEqual(clone(sections[6].items.map(x=>x.label)),['シンジ','ミサト','マリ','アスカ','レイ','加持','ゲンドウ','カヲル']);
   for(const sec of c.card.detail(ctx(fresh())).filter(sec=>['スイカCZ','規定G'].includes(sec.title)))assert.ok(sec.items.every(x=>x.show===false));
   S.kitei.after100W=0;assert.equal(c.card.detail(ctx(S)).find(sec=>sec.title==='規定G').items[0].text,'AT後100G 0/1 0%');
   // 詳細カードの率の行（スイカCZ・規定G の14行）は入力画面と同じ ratio() の％付き。分母0は％を付けない（§9-47・ネネ検収 11/1）
@@ -134,7 +136,7 @@ check('詳細カード既存項目45行（v04、40行超は共通エンジンが
 check('HTML・ガイド・LF・後読みなし・構文・公開（index可・checkers.html／sitemap／NEW欄）',()=>{
   assert.equal(c.storageKey,'godzieva2-checker-v1');assert.equal(c.uiV2,true);assert.equal(c.nanaCollab,true);assert.equal(c.pages(ctx(fresh()),()=>'').length,4);
   const html=read('godzieva2-checker.html'),guide=read('godzieva2-guide.html');assert.deepEqual([...html.matchAll(/<button data-p="\d"[^>]*>(.*?)<\/button>/g)].map(m=>m[1]),['入力','示唆','参照','カード']);
-  for(const text of ['grid-template-columns:repeat(4,1fr)','checker-data/godzieva2.js?v=20261106-addl','checker-engine.js?v=20261102-orphan','← 機種選択','使い方','G-QCKV9H0DT1'])assert.ok(html.includes(text),text);
+  for(const text of ['grid-template-columns:repeat(4,1fr)','checker-data/godzieva2.js?v=20261128','checker-engine.js?v=20261102-orphan','← 機種選択','使い方','G-QCKV9H0DT1'])assert.ok(html.includes(text),text);
   assert.ok(!html.includes('checker-bayes.js'));
   // 11/1 公開（ネネ①②③・％再確認合格、360px 夢爽合格）。導線なしの固定を公開状態の検査に置き換えた。
   const list=read('checkers.html').split('<div class="section-label">スマスロ・AT機</div>')[1];

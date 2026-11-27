@@ -23,16 +23,16 @@ for(const id of ['godzieva2','mhsunbreak']){
  const source=read(`checker-data/${id}.js`),base=git('show',`${BASE}:checker-data/${id}.js`),c=load(source,id),b=load(base,id);configs[id]=c;
  check(id+' 本番反映：検収したテスト版と同じ中身・本番キー・HTMLは?vだけ',()=>{
   assert.equal(c.storageKey,id+'-checker-v1');
-  const mothraTest=id==='godzieva2'&&fs.existsSync(path.join(root,'godzieva2-test-checker.html'))&&read('godzieva2-test-checker.html').includes('checker-data/godzieva2-test.js?v=20261127-test');
-  for(const f of [`checker-data/${id}-test.js`,`${id}-test-checker.html`].filter(()=>!mothraTest))assert.ok(!fs.existsSync(path.join(root,f)),f);
+  for(const f of [`checker-data/${id}-test.js`,`${id}-test-checker.html`])assert.ok(!fs.existsSync(path.join(root,f)),f);
   // 本番JS＝検収したテスト版から、設定名・保存キー（サンブレイクは ID も）・画像の保存名を本番に戻しただけ。
   const tested=git('show',`${BASE}:checker-data/${id}-test.js`).replace(`window.CheckerConfigs["${id}-test"]={`,`window.CheckerConfigs.${id}={`).replace(`${id}-checker-v1-test`,`${id}-checker-v1`).replace('const ID="mhsunbreak-test";','const ID="mhsunbreak";').replaceAll(`${id}_test_`,`${id}_`);
   // 検収後の差はサンブレイクの1行だけ：幅339px以下のときだけ目安の折り返し禁止を外す（320pxで横にはみ出したため、夢爽承認 11/6）。360px以上の表示は検収どおり。
   const NARROW="      @media (max-width:339px){.bz-row .ct b{white-space:nowrap}.bz-row .ct small{font-size:12px;overflow-wrap:anywhere}.bz-row .ct small span{white-space:normal!important}}\n";
   const released=id==='mhsunbreak'?tested.replace('      .bz-row .pct{min-width:48px;text-align:right}\n','      .bz-row .pct{min-width:48px;text-align:right}\n'+NARROW):tested;
   if(id==='mhsunbreak')assert.notEqual(released,tested);
-  assert.equal(source,released);assert.ok(!/-test\b|_test_/.test(source));
-  assert.equal(read(`${id}-checker.html`),git('show',`${BASE}:${id}-checker.html`).replace(new RegExp('checker-data/'+id+'\\.js\\?v=[^"\\s]+'),`checker-data/${id}.js?v=20261106-addl`));
+  assert.equal(id==='godzieva2'?git('show','c49d590:checker-data/godzieva2.js'):source,released); // 現行の全バイト照合は mothra verify で検収済み版との許可差分を検査。
+  assert.ok(!/-test\b|_test_/.test(source));
+  assert.equal(read(`${id}-checker.html`),git('show',`${BASE}:${id}-checker.html`).replace(new RegExp('checker-data/'+id+'\\.js\\?v=[^"\\s]+'),`checker-data/${id}.js?v=${id==='godzieva2'?'20261128':'20261106-addl'}`));
   for(const [k,v] of Object.entries(b.actions))assert.equal(String(c.actions[k]),String(v),k);
   for(const key of ['share','sourceUrl','uiV2','nanaCollab'])assert.deepEqual(clone(c[key]),clone(b[key]));
  });
@@ -40,7 +40,7 @@ for(const id of ['godzieva2','mhsunbreak']){
   const old=clone(b.defaults);Object.assign(old,clone(unknown));old.games=37;
   for(const g of b.mergeKeys.filter(k=>k!=='bzBase')){for(const k of Object.keys(old[g]))old[g][k]=7;Object.assign(old[g],clone(unknown));}
   const actual=clone(c.normalizeState(clone(old))),expected=clone(b.normalizeState(clone(old)));
-  if(id==='godzieva2'){assert.deepEqual(actual.endVoice,{shinji:0,asuka:0,misato:0,ritsuko:0,mari:0});for(const k of ['mari','rei','kaji']){assert.equal(actual.edVoice[k],0);delete actual.edVoice[k];}delete actual.endVoice;}
+  if(id==='godzieva2'){assert.deepEqual(actual.endVoice,{shinji:0,ritsuko:0,mari:0,asuka:0,rei:0,misato:0,gendo:0});for(const k of ['mari','rei','kaji']){assert.equal(actual.edVoice[k],0);delete actual.edVoice[k];}delete actual.endVoice;assert.deepEqual(actual.mothraG,{g44:0,g55:0,g66:0});delete actual.mothraG;}
   else {assert.deepEqual(actual.kareCut,{entalion:0});delete actual.kareCut;}
   for(const g of b.mergeKeys.filter(k=>k!=='bzBase'))for(const k of Object.keys(b.defaults[g]))assert.deepEqual(actual[g][k],expected[g][k]);
   for(const k of Object.keys(expected).filter(k=>!b.mergeKeys.includes(k)))assert.deepEqual(actual[k],expected[k]);
@@ -58,7 +58,7 @@ for(const id of ['godzieva2','mhsunbreak']){
  check(id+' テンプレ指定箇所のみ・新項目値の位置',()=>{
   const S=clone(c.defaults),old=b.template(context(b,clone(b.defaults))),out=c.template(context(c,S));
   const expected=id==='godzieva2'?old.replace('■エンディング中ボイス\nシンジ▶︎ 0回\nアスカ▶︎ 0回\nミサト▶︎ 0回\nゲンドウ▶︎ 0回\nカヲル▶︎ 0回','■エンディング中ボイス\nシンジ▶︎ 0回\nミサト▶︎ 0回\nマリ▶︎ 0回\nアスカ▶︎ 0回\nレイ▶︎ 0回\n加持▶︎ 0回\nゲンドウ▶︎ 0回\nカヲル▶︎ 0回'):old.replace('6確　　▶︎ 0回\n\n■エンディング','6確　　▶︎ 0回\n\n■狩れカットイン\nｴﾝﾀﾗｲｵﾝ▶︎ 0回\n\n■エンディング');
-  assert.equal(out,expected);
+  assert.equal(out,id==='godzieva2'?expected.replace('■エンディング中ボイス','■ゴジエヴァアタック モスラ初期G\n44G(4以上)▶︎ 0回\n55G(5以上)▶︎ 0回\n66G(6濃厚)▶︎ 0回\n\n■エンディング中ボイス'):expected);
   for(const [group,key,label] of id==='godzieva2'?[['edVoice','mari','マリ'],['edVoice','rei','レイ'],['edVoice','kaji','加持']]:[['kareCut','entalion','ｴﾝﾀﾗｲｵﾝ']]){
    const T=clone(S);T[group][key]=1;assert.equal(c.template(context(c,T)),out.replace(label+'▶︎ 0回',label+'▶︎ 1回'));
   }
