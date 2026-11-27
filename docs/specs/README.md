@@ -23,6 +23,9 @@
 | `tokyoghoul-rec-instructions-v01.md` | tools/rec 東京喰種 第1弾の実装指示書（テスト版 tg-test.html の公開まで） |
 | `tokyoghoul-rec-instructions-v04.md` | tools/rec 東京喰種 第2弾の実装指示書 v0.4（レア役・スイカ加算・前兆ボタン、本番即反映） |
 | `tokyoghoul-rec-instructions-v05.md` | tools/rec 東京喰種 第3弾の実装指示書 v0.5（通常時の並びを汎用と同じ位置関係に・CZ失敗後のG数初期値を0／0に、本番即反映） |
+| `tokyoghoul-nisshi-stats-skeleton-v02.md` | 東京喰種 第1号 rec 登録側＋稼働日誌の自動集計の骨格書 v0.2（夢爽裁可 11/28） |
+| `tokyoghoul-stats-1-spec-v01.md` | 東京喰種 第1号 段1（rec 登録側：前回CZの契機・G数、CZ当選の規定G数、通常時に戻ったG数、着席項目の後修正、構造化書き出し）の仕様書 v0.1 |
+| `tokyoghoul-stats-1-instructions-v01.md` | 東京喰種 第1号 段1の実装指示書 v0.1（featureブランチの push まで） |
 | `rec-common-skeleton-v03.md` | tools/rec 共通改修（機種マスター・店舗の利用順・開始時再プレイ欄の廃止・クレジット電卓）の骨格書 v0.3（夢爽裁可 11/26） |
 | `rec-common-1-spec-v01.md` | tools/rec 共通改修 段1の仕様書 v0.1（開始画面の再プレイ欄の廃止・店舗を最近使った順に並べる） |
 | `rec-common-1-instructions-v01.md` | tools/rec 共通改修 段1の実装指示書 v0.1（テスト版 common-test.html の公開まで） |
