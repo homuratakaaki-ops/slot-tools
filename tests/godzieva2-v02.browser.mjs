@@ -102,7 +102,7 @@ try{
   for(const group of previous.mergeKeys){for(const key of Object.keys(old[group]))old[group][key]=7;old[group].future={keep:9};}
   old=JSON.parse(JSON.stringify(previous.normalizeState(old)));await seed(old);
   // v04（11/6）：EDボイスのマリ・レイ・加持と終了画面のボイスは新規なので0で足される。既存の値はそのまま。
-  const unchanged=async()=>{const current=await state();for(const k of Object.keys(old))assert.deepEqual(current[k],k==='edVoice'?{...old[k],mari:0,rei:0,kaji:0}:old[k],k);assert.deepEqual(current.endVoice,{shinji:0,asuka:0,misato:0,ritsuko:0,mari:0});};
+  const unchanged=async()=>{const current=await state();for(const k of Object.keys(old))assert.deepEqual(current[k],k==='edVoice'?{...old[k],mari:0,rei:0,kaji:0}:old[k],k);assert.deepEqual(current.endVoice,{shinji:0,ritsuko:0,mari:0,asuka:0,rei:0,misato:0,gendo:0});assert.deepEqual(current.mothraG,{g44:0,g55:0,g66:0});};
   for(const key of ['first','at'])assert.equal(await run(`return d.querySelector('[data-c="counts.${key}"] .num').textContent;`),'7');
   await tab(1);
   for(const group of ['endScreen','edVoice'])for(const key of Object.keys(previous.defaults[group]))assert.equal(await run(`return d.querySelector('[data-c="${group}.${key}"] .num').textContent;`),'7');

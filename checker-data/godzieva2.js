@@ -39,8 +39,9 @@
     ['rei','レイ','設定2以上濃厚',2],['kaji','加持','設定4以上濃厚',4],
     ['gendo','ゲンドウ','設定5以上濃厚',5],['kaworu','カヲル','設定6濃厚',6]
   ];
-  const END_VOICE=[['shinji','シンジ'],['asuka','アスカ'],['misato','ミサト'],['ritsuko','リツコ'],['mari','マリ']];
-  const CERT=[...END_SCREEN.filter(c=>c[4]>0).map(c=>['endScreen',c[0],'終了'+c[1],c[4]]),...ED_VOICE.filter(c=>c[3]>0).map(c=>['edVoice',c[0],'ED'+c[1],c[3]])];
+  const END_VOICE=[['shinji','シンジ','デフォルト'],['ritsuko','リツコ','次回ゴジラボーナス期待度約50%'],['mari','マリ','ボーナス間天井250G以内の期待度約66%'],['asuka','アスカ','ボーナス間天井850G否定＋400G以内の期待度約50%'],['rei','レイ','AT間天井750G以内濃厚'],['misato','ミサト','次回ゴジラボーナス濃厚'],['gendo','ゲンドウ','AT間天井250G以内濃厚']];
+  const MOTHRA_G=[['g44','44G','設定4以上濃厚','44G(4以上)',4],['g55','55G','設定5以上濃厚','55G(5以上)',5],['g66','66G','設定6濃厚','66G(6濃厚)',6]];
+  const CERT=[...END_SCREEN.filter(c=>c[4]>0).map(c=>['endScreen',c[0],'終了'+c[1],c[4]]),...ED_VOICE.filter(c=>c[3]>0).map(c=>['edVoice',c[0],'ED'+c[1],c[3]]),...MOTHRA_G.map(c=>['mothraG',c[0],'モスラ'+c[1],c[4]])];
   function allStrong(S){return CERT.map(([group,key,label,rank])=>({label,rank,value:n(S[group],key)}));}
   function strongCount(S){return allStrong(S).reduce((sum,c)=>sum+c.value,0);}
   function bestStrong(S){
@@ -60,15 +61,15 @@
   const BONUS_RATES=BONUS_ROWS.filter(c=>c[2]);
   const G_ROLE_HINT='G侵食役の成立後、5G以内に小役が成立すると変異が発生します。発生した変異の回数を数えます。設定差は公表されていないため記録のみです。';
   const BONUS_HINT='グループの役が成立したとき、ボーナスに当選したら当選、しなかったらハズレを押します。当選率が100%の欄は、回数だけを数えます。設定差は公表されていないため記録のみです。';
-  const MERGE_KEYS=['counts','gRole','bonusRate','suika','kitei','endScreen','edVoice','endVoice'];
+  const MERGE_KEYS=['counts','gRole','bonusRate','suika','kitei','endScreen','edVoice','endVoice','mothraG'];
   const zeroCounts=rows=>Object.fromEntries(rows.map(c=>[c[0],0]));
   const zeroRates=rows=>Object.fromEntries(rows.flatMap(c=>[[c[0]+'D',0],[c[0]+'W',0]]));
   const SUIKA_HINT='表はスイカ成立時の当選率です。小役変異の緑アイコンからの当選が表に含まれるかは出典に書かれていません。\nAT中：設定別の数値は出典で確認できていないため、記録のみです。';
   const END_HINT='ボーナス後のAT非当選時と、AT終了時に出ます。ATを獲得したボーナスの後は出ません。';
   const KITEI_HINT='その規定ゲーム数に到達したとき、当選したら当選、しなかったらハズレを押します。設定差は公表されていないため記録のみです。';
   // v02正本から承認済み3か所だけを機械置換。空白も保持。
-  const TEMPLATE="ゴジエヴァ2\n\n\n■G侵食役\n小役変異▶︎  0回　増殖変異▶︎ 0回\n画面分裂▶︎  0回　ブースト▶︎ 0回\n活性化　▶︎  0回　月蝕変異▶︎ 0回\nＧ連鎖　▶︎  0回　\n勝利変異▶︎  0回　確定変異▶︎ 0回\n\n■ボーナス当選率\n\n🍒🔔 弱ﾁｪ/ﾍﾞﾙ3連\n通常▶︎ 0/0     | 高確▶︎ 0/0     | 超高▶︎ 0/0\n\n🟦 強ﾚｱ/ﾍﾞﾙ4/弱ﾚｱ2/強弱ﾚｱ2連\n通常▶︎ 0/0     | 高確▶︎ 0/0     | 超高▶︎ 0回\n\n🟥 弱ﾚｱの後強ﾚｱ\n通常▶︎ 0/0     | 高確▶︎ 0/0     | 超高▶︎ 0回\n\n🌈 ﾘｰﾁ目/ﾍﾞﾙ5/弱3~/強2~\n通常▶︎ 0回     | 高確▶︎ 0回     | 超高▶︎ 0回\n\n■スイカからのCZ\n通常 ▶︎ 0/0\nAT中▶︎ 0/0\n\n■規定ゲーム数\nAT後⤵︎             AT後以外⤵︎\n100g▶︎ 0/0   ・100g▶︎ 0/0\n250g▶︎ 0/0   ・250g▶︎ 0/0\n400g▶︎ 0/0   ・400g▶︎0/0\n550g▶︎ 0/0   ・550g▶︎ 0/0\n700g▶︎ 0/0   ・700g▶︎ 0/0\n850g▶︎ 0/0   ・850g▶︎ 0/0\n\n■ボーナス・AT終了画面\nシンジ(奇数)▶︎ \nレイ(偶数)    ▶︎ \nマリ(弱)        ▶︎ \nアスカ(強)    ▶︎ \nモスラ　　　▶︎ \nXレイ　　　▶︎ \nレイ背景       ▶︎ \nｺﾞｼﾞﾗ初号機 ▶︎ \n全員集合       ▶︎ \nカヲル          ▶︎ \n\n■エンディング中ボイス\nシンジ▶︎ \nミサト▶︎ \nマリ▶︎ \nアスカ▶︎ \nレイ▶︎ \n加持▶︎ \nゲンドウ▶︎ \nカヲル▶︎";
-  const DEF={schemaVersion:1,gRole:zeroCounts(G_ROLE),bonusRate:{...zeroRates(BONUS_RATES),...zeroCounts(BONUS_ROWS.filter(c=>!c[2]))},gameLog:[],games:0,counts:zeroCounts(COUNTS),suika:zeroRates(SUIKA),kitei:zeroRates(KITEI),endScreen:zeroCounts(END_SCREEN),edVoice:zeroCounts(ED_VOICE),endVoice:zeroCounts(END_VOICE),img:null,iconChoice:null};
+  const TEMPLATE="ゴジエヴァ2\n\n\n■G侵食役\n小役変異▶︎  0回　増殖変異▶︎ 0回\n画面分裂▶︎  0回　ブースト▶︎ 0回\n活性化　▶︎  0回　月蝕変異▶︎ 0回\nＧ連鎖　▶︎  0回　\n勝利変異▶︎  0回　確定変異▶︎ 0回\n\n■ボーナス当選率\n\n🍒🔔 弱ﾁｪ/ﾍﾞﾙ3連\n通常▶︎ 0/0     | 高確▶︎ 0/0     | 超高▶︎ 0/0\n\n🟦 強ﾚｱ/ﾍﾞﾙ4/弱ﾚｱ2/強弱ﾚｱ2連\n通常▶︎ 0/0     | 高確▶︎ 0/0     | 超高▶︎ 0回\n\n🟥 弱ﾚｱの後強ﾚｱ\n通常▶︎ 0/0     | 高確▶︎ 0/0     | 超高▶︎ 0回\n\n🌈 ﾘｰﾁ目/ﾍﾞﾙ5/弱3~/強2~\n通常▶︎ 0回     | 高確▶︎ 0回     | 超高▶︎ 0回\n\n■スイカからのCZ\n通常 ▶︎ 0/0\nAT中▶︎ 0/0\n\n■規定ゲーム数\nAT後⤵︎             AT後以外⤵︎\n100g▶︎ 0/0   ・100g▶︎ 0/0\n250g▶︎ 0/0   ・250g▶︎ 0/0\n400g▶︎ 0/0   ・400g▶︎0/0\n550g▶︎ 0/0   ・550g▶︎ 0/0\n700g▶︎ 0/0   ・700g▶︎ 0/0\n850g▶︎ 0/0   ・850g▶︎ 0/0\n\n■ボーナス・AT終了画面\nシンジ(奇数)▶︎ \nレイ(偶数)    ▶︎ \nマリ(弱)        ▶︎ \nアスカ(強)    ▶︎ \nモスラ　　　▶︎ \nXレイ　　　▶︎ \nレイ背景       ▶︎ \nｺﾞｼﾞﾗ初号機 ▶︎ \n全員集合       ▶︎ \nカヲル          ▶︎ \n\n■ゴジエヴァアタック モスラ初期G\n44G(4以上)▶︎ 0回\n55G(5以上)▶︎ 0回\n66G(6濃厚)▶︎ 0回\n\n■エンディング中ボイス\nシンジ▶︎ \nミサト▶︎ \nマリ▶︎ \nアスカ▶︎ \nレイ▶︎ \n加持▶︎ \nゲンドウ▶︎ \nカヲル▶︎";
+  const DEF={schemaVersion:1,gRole:zeroCounts(G_ROLE),bonusRate:{...zeroRates(BONUS_RATES),...zeroCounts(BONUS_ROWS.filter(c=>!c[2]))},gameLog:[],games:0,counts:zeroCounts(COUNTS),suika:zeroRates(SUIKA),kitei:zeroRates(KITEI),endScreen:zeroCounts(END_SCREEN),edVoice:zeroCounts(ED_VOICE),endVoice:zeroCounts(END_VOICE),mothraG:zeroCounts(MOTHRA_G),img:null,iconChoice:null};
   function n(obj,key){return Number((obj||{})[key])||0;}
   // 分母＝当選ごとのG数の合計（§9-105）。今まわしている未当選区間は含めない。
   function gameLog(S){return Array.isArray(S.gameLog)?S.gameLog:[];}
@@ -123,7 +124,8 @@
   function pageSuggest(ctx){
     const S=ctx.S,total=endTotal(S),voices=voiceTotal(S,'edVoice',ED_VOICE),endVoices=voiceTotal(S,'endVoice',END_VOICE);
     return pageStyle()+`<section class="sec"><div class="sec-h">ボーナス・AT終了画面<span class="sub">計${total}回</span></div><div class="cgrid">${END_SCREEN.map(c=>ctx.crow('endScreen.'+c[0],c[1],c[2],c[4]>0,v=>ctx.pct(v,total))).join('')}</div><div class="hint">${END_HINT}</div></section>
-    <section class="sec"><div class="sec-h">終了画面のボイス<span class="sub">計${endVoices}回</span></div><div class="cgrid">${END_VOICE.map(c=>ctx.crow('endVoice.'+c[0],c[1],'示唆内容は調査中',false,v=>ctx.pct(v,endVoices))).join('')}</div><div class="hint">ボーナス・AT終了画面でPUSHボタンを押すと発生します。<details class="hint-fold"><summary>説明を見る</summary><div class="hint-body">示唆内容は調査中です。出現率も公表されていないため、記録のみです。</div></details></div></section>
+    <section class="sec"><div class="sec-h">ゴジエヴァアタック モスラの初期G数<span class="sub">終了画面のモスラとは別</span></div><div class="cgrid">${MOTHRA_G.map(c=>ctx.crow('mothraG.'+c[0],c[1],c[2],true)).join('')}</div><div class="hint">ゴジエヴァアタックでモスラが選ばれたとき、初期G数が44G・55G・66Gなら押します。終了画面のモスラとは別の項目です。</div></section>
+    <section class="sec"><div class="sec-h">終了画面のボイス<span class="sub">計${endVoices}回</span></div><div class="cgrid">${END_VOICE.map(c=>ctx.crow('endVoice.'+c[0],c[1],c[2],false,v=>ctx.pct(v,endVoices))).join('')}</div><div class="hint">ボーナス・AT終了画面でPUSHボタンを押すと発生します。<details class="hint-fold"><summary>説明を見る</summary><div class="hint-body">示唆内容は各行に表示しています。天井や次回ボーナスについての示唆で、設定の示唆ではありません。</div></details></div></section>
     <section class="sec"><div class="sec-h">エンディング中ボイス<span class="sub">計${voices}回</span></div><div class="cgrid">${ED_VOICE.map(c=>ctx.crow('edVoice.'+c[0],c[1],c[2],c[3]>0,v=>ctx.pct(v,voices))).join('')}</div><div class="hint">エンディング中にレア役が成立したときPUSHボタンを押すと発生します。<details class="hint-fold"><summary>説明を見る</summary><div class="hint-body">出現率は公表されていません。％は記録した回数の内訳です。</div></details></div></section>`;
   }
   const REF_SECTIONS=[
@@ -140,7 +142,7 @@
       ...BONUS_ROWS.map(c=>c[2]?n(S.bonusRate,c[0]+'W')+'/'+n(S.bonusRate,c[0]+'D'):n(S.bonusRate,c[0])+'回'),
       ...SUIKA.map(c=>n(S.suika,c[0]+'W')+'/'+n(S.suika,c[0]+'D')),
       ...G_VALUES.flatMap(g=>['after','other'].map(p=>n(S.kitei,p+g+'W')+'/'+n(S.kitei,p+g+'D'))),
-      ...END_SCREEN.map(c=>n(S.endScreen,c[0])+'回'),...ED_VOICE.map(c=>n(S.edVoice,c[0])+'回')
+      ...END_SCREEN.map(c=>n(S.endScreen,c[0])+'回'),...MOTHRA_G.map(c=>n(S.mothraG,c[0])+'回'),...ED_VOICE.map(c=>n(S.edVoice,c[0])+'回')
     ];
     let i=0;
     const first=n(S.counts,'first'),at=n(S.counts,'at');
@@ -157,6 +159,7 @@
       // 率の行は入力画面と同じ ratio() で「n/d xx%」（§9-47・ネネ検収 11/1）。分母0の行は％を省く（show:false で出さない）。
       ...[['スイカCZ','suika',SUIKA],['規定G','kitei',KITEI]].map(([title,group,rows])=>({title,items:rows.map(c=>({label:c[1].replace(' ',''),value:n(S[group],c[0]+'W'),hot:false,text:c[1].replace(' ','')+' '+(n(S[group],c[0]+'D')>0?ratio(n(S[group],c[0]+'W'),n(S[group],c[0]+'D')):n(S[group],c[0]+'W')+'/0'),show:n(S[group],c[0]+'D')>0}))})),
       {title:'終了画面',items:END_SCREEN.map(c=>({label:c[3],value:n(S.endScreen,c[0]),hot:c[4]>0})),percent:true,denominator:endTotal(S)},
+      {title:'モスラ初期G',items:MOTHRA_G.map(c=>({label:c[3],value:n(S.mothraG,c[0]),hot:true}))},
       {title:'終了ボイス',items:END_VOICE.map(c=>({label:c[1],value:n(S.endVoice,c[0]),hot:false})),percent:true,denominator:voiceTotal(S,'endVoice',END_VOICE)},
       {title:'EDボイス',items:ED_VOICE.map(c=>({label:c[1],value:n(S.edVoice,c[0]),hot:c[3]>0})),percent:true,denominator:voiceTotal(S,'edVoice',ED_VOICE)}
     ];

@@ -134,17 +134,17 @@ try{
     }
     const rateSaved=await state();await load();assert.deepEqual(await state(),rateSaved);
     pass('21 rate rows: both buttons / visible / undo / subtract boundaries / no row tap / save / reload');
-    await tab(1);const suggestionKeys=await run('return [...d.querySelectorAll("[data-c]")].map(e=>e.dataset.c);');assert.equal(suggestionKeys.length,23); // 11/6（v04）：終了画面10・終了画面のボイス5・EDボイス8
+    await tab(1);const suggestionKeys=await run('return [...d.querySelectorAll("[data-c]")].map(e=>e.dataset.c);');assert.equal(suggestionKeys.length,28); // 11/28：終了画面10・モスラ初期G3・終了画面のボイス7・EDボイス8
     for(const key of suggestionKeys){await plus(key);const [group,k]=key.split('.');assert.equal((await state())[group][k],1);await plus(key);await click('#undoBtn');assert.equal((await state())[group][k],1);}
     const allSaved=await state();await load();assert.deepEqual(await state(),allSaved);await tab(1);
     assert.equal(await run(`return d.querySelector('[data-c="endScreen.shinji"] .pct').textContent;`),'1/10 10%');
     // v04：EDボイス・終了画面のボイスも件数の内訳の％を出す。
     assert.equal(await run(`return d.querySelector('[data-c="edVoice.shinji"] .pct')?.textContent||'';`),'1/8 13%');
-    assert.equal(await run(`return d.querySelector('[data-c="endVoice.shinji"] .pct')?.textContent||'';`),'1/5 20%');
+    assert.equal(await run(`return d.querySelector('[data-c="endVoice.shinji"] .pct')?.textContent||'';`),'1/7 14%');
     await click('#modeBtn');for(const key of suggestionKeys)await plus(key);
     for(const key of suggestionKeys){const [group,k]=key.split('.');assert.equal((await state())[group][k],0);}
     await click('#modeBtn');await plus('edVoice.shinji');await plus('endScreen.rei');await click('#undoBtn');assert.equal((await state()).edVoice.shinji,1);assert.equal((await state()).endScreen.rei,0);
-    pass('23 suggestion buttons / percentages / subtract / undo isolation / save / reload');
+    pass('28 suggestion buttons / percentages / subtract / undo isolation / save / reload');
     const full=await run('return structuredClone(CheckerConfigs.'+id+'.defaults);');
     for(const group of ['suika','kitei','endScreen','edVoice'])for(const key of Object.keys(full[group]))full[group][key]=1;
     full.gameLog=[1500,2500];keys.forEach((k,i)=>{full.counts[k.split('.')[1]]=[21,11][i];});
