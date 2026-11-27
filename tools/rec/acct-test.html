@@ -991,6 +991,7 @@ function fixStores(){
       o.label=typeof c.label==="string"&&c.label?c.label:condLabel(o.kind,o.lend);
       o.replayUnit=validReplayUnit(c.replayUnit)?c.replayUnit:null;
       o.replayLimit=validReplayLimit(c.replayLimit)?{...c.replayLimit}:{mode:"unset",value:null};
+      if(o.stockView!=="payable")delete o.stockView;
       return o;
     });
   });
@@ -1047,7 +1048,10 @@ function acctHandH(a,day=jstDay()){
   return last.money.endMedal??null;
 }
 function acctRemaining(a){const lim=a.cond?.replayLimit;return lim?.mode==="fixed"?yen(Math.max(0,lim.value-acctReplaysU(a)))+"枚":lim?.mode==="none"?"上限なし":"—（上限未登録）"}
-function acctSummary(a){const bal=acctBalanceA(a);return "貯メダル残 "+(bal===null?"未登録":yen(bal)+"枚")+"／本日 "+yen(acctReplaysU(a))+"枚／残り "+acctRemaining(a)}
+function stockViewOf(a){const c=S.stores.find(s=>s.id===a.storeId)?.conds.find(c=>c.id===(a.condId??a.cond?.id));return (c?c.stockView:a.cond?.stockView)==="payable"?"payable":"total"}
+function payableOf(a,bal){if(bal===null||bal<0)return bal;const unit=replayUnitOf(a);return Math.floor(bal/unit)*unit}
+function acctStockText(a,bal){return stockViewOf(a)==="payable"?payableOf(a,bal):bal}
+function acctSummary(a){const bal=acctBalanceA(a);return "貯メダル残 "+(bal===null?"未登録":yen(acctStockText(a,bal))+"枚"+(bal>=0&&stockViewOf(a)==="payable"?"（総数 "+yen(bal)+"）":""))+"／本日 "+yen(acctReplaysU(a))+"枚／残り "+acctRemaining(a)}
 function acctUsed(storeId,condId){return [...S.sessions,...(S.cur?[S.cur]:[]),...(S.ledger?.events||[])].some(x=>x.storeId===storeId&&(condId===undefined||x.condId===condId))}
 function acctAccounts(){return S.stores.flatMap(st=>st.conds.filter(c=>c.kind==="slot").map(c=>({storeId:st.id,condId:c.id,shop:st.name,cond:c})))}
 function acctPendingDays(a){
@@ -1130,7 +1134,12 @@ function acctConditionFields(b,c){
   const lim=acctNum(b,"上限の枚数",c?.replayLimit?.value??0);
   function refresh(){row.querySelectorAll("button").forEach(x=>{x.classList.toggle("on",x.dataset.mode===mode);x.setAttribute("aria-pressed",String(x.dataset.mode===mode))});lim.classList.toggle("hide",mode!=="fixed");lim.previousElementSibling.classList.toggle("hide",mode!=="fixed")}
   [["未登録","unset"],["上限なし","none"],["枚数","fixed"]].forEach(([label,v])=>{const x=acctButton(row,label,()=>{mode=v;refresh()});x.dataset.mode=v});refresh();
-  return ()=>{const replayUnit=int(unit.value),replayLimit={mode,value:mode==="fixed"?int(lim.value):null};if(!validReplayUnit(replayUnit)||!validReplayLimit(replayLimit)){toast("再プレイ枚数は正の整数、上限は0以上の整数で入れてください");return null}return {replayUnit,replayLimit}};
+  b.append(mk("div","lbl","貯メダルの表示"));let stockView=c?.stockView==="payable"?"payable":"total";
+  const stockRow=mk("div","opts");b.append(stockRow);
+  function refreshStock(){stockRow.querySelectorAll("button").forEach(x=>{const on=x.dataset.view===stockView;x.classList.toggle("on",on);x.setAttribute("aria-pressed",String(on))})}
+  [["総数","total"],["払い出せる枚数","payable"]].forEach(([label,v])=>{const x=acctButton(stockRow,label,()=>{stockView=v;refreshStock()});x.dataset.view=v});refreshStock();
+  b.append(mk("div","hint","払い出せる枚数＝総数を再プレイ1回の枚数で切り捨てた枚数（店の表示機の『払出可能貯メダル』に合わせるとき）"));
+  return ()=>{const replayUnit=int(unit.value),replayLimit={mode,value:mode==="fixed"?int(lim.value):null};if(!validReplayUnit(replayUnit)||!validReplayLimit(replayLimit)){toast("再プレイ枚数は正の整数、上限は0以上の整数で入れてください");return null}return {replayUnit,replayLimit,stockView}};
 }
 function acctReplaySheet(){sheet("再プレイ（貯メダルから入れる）",b=>{
   const a=S.cur,summary=mk("div","hint",acctSummary(a));b.append(summary);
@@ -1139,7 +1148,7 @@ function acctReplaySheet(){sheet("再プレイ（貯メダルから入れる）"
   acctButton(b,"再プレイ −"+yen(replayUnitOf(a))+"枚",()=>{recordReplay(replayUnitOf(a));refresh()});
   acctButton(b,"枚数を入れる",()=>askNum("再プレイ枚数",0,v=>{recordReplay(v);refresh()}));
   b.append(mk("div","lbl","店の残高と照合"));
-  const n=acctNum(b,"店の残高（機械・レシートの数字）",null,refresh);
+  const n=acctNum(b,"貯メダル残高（総数）",null,refresh);
   const result=mk("div","hint"),actions=mk("div","hide");
   function compare(){
     const v=int(n.value);if(v===null){toast("店の残高を入れてください");return}
@@ -1186,7 +1195,7 @@ function acctListSheet(settle=false){sheet(settle?"今日の稼働を終える":
 })}
 function acctSheet(a){sheet("口座",b=>{
   b.append(mk("div","lbl",a.shop+"／"+a.cond.label));b.append(mk("div","hint",acctSummary(a)));
-  acctButton(b,"残高を合わせる",()=>askNum("貯メダル残高",acctBalanceA(a),v=>{if(!Number.isInteger(v)||v<0){toast("0以上の整数で入れてください");return}acctPut("balanceSet",a,jstDay(),v);save();acctSheet(a)}));
+  acctButton(b,"残高を合わせる",()=>askNum("貯メダル残高（総数）",acctBalanceA(a),v=>{if(!Number.isInteger(v)||v<0){toast("0以上の整数で入れてください");return}acctPut("balanceSet",a,jstDay(),v);save();acctSheet(a)}));
   acctPendingDays(a).forEach(day=>acctButton(b,"要確認 "+day,()=>acctSettleSheet(a,day,()=>acctSheet(a))));
   b.append(mk("div","lbl","履歴"));
   const names={balanceSet:"残高を合わせる",finalDeposit:"最終預入",autoDeposit:"自動預入",settleSkip:"預けていない・分からない"};
@@ -1551,7 +1560,7 @@ function renderMoney(){
   stock.classList.toggle("hide",!linked);stock.textContent="";
   if(linked){
     const left=acctBalanceA(c);el("mRepLabel").textContent="再";el("mRep").textContent=yen(replayed(m))+"枚";el("mRep").style.color="";
-    stock.textContent="貯 "+(left===null?"未登録":yen(left)+"枚");stock.style.color=left<0?"var(--hot)":"";
+    stock.textContent="貯 "+(left===null?"未登録":yen(acctStockText(S.cur,left))+"枚");stock.style.color=left<0?"var(--hot)":"";
   }else{
     const left=stockLeft(m);el("mRepLabel").textContent=left==null?"再":"貯";
     el("mRep").textContent=yen(left==null?replayed(m):left)+"枚";el("mRep").style.color=left<0?"var(--hot)":"";
@@ -2929,7 +2938,9 @@ function condEditSheet(store,cond,after){
       if(l==null||!Number.isFinite(l)||l<=0){toast("貸出は0より大きい数で入れてください");return}
       if(p==null||!Number.isFinite(p)||p<=0){toast("交換は0より大きい数で入れてください");return}
       const rv=replay();if(!rv)return;
-      const o=cond||{id:uid()};Object.assign(o,rv);
+      const {stockView,...replayValues}=rv;
+      const o=cond||{id:uid()};Object.assign(o,replayValues);
+      if(stockView==="payable")o.stockView="payable";else delete o.stockView;
       o.kind=kind;o.lend=l;o.exchPer1000=p;o.exch=exchOf(p);o.label=lab.value.trim()||condLabel(kind,l);
       if(isNew){
         store.conds.push(o);
