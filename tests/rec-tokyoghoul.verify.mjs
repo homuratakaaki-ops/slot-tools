@@ -105,16 +105,18 @@ async function main(){
     });
     await test('v04-grid-rares-add',async()=>{
       await start();
-      assert.deepEqual(await ev('return [...document.querySelectorAll("#gridRows button")].map(b=>b.childNodes[0].textContent)'),['レア役','スイカ加算','当選','示唆','前兆','メモ']);
+      assert.deepEqual(await ev('return [...document.querySelectorAll("#gridRows button")].map(b=>b.childNodes[0].textContent)'),['🍉加算','レア役','当選','前兆','示唆','メモ']);
       assert.equal(await ev('return document.querySelectorAll("#gridRows .tone-green").length'),1);
+      assert.equal(await ev('return [...document.querySelectorAll("#gridRows button")].find(b=>b.childNodes[0].textContent==="🍉加算").classList.contains("tone-green")'),true);
       const roles=[['cherryW','弱🍒','red'],['cherryS','強🍒','red'],['melon','🍉','green'],['chance','チャンス目','purple'],['kakugan','赫眼リプ','blue'],['cherryK','確定🍒','red']];
       for(const [key,label] of roles){
         await grid('レア役');await button(label);assert.equal((await state()).rare[key].n,1);assert.equal((await state()).events.at(-1).rareKey,key);
         assert.match(await ev('return document.querySelector("#log").textContent'),new RegExp(label));
         await undo();assert.equal((await state()).rare[key].n,0);
       }
-      await grid('スイカ加算');assert.deepEqual(await ev('return [...document.querySelectorAll("#shBody .opts button")].map(b=>b.textContent)'),['+10','+100','+600（MAX）']);
-      const before=(await state()).lcdG;await button('+600（MAX）');assert.equal((await state()).lcdG,before+600);assert.equal((await state()).events.at(-1).add,600);assert.equal((await state()).events.at(-1).text,'スイカ加算 +600');await undo();assert.equal((await state()).lcdG,before);
+      await grid('🍉加算');assert.deepEqual(await ev('return [...document.querySelectorAll("#shBody .opts button")].map(b=>b.textContent)'),['+10','+100','+600（MAX）']);
+      const before=(await state()).lcdG;await button('+100');assert.equal((await state()).lcdG,before+100);assert.equal((await state()).events.at(-1).text,'🍉加算 +100');assert.match(await ev('return document.querySelector("#log").textContent'),/🍉加算 \+100/);await undo();assert.equal((await state()).lcdG,before);
+      await grid('🍉加算');await button('+600（MAX）');assert.equal((await state()).lcdG,before+600);assert.equal((await state()).events.at(-1).add,600);assert.equal((await state()).events.at(-1).text,'🍉加算 +600');await undo();assert.equal((await state()).lcdG,before);
       for(const mode of ['normal','cz','at']){if(mode==='cz')await hit('レミニセンス');if(mode==='at')await success();assert.equal(await ev('return document.querySelector("#rareCounts").getClientRects().length'),0)}
       for(const w of [390,360]){
         await width(w);await start();const normal=await ev('return {width:innerWidth,scroll:document.documentElement.scrollWidth,buttons:[...document.querySelectorAll("#gridRows button")].map(b=>b.getBoundingClientRect().height)}');assert.equal(normal.width,w);assert.ok(normal.scroll<=w);assert.ok(normal.buttons.every(h=>h>=44));fs.writeFileSync(path.join(h.artifacts,'v04-normal-'+w+'-dimensions.json'),JSON.stringify(normal,null,2));await snapshot('v04-normal-'+w);await grid('レア役');
@@ -127,7 +129,7 @@ async function main(){
       await width(390);
     });
     await test('v04-persistence-and-unrelated-undo',async()=>{
-      await start();await grid('レア役');await button('🍉');await grid('スイカ加算');await button('+100');await grid('前兆');await button('前兆ステージ');
+      await start();await grid('レア役');await button('🍉');await grid('🍉加算');await button('+100');await grid('前兆');await button('前兆ステージ');
       const before=await state();await grid('メモ');await input('#shBody textarea','独立操作');await button('記録する');await undo();
       assert.deepEqual((await state()).rare,before.rare);assert.equal((await state()).lcdG,before.lcdG);assert.equal((await state()).zenchou,1);assert.deepEqual((await state()).events,before.events);
       await h.open('/empty');await h.open(page);assert.deepEqual((await state()).rare,before.rare);assert.equal((await state()).lcdG,before.lcdG);assert.equal((await state()).zenchou,1);assert.deepEqual((await state()).events,before.events);
@@ -210,7 +212,21 @@ async function main(){
       }
     });
     await test('totalG-monotonic',async()=>{await start();await hit();await grid('AT 終了');await field('totalG',199);const before=await state();await button('終了する');assert.deepEqual(await state(),before);await field('totalG',300);await button('終了する');await hit();await grid('AT 終了');await field('totalG',299);const again=await state();await button('終了する');assert.deepEqual(await state(),again)});
-    await test('failure-G',async()=>{await start();await hit('レミニセンス');await grid('レミニセンス 終了');await button('失敗');const values=await ev('return [...document.querySelectorAll("#shBody .setup input")].map(i=>i.value)');assert.deepEqual(values,['6','0']);await input('#shBody .setup input',9);await button('失敗を記録');assert.equal((await state()).realG,9)});
+    await test('failure-G',async()=>{
+      for(const label of ['レミニセンス','大喰いの利世']){
+        await start();await hit(label);const n=(await state()).c3;await grid(label+' 終了');await button('失敗');
+        assert.deepEqual(await ev('return [...document.querySelectorAll("#shBody .setup input")].map(i=>i.value)'),['0','0']);
+        const hint=await ev('return document.querySelector("#shBody .setup + .hint").textContent');
+        assert.equal(hint,'終了後は0から数え直します。すでに回していれば今の数字を入れてください。');assert.doesNotMatch(hint,/CZ後は実6/);
+        await input('#shBody .setup input',9);await button('失敗を記録');assert.equal((await state()).realG,9);assert.equal((await state()).c3,n+1);
+      }
+    });
+    await test('failure-G-arima',async()=>{
+      await start();await hit();await duel('有馬貴将');await end({next:'有馬ジャッジメントへ（有馬勝利）'});
+      await grid('有馬ジャッジメント 終了');await button('失敗');
+      assert.deepEqual(await ev('return [...document.querySelectorAll("#shBody .setup input")].map(i=>i.value)'),['6','0']);
+      assert.match(await ev('return document.querySelector("#shBody .setup + .hint").textContent'),/^ジャッジメント後は実6／液晶0が基本です。/);
+    });
     await test('ticket-match',async()=>{await start();await hit();await duel('鯱');assert.equal((await state()).ticket,false);await duel('有馬貴将');assert.equal((await state()).ticket,true);await grid('AT 終了');assert.match(await ev('return document.querySelector("#shFoot").textContent'),/有馬ジャッジメントへ（有馬勝利）/)});
     await test('ED-counts',async()=>{await start();await hit();await grid('エンディング');await snapshot('ed-390');await cards();await minus('edWhiteW');assert.equal((await state()).edRuns[0].counts.edWhiteW||0,0);for(let i=0;i<3;i++)await plus('edWhiteW');await minus('edWhiteW');await input('#shBody textarea','EDメモ');const n=(await state()).events.length;await close();await cards();assert.equal((await state()).edRuns[0].counts.edWhiteW,2);assert.equal((await state()).events.length,n);await snapshot('ed-cards-390');await close();await end({next:'有馬ジャッジメントへ（エンディング後）'});assert.match((await state()).events.find(e=>e.type==='edSum').text,/計2枚/);await fail();await hit();await grid('エンディング');await cards();assert.equal(await ev('return document.querySelector("[data-count=edWhiteW]").textContent'),'0');assert.equal(await ev('return document.querySelector("[data-total=edWhiteW]").textContent'),'累計 2')});
     await test('ED-scope',async()=>{for(const [opts,want] of [[{},2],[{dai:'124'},0],[{shop:'別店'},0],[{dai:''},0]]){await start({sessions:[edSession],...opts});assert.equal(await ev('return __rec.edTotals(__rec.S.cur).edWhiteW||0'),want)}const other=structuredClone(edSession);other.startAt='2020-01-01T00:00:00Z';await start({sessions:[other]});assert.equal(await ev('return __rec.edTotals(__rec.S.cur).edWhiteW||0'),0)});

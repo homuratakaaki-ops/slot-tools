@@ -557,7 +557,7 @@ const MACHINES={
     {key:"kakugan",label:"赫眼リプ",tone:"blue"},
     {key:"cherryK",label:"確定🍒",tone:"red"}
   ],
-  lcdAdd:{label:"スイカ加算",steps:[10,100,600],stepLabels:{600:"+600（MAX）"},chars:null,tone:"green"},
+  lcdAdd:{label:"🍉加算",steps:[10,100,600],stepLabels:{600:"+600（MAX）"},chars:null,tone:"green"},
   stages:null,
   zenchou:{stages:["前兆","前兆ステージ"],stageIndex:1,outGroups:[],
     buttonLabels:{idle:"前兆",active:["前兆中","前兆ステージ"]},
@@ -565,7 +565,6 @@ const MACHINES={
   hitTriggers:["規定G数","レア役","天井","引き戻し","不明"],
   hits:[
     {label:"レミニセンス",kind:"cz",grid:[["hitEnd","memo"]],
-      fixedEndG:[{real:6,lcd:0}],fixedEndGHint:"CZ後は実6／液晶0が基本です。ずれていれば直してください。",
       czEnd:{groups:[{key:"czCard",label:"CZ終了画面（1枚絵）",options:[
   {k:"kaneki",l:"金木研",h:"デフォルト"},
   {k:"touka",l:"霧嶋董香",h:"モードB以上期待度UP"},{k:"hinami",l:"笛口雛実",h:"モードB以上期待度UP"},
@@ -577,7 +576,6 @@ const MACHINES={
   {k:"suzuya",l:"鈴屋什造",h:"偶数設定濃厚"},{k:"owl",l:"梟",h:"設定4以上濃厚"},{k:"arima",l:"有馬貴将",h:"設定6濃厚"}
 ]}],successToAt:"AT",successSheet:true,successOneOp:true,credit:true}},
     {label:"大喰いの利世",kind:"cz",grid:[["hitEnd","memo"]],
-      fixedEndG:[{real:6,lcd:0}],fixedEndGHint:"CZ後は実6／液晶0が基本です。ずれていれば直してください。",
       czEnd:{groups:[{key:"czCard",label:"CZ終了画面（1枚絵）",options:[
   {k:"kaneki",l:"金木研",h:"デフォルト"},
   {k:"touka",l:"霧嶋董香",h:"モードB以上期待度UP"},{k:"hinami",l:"笛口雛実",h:"モードB以上期待度UP"},
@@ -632,7 +630,7 @@ const MACHINES={
   czEndStd:{groups:[]},
   rareCounts:"never",
   grids:{
-    normal:[["rare","lcdAdd","hit"],["extra:0","zenchou","memo"]],
+    normal:[["lcdAdd","rare","hit"],["zenchou","extra:0","memo"]],
     cz:[["hitEnd","memo"]],
     at:[["hitEnd","memo"]]
   }
