@@ -52,7 +52,7 @@ async function load(width=360,page=PAGE){
   assert.ok(ready,'page ready');assert.equal(await run('return innerWidth;'),width);
 }
 async function seed(S,width=360){await run(`localStorage.setItem(${JSON.stringify(KEY)},${JSON.stringify(JSON.stringify(S))});`);await load(width);}
-async function shot(name,width){const r=await send('Page.captureScreenshot',{format:'png',clip:{x:0,y:0,width,height:530,scale:1}});fs.writeFileSync(path.join(artifacts,name+'.png'),Buffer.from(r.data,'base64'));}
+async function shot(name,width){const y=await run('return scrollY;');const r=await send('Page.captureScreenshot',{format:'png',clip:{x:0,y,width,height:530,scale:1}});fs.writeFileSync(path.join(artifacts,name+'.png'),Buffer.from(r.data,'base64'));}
 function pass(name){checks++;console.log('PASS '+name);}
 async function layout(width,label,p){
   const m=await run(`const W=innerWidth,main=d.getElementById('main');
@@ -92,7 +92,7 @@ try{
     window.__errors=[];window.__texts={};window.confirm=()=>true;window.alert=()=>{};window.prompt=()=>null;
     addEventListener('error',e=>window.__errors.push(e.message));addEventListener('unhandledrejection',e=>{window.__errors.push(String(e.reason));console.error(String(e.reason));});
     const original=CanvasRenderingContext2D.prototype.fillText;
-    CanvasRenderingContext2D.prototype.fillText=function(text,x,y,...args){(window.__texts[this.canvas.id]??=[]).push({text:String(text),x,y,w:this.measureText(String(text)).width,font:this.font});return original.call(this,text,x,y,...args);};
+    CanvasRenderingContext2D.prototype.fillText=function(text,x,y,...args){(window.__texts[this.canvas.id]??=[]).push({text:String(text),x,y,w:this.measureText(String(text)).width,font:this.font,color:this.fillStyle});return original.call(this,text,x,y,...args);};
   `});
   await load();
   const box={window:{}};vm.runInNewContext(execFileSync('git',['show','e2e720a:checker-data/vivy.js'],{cwd:root,encoding:'utf8'}),box);
@@ -176,6 +176,36 @@ try{
     assert.deepEqual(await onChoice(),['default'],'再読込でも slot-tools のまま');assert.equal((await state()).counts.at,3);
     assert.deepEqual(await run('return window.__errors;'),[]);
     pass('old data icon: nana once, then slot-tools kept after reload');
+  }
+  // 11/27: 旧保存データから実ボタン・実canvas・コピー・狭幅の受け入れを確認。
+  {
+    const legacy=JSON.parse(JSON.stringify(before.defaults));
+    for(const k of ['bear','reach','mini','all'])legacy.atEnd[k]=1;
+    await seed(legacy);await tab(1);
+    for(const k of ['bear','reach','mini','all']){
+      const saved=await run('return CheckerConfigs.vivy.normalizeState(JSON.parse(localStorage.getItem("vivy-checker-v1")));');await plus('atEnd.'+k);assert.equal((await state()).atEnd[k],2);
+      assert.ok((await run('return d.getElementById("feed").textContent;')).includes('2'));
+      await click('#undoBtn');assert.deepEqual(await state(),saved);
+    }
+    await tab(3);await pause(200);
+    const summary=await canvas('cardCanvas','vivy-atend-four-summary');
+    for(const text of ['計4回','確定演出 全員集合(6濃厚) ×1'])assert.ok(summary.texts.some(t=>t.text===text),text);
+    assert.match((await run('return d.getElementById("tpl").value;')).split('\n')[1],/確定演出4回$/);
+    await click('#detailBtn');await pause(250);
+    const detail=await canvas('detailCanvas','vivy-atend-four-detail');
+    for(const label of ['クマ','手を伸ばす','ミニキャラ','全員集合'])assert.ok(detail.texts.some(t=>t.text.includes(label+' ×1')&&t.color==='#ffc94d'),label+' hot');
+    for(const width of [360,390]){
+      await load(width);await tab(1);await layout(width,'atend-four',1);await shot('vivy-atend-suggest-'+width,width);
+      await run(`d.querySelector('[data-c="atEnd.all"]').scrollIntoView({block:"center"});`);await shot('vivy-atend-suggest-lower-'+width,width);
+      await load(width,'/vivy-guide.html');
+      assert.equal(await run('return d.documentElement.scrollWidth-d.documentElement.clientWidth;'),0);
+      const bad=await run('return [...d.querySelectorAll("main.container p")].filter(e=>{const r=e.getBoundingClientRect();return r.left<0||r.right>innerWidth;}).map(e=>e.textContent);');
+      assert.deepEqual(bad,[]);
+      await run('const p=[...d.querySelectorAll("main.container p")].find(e=>e.textContent.startsWith("AT終了画面は全9種類"));p.scrollIntoView({block:"start"});');
+      await shot('vivy-atend-guide-'+width,width);
+      assert.deepEqual(await run('return window.__errors;'),[]);
+    }
+    pass('AT ending legacy 4 / real add-undo / summary-copy-detail hot pixels / 360 and 390 suggest-guide');
   }
   assert.deepEqual(errors,[]);
 }catch(e){failures++;console.error(e.stack);process.exitCode=1;}
