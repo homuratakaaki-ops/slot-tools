@@ -16,6 +16,14 @@ const c=config(read('checker-data/vivy.js'),'vivy');
 // 基点は反映直前の main（e2e720a）。反映前の本番 js・テスト版 js・HTML をここから読む。origin/main は使わない。
 const BASE='e2e720a';
 const production=config(git('show',BASE+':checker-data/vivy.js'),'vivy');
+// 11/27 AT終了画面の指定差分だけを旧期待値へ反映する。
+function withAtEndUpdate(src){
+ const hints=["奇数設定期待度UP","偶数設定期待度UP","偶数設定期待度UP（強）","高設定期待度UP（弱）","高設定期待度UP（強）","設定2以上濃厚","設定4以上濃厚","設定5以上濃厚","設定6濃厚"],keys=["estella","beach","matsumoto","hug","gaze","bear","reach","mini","all"],ranks=[0,0,0,0,0,2,4,5,6];
+ const old="AT終了画面は全9種類です。示唆内容は調査中のため、記録のみです。",hint="AT終了画面は全9種類です。クマ・手を伸ばす・ミニキャラ・全員集合は確定演出の回数に入ります。";
+ keys.forEach((k,i)=>{src=src.replace(new RegExp('(\\["'+k+'","[^"]+",)"調査中",0\\]'),'$1'+JSON.stringify(hints[i])+','+ranks[i]+']');});
+ return src.replace(old,hint).replace(/^(\/\/[^\n]*\n\/\/[^\n]*)/,'$1'+'2026-11-27 更新分（AT終了画面の示唆）を反映。');
+}
+const updatedProduction=config(withAtEndUpdate(git('show',BASE+':checker-data/vivy.js')),'vivy');
 const fresh=()=>c.normalizeState(clone(c.defaults));
 const ctx=S=>({S,mode:1,nanaCreditText:()=> 'ﾃﾝﾌﾟﾚ:鈴白なな様 @nana_szsr',pct:(v,d)=>`${v}/${d}`,crow:(key,label,sub,hot)=>`<div data-c="${key}" data-hot="${!!hot}">${label} ${sub}</div>`});
 let checks=0;function check(name,fn){fn();checks++;console.log('PASS '+name);}
@@ -45,7 +53,7 @@ check('全項目別値・数値以外完全一致・ヘッダー・フッター'
  S.gameLog=[1000,2000];S.counts.at=5;
  assert.equal(body(S),expected(S));assert.equal(body(S).replace(/[0-9]+/g,'#'),body(fresh()).replace(/[0-9]+/g,'#'));
  const text=c.template(ctx(S));assert.equal(c.compactTemplate(ctx(S)),text);assert.equal(c.nanaCollab,true);
- const strong=production.card.blocks(ctx(S)).find(x=>x[0]==='確定演出')[1].replace('計','');
+ const strong=updatedProduction.card.blocks(ctx(S)).find(x=>x[0]==='確定演出')[1].replace('計','');
  assert.equal(text.split('\n')[1],'累計通常G 3000G（2件） / AT初当り5回 1/600.0 / 確定演出'+strong);
  assert.ok(text.endsWith('by slot-tools.jp\nﾃﾝﾌﾟﾚ:鈴白なな様 @nana_szsr\n解析出典:ちょんぼりすた様'));
 });
@@ -77,7 +85,7 @@ check('詳細カード・率書式・23全角字・確定演出本番一致',()=
  const sections=c.card.detail(ctx(S));assert.deepEqual(clone(sections.map(x=>x.title)),['カウント系','規定周期','規定pt','前回555後pt','AC(EX)','AC継続','AT終了画面','トロフィー','枚数表示','ED中キャラ']);
  for(const sec of sections.slice(1,6))for(const it of sec.items){assert.equal(it.hot,false);assert.ok(it.show);assert.match(it.text,/( 41\/123 33%| ×29)$/);const width=[...it.text].reduce((n,ch)=>n+(/[\x00-\x7f\uff61-\uff9f]/.test(ch)?0.5:1),0);assert.ok(width<=23,it.text);}
  for(const sec of c.card.detail(ctx(fresh())).slice(1,6))assert.ok(sec.items.every(x=>x.show===false));
- assert.deepEqual(clone(c.card.blocks(ctx(S))),clone(production.card.blocks(ctx(S))));assert.deepEqual(clone(c.card.bottom(ctx(S))),clone(production.card.bottom(ctx(S))));
+ assert.deepEqual(clone(c.card.blocks(ctx(S))),clone(updatedProduction.card.blocks(ctx(S))));assert.deepEqual(clone(c.card.bottom(ctx(S))),clone(updatedProduction.card.bottom(ctx(S))));
  assert.equal(c.pages(ctx(S),()=>'').length,4);
  const input=c.pages(ctx(S),()=>'')[0]();assert.ok(input.includes('Ａ2~6・Ｂ2.3・天国1周期'));assert.ok(input.includes('>EX昇格</button>'));assert.ok(input.includes('>昇格なし</button>'));
 });
@@ -85,11 +93,11 @@ check('本番 js はテスト版との差が3か所だけ・HTML は ?v だけ�
   // 反映（PR #88、c004ff7）時点の本番で見る。以降の PR は他機種の更新で index.html などを変えるため（11/6 追加解析で NEW欄が動いた）。
   const RELEASED='c004ff7';
   const testJs=git('show',BASE+':checker-data/vivy-test.js');
-  assert.equal(read('checker-data/vivy.js'),git('show',RELEASED+':checker-data/vivy.js'),'vivy.js は反映時のまま');
+  assert.equal(read('checker-data/vivy.js'),withAtEndUpdate(git('show',RELEASED+':checker-data/vivy.js')),'vivy.js はAT終了画面の指定差分のみ');
   const reverted=git('show',RELEASED+':checker-data/vivy.js').replace(/^\/\/ 出典: [^\n]*\n\/\/ [^\n]*\n/,'').replace('window.CheckerConfigs.vivy={','window.CheckerConfigs["vivy-test"]={').replace('storageKey:"vivy-checker-v1"','storageKey:"vivy-checker-v1-test"');
   assert.equal(reverted,testJs.replace(/^(\/\/ [^\n]*\n){3}/,''),'先頭コメント・設定名・保存キー以外はテスト版と同じ');
   assert.equal(c.storageKey,'vivy-checker-v1');assert.equal(c.nanaCollab,true);
-  assert.equal(read('vivy-checker.html'),git('show',RELEASED+':vivy-checker.html'));
+  assert.equal(read('vivy-checker.html'),git('show',RELEASED+':vivy-checker.html').replace('vivy.js?v=20261102-nana','vivy.js?v=20261128'));
   assert.equal(git('show',RELEASED+':vivy-checker.html'),git('show',BASE+':vivy-checker.html').replace('checker-data/vivy.js?v=20261102-suggest"','checker-data/vivy.js?v=20261102-nana"'));
   for(const p of ['vivy-test-checker.html','checker-data/vivy-test.js'])assert.ok(!fs.existsSync(path.join(root,p)),p+' は削除');
   for(const p of fs.readdirSync(root).filter(p=>p.endsWith('.html')))assert.doesNotMatch(read(p),/(?:href|src)=["'][^"']*vivy-test/,p);

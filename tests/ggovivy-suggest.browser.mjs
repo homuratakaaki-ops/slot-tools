@@ -160,7 +160,7 @@ try{
     assert.equal(await run(`return d.getElementById('tpl').value;`),await run(id==='vivy'?'return w.__checkerApp.tplText();':`return CheckerConfigs["${id}"].template({S:JSON.parse(localStorage.getItem(${JSON.stringify(KEY)}))});`));
     const card=await canvas('cardCanvas',id+'-summary-card');
     for(const text of ['1/190.5','通常G','4000G'])assert.ok(card.texts.some(t=>t.text.includes(text)),id+' '+text);
-    if(id==='vivy')for(const text of ['計10回','確定演出 619(6濃厚) ×1'])assert.ok(card.texts.some(t=>t.text.includes(text)),text);
+    if(id==='vivy')for(const text of ['計14回','確定演出 全員集合(6濃厚) ×1'])assert.ok(card.texts.some(t=>t.text.includes(text)),text);
     else assert.ok(!card.texts.some(t=>t.text.includes('確定演出')));
     await click('#detailBtn');await pause(250);const detail=await canvas('detailCanvas',id+'-detail-card');
     const titles=id==='ggo'?['終了画面カード','ZEMAL_ヒューイ ×1 (33%)']:['AT終了画面','トロフィー','枚数表示','ED中キャラ','エステラ ×1 (11%)','銅 ×1','411 ×1'];

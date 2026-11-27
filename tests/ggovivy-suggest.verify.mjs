@@ -288,12 +288,12 @@ for(const [id,groups] of Object.entries(EXPECTED)){
    const reverted=html.replace('checker-engine.js?v=20261102-orphan','checker-engine.js?v=20260924').replace('repeat(4,1fr)','repeat(3,1fr)').replace('<button data-p="1">示唆</button><button data-p="2">参照</button><button data-p="3">カード</button>','<button data-p="1">参照</button><button data-p="2">カード</button>').replace('checker-data/'+id+'.js?v=20261102-suggest',old.match(new RegExp('checker-data/'+id+'\\.js\\?v=[^" ]+'))[0]);assert.equal(reverted,old);
    const guide=read(id+'-guide.html');
    assert.ok(guide.includes('<h2>示唆タブ</h2>')&&guide.includes('「入力」「示唆」「参照」「カード」')&&guide.includes(id==='ggo'?'2026年11月6日確認':'2026年11月2日確認'));assert.ok(!guide.includes('設定示唆（終了画面・トロフィーなど）は出典で調査中'));
-   for(const h of Object.values(HINTS).filter((h,i)=>Object.keys(HINTS)[i] in groups))assert.ok(guide.includes(h),h);
+   for(const h of Object.values(HINTS).filter((h,i)=>Object.keys(HINTS)[i] in groups))assert.ok(guide.includes(id==='vivy'&&h===HINTS.atEnd?'AT終了画面は全9種類です。示唆内容は各行に表示しています。クマ（設定2以上濃厚）・手を伸ばす（設定4以上濃厚）・ミニキャラ（設定5以上濃厚）・全員集合（設定6濃厚）は確定演出として集計します。':h),h);
    const tmp=fs.mkdtempSync(path.join(process.env.CHECKER_ARTIFACTS||os.tmpdir(),'ggovivy-syntax-'));
    for(const p of [id+'-checker.html',id+'-guide.html','checker-data/'+id+'.js']){const src=read(p);assert.ok(!src.includes('\r'));assert.doesNotMatch(src,/\(\?<([=!])/);assert.doesNotMatch(src,/濃厚示唆|最強|設定差なし/);if(p.endsWith('.js'))execFileSync(process.execPath,['--check',path.join(root,p)]);else for(const [i,m] of [...src.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)].entries())if(!/\bsrc=/.test(m[1])){const f=path.join(tmp,id+i+'.mjs');fs.writeFileSync(f,m[2]);execFileSync(process.execPath,['--check',f]);}}
  });
 }
-check('vivy: current vivy.js (なな様テンプレ対応後) keeps the same suggest-tab master',()=>{const w=load('vivy',true,true);assert.deepEqual(clone(w.__groups),EXPECTED.vivy);for(const g of Object.keys(EXPECTED.vivy))assert.ok(w.CheckerConfigs.vivy.mergeKeys.includes(g));});
+check('vivy: current vivy.js (なな様テンプレ対応後) keeps the same suggest-tab master',()=>{const w=load('vivy',true,true);const expected=clone(EXPECTED.vivy);expected.atEnd.forEach((r,i)=>{r[2]=["奇数設定期待度UP","偶数設定期待度UP","偶数設定期待度UP（強）","高設定期待度UP（弱）","高設定期待度UP（強）","設定2以上濃厚","設定4以上濃厚","設定5以上濃厚","設定6濃厚"][i];r[3]=[0,0,0,0,0,2,4,5,6][i];});assert.deepEqual(clone(w.__groups),expected);for(const g of Object.keys(EXPECTED.vivy))assert.ok(w.CheckerConfigs.vivy.mergeKeys.includes(g));});
 check('ggo: current ggo.js (追加解析の反映後) keeps the same suggest-tab master',()=>{const w=load('ggo',true,true);assert.deepEqual(clone(w.__groups),EXPECTED.ggo);for(const g of Object.keys(EXPECTED.ggo))assert.ok(w.CheckerConfigs.ggo.mergeKeys.includes(g));});
 check('test version removed (§9-108-2) / NEW欄 2 lines / no links to -test',()=>{
  // 11/2 に Vivy のなな様テンプレ対応で別のテスト版（vivy-test、?v=20261102-nana-test）を作り直した。示唆タブのテスト版（?v=20261102-test）が残っていないことだけを見る。
