@@ -30,6 +30,7 @@
 | `rec-common-2-instructions-v01.md` | tools/rec 共通改修 段2の実装指示書 v0.1（テスト版なし・main へ直接反映） |
 | `rec-common-3-spec-v01.md` | tools/rec 共通改修 段3の仕様書 v0.1（機種マスター js/machine-master.js・稼働日誌の名前の集計） |
 | `rec-common-3-instructions-v01.md` | tools/rec 共通改修 段3の実装指示書 v0.1（テスト版なし・main へ直接反映） |
+| `rec-stock-view-instructions-v01.md` | tools/rec 貯メダルの表示を店ごとに「払い出せる枚数」にする 実装指示書 v0.1（テスト版なし・main へ直接反映） |
 
 ## 注記
 
