@@ -99,6 +99,7 @@ check('all root HTML changes are exactly the engine query',()=>{
     let base=git('show','d279952:'+file);
     if(file==='godzieva2-checker.html')base=base.replace('checker-data/godzieva2.js?v=20261101-nana4','checker-data/godzieva2.js?v=20261102-nana5');
     if(file==='vivy-checker.html')base=base.replace('checker-data/vivy.js?v=20261102-suggest','checker-data/vivy.js?v=20261102-nana');
+    if(file==='garei-zero-re-checker.html')base=base.replace('checker-data/garei_zero_re.js?v=20261014','checker-data/garei_zero_re.js?v=20261127');
     // 11/6の5機種とGGO・星矢の参照表追加で、変わるのは機種データの ?v だけ。
     const addl=file.match(/^(seiya12|ragnador|ggo|godzieva2|mhsunbreak)-checker\.html$/);
     if(addl)base=base.replace(new RegExp('checker-data/'+addl[1]+'\\.js\\?v=[^"]+'),'checker-data/'+addl[1]+'.js?v='+(addl[1]==='seiya12'?'20261123-seiya-reference':addl[1]==='ggo'?'20261119-reference-release':'20261106-addl'));
