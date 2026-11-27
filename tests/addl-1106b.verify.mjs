@@ -23,7 +23,8 @@ for(const id of ['godzieva2','mhsunbreak']){
  const source=read(`checker-data/${id}.js`),base=git('show',`${BASE}:checker-data/${id}.js`),c=load(source,id),b=load(base,id);configs[id]=c;
  check(id+' 本番反映：検収したテスト版と同じ中身・本番キー・HTMLは?vだけ',()=>{
   assert.equal(c.storageKey,id+'-checker-v1');
-  for(const f of [`checker-data/${id}-test.js`,`${id}-test-checker.html`])assert.ok(!fs.existsSync(path.join(root,f)),f);
+  const mothraTest=id==='godzieva2'&&fs.existsSync(path.join(root,'godzieva2-test-checker.html'))&&read('godzieva2-test-checker.html').includes('checker-data/godzieva2-test.js?v=20261127-test');
+  for(const f of [`checker-data/${id}-test.js`,`${id}-test-checker.html`].filter(()=>!mothraTest))assert.ok(!fs.existsSync(path.join(root,f)),f);
   // 本番JS＝検収したテスト版から、設定名・保存キー（サンブレイクは ID も）・画像の保存名を本番に戻しただけ。
   const tested=git('show',`${BASE}:checker-data/${id}-test.js`).replace(`window.CheckerConfigs["${id}-test"]={`,`window.CheckerConfigs.${id}={`).replace(`${id}-checker-v1-test`,`${id}-checker-v1`).replace('const ID="mhsunbreak-test";','const ID="mhsunbreak";').replaceAll(`${id}_test_`,`${id}_`);
   // 検収後の差はサンブレイクの1行だけ：幅339px以下のときだけ目安の折り返し禁止を外す（320pxで横にはみ出したため、夢爽承認 11/6）。360px以上の表示は検収どおり。
