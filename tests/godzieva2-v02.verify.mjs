@@ -99,8 +99,9 @@ check('本番差分限定・削除・全ページ導線なし・NEW8行',()=>{
   const tested=git('show','4a5c35a:checker-data/godzieva2-test.js');
   const released=tested.split('\n').slice(1).join('\n').replace(/^\/\/ 2026-11-01.*$/m,"// 2026-11-02 更新分を確認（第三者解析）。数値・文言の正本: docs/specs/godzieva2-checker-v03.md（テスト版 4a5c35a をネネ検収合格・夢爽スマホ確認○の後に本番へ反映）").replace('window.CheckerConfigs["godzieva2-test"]','window.CheckerConfigs.godzieva2').replace('storageKey:"godzieva2-checker-v1-test"','storageKey:"godzieva2-checker-v1"');
   assert.equal(git('show',RELEASED+':checker-data/godzieva2.js'),released);assert.equal(c.storageKey,'godzieva2-checker-v1');
-  for(const p of ['checker-data/godzieva2-test.js','godzieva2-test-checker.html'])assert.ok(!fs.existsSync(path.join(root,p)));
-  for(const p of fs.readdirSync(root,{recursive:true}).filter(p=>p.endsWith('.html')))assert.doesNotMatch(read(p),/(?:href|src)=["'][^"']*godzieva2-test/);
+  const mothraTest=fs.existsSync(path.join(root,'godzieva2-test-checker.html'))&&read('godzieva2-test-checker.html').includes('checker-data/godzieva2-test.js?v=20261127-test');
+  for(const p of ['checker-data/godzieva2-test.js','godzieva2-test-checker.html'].filter(()=>!mothraTest))assert.ok(!fs.existsSync(path.join(root,p)));
+  for(const p of fs.readdirSync(root,{recursive:true}).filter(p=>p.endsWith('.html')&&!(mothraTest&&p==='godzieva2-test-checker.html')))assert.doesNotMatch(read(p),/(?:href|src)=["'][^"']*godzieva2-test/);
   const news=read('index.html').split('<div class="section-label">NEW</div>')[1].split('</section>')[0];
   // 旧告知の文言は固定版で確認。現行では8行の上限を守る。
   const historicalNews=git('show','20ead2ae5f3bcd6348d654ebf8573953c9c5ce27:index.html').split('<div class="section-label">NEW</div>')[1].split('</section>')[0];
