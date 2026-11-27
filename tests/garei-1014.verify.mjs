@@ -111,7 +111,7 @@ assert.equal(strip(c.template(ctx(clone(migrated)))),old.template(ctx(oldS)));ok
 
 // ---- 5. 本番ページ・テスト版・ガイド・NEW欄 ----
 const prod=read('garei-zero-re-checker.html');
-assert.ok(prod.includes('<script src="checker-data/garei_zero_re.js?v=20261014"></script>'));ok();
+assert.ok(prod.includes('<script src="checker-data/garei_zero_re.js?v=20261127"></script>'));ok();
 // テスト版（§9-108）は検収中だけ居る。マージで削除されたあとはこの節を飛ばす。
 if(fs.existsSync(path.join(root,'garei-zero-re-test-checker.html'))){
 const test=read('garei-zero-re-test-checker.html');
