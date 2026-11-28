@@ -544,8 +544,15 @@ const MACHINES={
       optionLabels:{resetConfirmed:"リセット確認",resetGuess:"リセット推定",keepConfirmed:"据え置き確認",unknown:"不明"}},
     {key:"lastHit",label:"前回の当選",type:"select",
       options:["czFail","atEnd","judgeFail","unknown"],
-      optionLabels:{czFail:"CZ失敗",atEnd:"AT終了",judgeFail:"有馬失敗",unknown:"不明"}}
+      optionLabels:{czFail:"CZ失敗",atEnd:"AT終了",judgeFail:"有馬失敗",unknown:"不明"}},
+    {key:"prevCzTrig",label:"前回CZの当選契機",type:"select",optional:true,options:"hitTriggers",showWhen:{key:"lastHit",in:["czFail"]}},
+    {key:"prevCzRealG",label:"前回CZ当選時 データカウンタ",type:"num",optional:true,showWhen:{key:"lastHit",in:["czFail"]}},
+    {key:"prevCzLcdG",label:"前回CZ当選時 液晶G",type:"num",optional:true,showWhen:{key:"lastHit",in:["czFail"]}},
+    {key:"prevCzKiteiG",label:"前回CZの規定G数",type:"num",optional:true,showWhen:{key:"prevCzTrig",in:["規定G数"]}},
+    {key:"prevAtResult",label:"前回ATの結果",type:"select",optional:true,options:["kakenuke","other"],optionLabels:{kakenuke:"駆け抜け",other:"駆け抜け以外"},showWhen:{key:"lastHit",in:["atEnd"]}}
   ],
+  setupEditable:true,recordToG:true,exportStructured:true,
+  hitKiteiG:{key:"kiteiG",label:"規定G数",trig:"規定G数",hits:["レミニセンス","大喰いの利世"]},
   counter3:{label:"CZスルー",reset:"at",incOnCzFail:["レミニセンス","大喰いの利世"]},
   noteSeparate:true,          // E3：メモを本文に連結せず ev.note に分ける
   hitCredit:true,             // E4：当選シートにクレジット欄
@@ -1447,7 +1454,7 @@ function numFields(b,defs,sel){
 function creditInput(b){return numFields(b,[{key:"cr",label:"今のクレジット"}],{})}
 function readNumFields(fields){const out={};for(const {def,input,w} of fields||[]){if(w.classList.contains("hide"))continue;const v=int(input.value);if(v!==null&&(!Number.isSafeInteger(v)||v<0)){toast(def.label+"は0以上の整数で入れてください");return false}
     if(def.kind==="totalG"&&v!==null){const c=S.cur,prev=c.events.findLast(e=>e.type==="hitEnd"&&e.totalG!=null);if(v<(c.totalStart??0)||v<(prev?.totalG??0)){toast(def.label+"は着席時・前回AT終了以上で入れてください");return false}}out[def.key]=v}return out}
-function fieldsText(f){if(!f)return "";return [["cr","クレジット ",""],["bites","BITES ","枚"],["shownGain","画面の獲得 ","枚"],["totalG","総回転 ","G"]].filter(([k])=>f[k]!=null).map(([k,l,u])=>"　"+l+yen(f[k])+u).join("")}
+function fieldsText(f){if(!f)return "";return [["kiteiG","規定 ","G"],["cr","クレジット ",""],["bites","BITES ","枚"],["shownGain","画面の獲得 ","枚"],["totalG","総回転 ","G"]].filter(([k])=>f[k]!=null).map(([k,l,u])=>"　"+l+yen(f[k])+u).join("")}
 function selText(groups,sel){return groups.map(g=>sel[g.key]).filter(Boolean).join("、")}
 
 /* ---------- テンキー ---------- */
@@ -1796,12 +1803,13 @@ function openHit(){
   if(d.hitTriggers)groups.push({key:"trig",label:"契機",options:d.hitTriggers});
   if(d.hitWhere)groups.push({key:"where",label:"告知された場所",options:d.hitWhere});
   (d.hitExtraGroups||[]).forEach(g=>groups.push(g));
-  let CF=null,memo;
+  let CF=null,KF=null,memo;
   groupSheet("当選",groups,sel=>{
     const values=readNumFields(CF);if(values===false)return;
+    if(KF&&!KF.w.classList.contains("hide")){const v=int(KF.input.value);if(v!==null){if(!Number.isSafeInteger(v)||v<0){toast(d.hitKiteiG.label+"は0以上の整数で入れてください");return}values[d.hitKiteiG.key]=v}}
     const ex=(d.hitExtraGroups||[]).map(g=>sel[g.key]).filter(Boolean).join("、");
     startHit(hitDef(sel.type),sel.trig||null,{where:sel.where||null,hitSel:sel,extraTxt:ex?"　"+ex:"",fields:values,note:memo?.value.trim()});
-  },{goLabel:"当選を記録",...(d.hitCredit||d.noteSeparate?{after:b=>{if(d.hitCredit)CF=creditInput(b);if(d.noteSeparate)memo=memoInput(b)}}:{})});
+  },{goLabel:"当選を記録",...(d.hitCredit||d.noteSeparate||d.hitKiteiG?{after:(b,sel)=>{if(d.hitKiteiG){const k=d.hitKiteiG;[KF]=numFields(b,[{key:k.key,label:k.label}],sel);KF.input.readOnly=true;KF.input.addEventListener("click",()=>askNum(k.label,int(KF.input.value),v=>KF.input.value=v??""));KF.w._reeval=()=>{const ok=k.hits.includes(sel.type)&&sel.trig===k.trig;KF.w.classList.toggle("hide",!ok);if(!ok)KF.input.value=""};KF.w._reeval()}if(d.hitCredit)CF=creditInput(b);if(d.noteSeparate)memo=memoInput(b)}}:{})});
 }
 function startHit(h,trig,opts){
   const d=DEF(),c=S.cur;opts=opts||{};if(!opts.keepOp)mark();
@@ -1901,7 +1909,7 @@ function czEndSheet(){
       afterHitEnd(h.label+" 成功");
       closeSheet();
       if(ce.successToAt){const at=hitDef(ce.successToAt);const trig=(prevTrig==="AT後")?"引き戻し":h.label;if(at){startHit(at,trig,ce.successOneOp?{keepOp:true}:undefined);return}}
-      save();render();
+      recordNormalToG();save();render();
     };
     succ.addEventListener("click",()=>{if(!ce.successSheet){success();return}sheet(h.label+" 成功",b=>{const CF=ce.credit?creditInput(b):[],ta=memoInput(b);const go=mk("button","go","成功を記録");go.addEventListener("click",()=>{const values=readNumFields(CF);if(values===false)return;if(d.noteSeparate&&ta.value.trim())values.note=ta.value.trim();success(values)});el("shFoot").append(go)})});
     // 失敗：終了画面などを入れてから記録。failTo があれば次の当選へ自動で入る
@@ -1926,7 +1934,7 @@ function czEndSheet(){
         c.hit=null;c.mode="normal";
         push("hitEnd",txt,{hit:h.label,sel:{result:"失敗"},result:"失敗"},ce);
         const nx=hitDef(ce.failTo);if(nx){startHit(nx,h.label+" 失敗");return}
-        save();render();return;
+        recordNormalToG();save();render();return;
       }
       groupSheet(h.label+" 失敗",groups,sel=>{tagSheetDefs.set(sel,ce);
         const fields=readNumFields(CF);if(fields===false)return;if(d.noteSeparate&&memo.trim())fields.note=memo.trim();
@@ -1952,6 +1960,7 @@ function czEndSheet(){
           if(nx){startHit(nx,h.label+" 失敗");return}
         }
         if(GF)applyG(GF);
+        recordNormalToG();
         const md=applyMedal(MF);if(md)push("medal","持ちメダル "+yen(md.medal)+"枚（差枚 "+sgn(md.diff)+"）",{medal:md.medal,diff:md.diff,prevCredit:md.prevCredit,prevCreditAt:md.prevCreditAt});
         afterHitEnd(h.label+" 失敗",keep);applyHints(sel);
         if(yuuri)yuuriReset(h.label+" 失敗後");
@@ -1998,6 +2007,11 @@ function yuuriReset(reason){
   push("yuuri","有利区間切れ（引き継ぎ情報を消去）"+(reason?"　"+reason:""));
   toast("有利区間切れ：引き継ぎ情報を消しました");
 }
+// 通常時への復帰先が確定した後、最後の終了行にその時点のG数を残す。
+function recordNormalToG(){
+  const d=DEF(),c=S.cur;if(!d.recordToG||d.lcdG===false||c.mode!=="normal")return;
+  const e=c.events.findLast(e=>e.type==="hitEnd");if(e)e.toG={realG:c.realG,lcdG:c.lcdG};
+}
 // 当選を抜けた時の共通処理：運命盤の回数を数え直す、🍉残りを消す（モード示唆は区間で期限切れ）
 function afterHitEnd(endedLabel,keep){
   const d=DEF(),c=S.cur;
@@ -2040,7 +2054,7 @@ function leaveAt(after,extraTxt,sel,GF,MF,fields){
   }
   if(after){const nxt=hitDef(after.hit);if(nxt){startHit(nxt,after.trig,{keepOp:true});return}}
   if(d.zenchou&&d.zenchou.enterOnHitEnd){c.zenchou=0;push("zenchou",zenStages()[0]+" 開始")}
-  save();render();
+  recordNormalToG();save();render();
 }
 function atEndSheet(){
   const d=DEF(),c=S.cur,h=c.hit,def=curHitDef();
@@ -2093,7 +2107,7 @@ function atEndSheet(){
         if(reset){c.c3=0;t+="　"+c3Label(d)+"リセット"}
         c.hit=null;c.mode="normal";push("hitEnd",t,{hit:h.label,sel});if(GF)applyG(GF);else{c.realG=0;c.lcdG=0;c._steps=[]}
         {const md=applyMedal(MF);if(md)push("medal","持ちメダル "+yen(md.medal)+"枚（差枚 "+sgn(md.diff)+"）",{medal:md.medal,diff:md.diff,prevCredit:md.prevCredit,prevCreditAt:md.prevCreditAt})}
-        afterHitEnd(h.label);applyHints(sel);
+        recordNormalToG();afterHitEnd(h.label);applyHints(sel);
         if(!nextAfter&&d.zenchou&&d.zenchou.enterOnHitEnd){c.zenchou=0;push("zenchou",zenStages()[0]+" 開始")}
         save();render();closeSheet();return;
       }
@@ -2742,7 +2756,8 @@ function openFollow(){
 /* ---------- 記録の修正（進行中・終了後 共通） ---------- */
 function numInput(val){const i=mk("input");i.className="num";i.setAttribute("inputmode","numeric");i.value=(val==null?"":val);return i}
 function editInfo(sess,after){
-  const isCur=sess===S.cur,m=sess.money;
+  const isCur=sess===S.cur,m=sess.money,d=MACHINES[sess.machineId]||MACHINES.generic;
+  const values={...(sess.setup||{})};
   sheet("打ち始め・終了の情報を直す",b=>{
     const F={};
     const row=(label,el)=>{b.append(mk("div","lbl",label));b.append(el);return el};
@@ -2761,6 +2776,7 @@ function editInfo(sess,after){
       F.totalEnd=row("台の総回転数（終了）",numInput(sess.totalEnd));
       F.endNote=row("終わりのメモ",mk("input"));F.endNote.value=sess.endNote||"";
     }
+    if(d.setupEditable){b.append(mk("div","lbl","着席の項目"));const w=mk("div","setup");w.dataset.setupEdit="";editableSetupFields(w,d,values);b.append(w)}
     const go=mk("button","go","この内容で直す");
     go.addEventListener("click",()=>{
       const mach=F.machine.value.trim();if(!mach){toast("機種名を入れてください");return}
@@ -2769,6 +2785,7 @@ function editInfo(sess,after){
        if(vals.some(v=>badNum(v)||(v!=null&&v<0))){toast("数字は整数で、0以上にしてください");return}
        if(badNum(int(F.expected.value))){toast("想定期待値は整数で入れてください（マイナス可）");return}
        const ts=int(F.totalStart.value),te=sess.endAt?int(F.totalEnd.value):null;if(ts!=null&&te!=null&&te<ts){toast("終了時の総回転数が開始時より小さくなっています");return}}
+      if(d.setupEditable){const clean=visibleSetup(d,values);if(d.setup.some(f=>f.type==="num"&&clean[f.key]!=null&&(!Number.isSafeInteger(clean[f.key])||clean[f.key]<0))){toast("着席の項目は整数で、0以上にしてください");return}sess.setup=clean}
       sess.shop=F.shop.value.trim()||null;sess.dai=F.dai.value.trim()||null;sess.lend=lend;
       // 手で名前を変えたときは打ち始めと同じく引き直す。前の mid・machineTyped は残さない
       if(mach!==sess.machine){const resolved=masterMachine({machine:mach});sess.machine=resolved?.name||mach;if(resolved)sess.mid=resolved.mid;else delete sess.mid;delete sess.machineTyped}
@@ -3256,7 +3273,7 @@ function toEnvelope(s){
   if(s.endAt)logs.push({t:new Date(s.endAt).getTime(),type:"memo",text:gsText({realG:s.realG,lcdG:s.lcdG},md)+"G　"+(s.endNote||"ヤメ")});
   if(md.atGain)logs.push({t:new Date(s.endAt||s.events.at(-1)?.at||s.startAt).getTime(),type:"memo",text:"まとめ　"+recordSummary(s).join("／")});
   const memo=[s.machine+((s.shop||s.dai)?"　"+[s.shop,s.dai?s.dai+"番":null].filter(Boolean).join(" "):"")];if(s.expected!=null)memo.push("想定期待値 "+sgn(expectedTotal(s))+"円");if(p)memo.push("差枚 "+sgn(p.medalDiff)+"枚");memo.push("開始持 "+(m.startMedal||0)+"枚／再プレイ "+replayed(m)+"枚／終了持 "+(m.endMedal||0)+"枚（回収は純増枚数）");
-  return{schema:"slot-session",schemaVer:2,sessionId:s.id||uuidV4(),machineId:s.machine,payloadVer:sessCond(s)?"rec-4":"rec-3",startedAt:isoOffset(new Date(s.startAt)),endedAt:isoOffset(new Date(s.endAt||s.startAt)),invest:invested(m),payout:(m.endMedal||0)-(m.startMedal||0)-replayed(m),storeId:null,storeName:s.shop||null,unitNo:s.dai||null,lendRate:sessCond(s)?s.cond.lend:s.lend,exchangeRate:sessCond(s)?s.cond.exchPer1000:s.lend,memo:memo.join(" ／ "),estimated:false,payload:{...(sessCond(s)?{recStoreId:s.storeId,recCondId:s.condId,cond:JSON.parse(JSON.stringify(s.cond))}:{}),...(s.mid!==undefined?{mid:s.mid}:{}),machine:s.machine,machineDef:s.machineId,startRealG:s.startRealG,startLcdG:s.startLcdG,endRealG:s.realG,endLcdG:s.lcdG,startMedal:m.startMedal,replays:replayed(m),endMedal:m.endMedal,expected:s.expected??null,follow:s.follow||[],expectedTotal:expectedTotal(s),rare:s.rare||null,c3:s.c3,revive:s.revive||0,pendingReward:s.pendingReward||null,modeHints:s.modeHints||[],modeEra:s.modeEra||0,logs}};
+  return{schema:"slot-session",schemaVer:2,sessionId:s.id||uuidV4(),machineId:s.machine,payloadVer:sessCond(s)?"rec-4":"rec-3",startedAt:isoOffset(new Date(s.startAt)),endedAt:isoOffset(new Date(s.endAt||s.startAt)),invest:invested(m),payout:(m.endMedal||0)-(m.startMedal||0)-replayed(m),storeId:null,storeName:s.shop||null,unitNo:s.dai||null,lendRate:sessCond(s)?s.cond.lend:s.lend,exchangeRate:sessCond(s)?s.cond.exchPer1000:s.lend,memo:memo.join(" ／ "),estimated:false,payload:{...(sessCond(s)?{recStoreId:s.storeId,recCondId:s.condId,cond:JSON.parse(JSON.stringify(s.cond))}:{}),...(s.mid!==undefined?{mid:s.mid}:{}),machine:s.machine,machineDef:s.machineId,startRealG:s.startRealG,startLcdG:s.startLcdG,endRealG:s.realG,endLcdG:s.lcdG,startMedal:m.startMedal,replays:replayed(m),endMedal:m.endMedal,expected:s.expected??null,follow:s.follow||[],expectedTotal:expectedTotal(s),rare:s.rare||null,c3:s.c3,revive:s.revive||0,pendingReward:s.pendingReward||null,modeHints:s.modeHints||[],modeEra:s.modeEra||0,logs,...(md.exportStructured?{structVer:1,setup:JSON.parse(JSON.stringify(s.setup||{})),events:s.events.map(({snap,...e})=>JSON.parse(JSON.stringify(e)))}:{})}};
 }
 el("nExpNote").addEventListener("click",()=>{const done=S.sessions.filter(s=>s.endAt);if(!done.length){toast("終わった台がありません");return}outSheet("振り返りノート用",JSON.stringify(done.map(toEnvelope),null,2),"kado-note の「JSON取り込み」でファイルを選んでください。")});
 el("nDlNote").addEventListener("click",()=>{const done=S.sessions.filter(s=>s.endAt);if(!done.length){toast("終わった台がありません");return}dlJson(done.map(toEnvelope),"kadonote-"+ymd(nowISO()).replace(/\//g,"")+".json")});
@@ -3288,10 +3305,24 @@ S.sessions.sort((a,b)=>new Date(a.startAt)-new Date(b.startAt));save();acctAutoD
 
 /* ---------- 画面切替 ---------- */
 let setupVals={};
+function visibleSetup(d,values){
+  const out={};const visible=(f,seen=new Set())=>{if(!f.showWhen)return true;if(seen.has(f.key))return false;seen.add(f.key);const parent=d.setup.find(p=>p.key===f.showWhen.key);return (!parent||visible(parent,seen))&&f.showWhen.in.includes(values[f.showWhen.key])};
+  d.setup.forEach(f=>{if(visible(f)&&values[f.key]!=null&&values[f.key]!=="")out[f.key]=values[f.key]});return out;
+}
+function editableSetupFields(w,d,values){
+  const rows=[];
+  const update=()=>{const clean=visibleSetup(d,values);rows.forEach(({f,box})=>{const sw=f.showWhen;box.classList.toggle("hide",!!sw&&!sw.in.includes(clean[sw.key]))})};
+  d.setup.forEach(f=>{const box=mk("div");box.dataset.setupField=f.key;const lbl=mk("div","lbl",f.label);lbl.style.marginTop="12px";if(f.optional)lbl.append(mk("span","hint","任意"));box.append(lbl);
+    if(f.type==="num"){const i=numInput(values[f.key]);i.placeholder="0";const change=()=>{values[f.key]=int(i.value);update()};i.addEventListener("input",change);if(f.showWhen){i.readOnly=true;i.addEventListener("click",()=>askNum(f.label,int(i.value),v=>{i.value=v??"";change()}))}box.append(i)}
+    else{const options=typeof f.options==="string"?d[f.options]:f.options;const row=optRow(options,(it,btn,wrap)=>{if(f.showWhen&&values[f.key]===it)delete values[f.key];else values[f.key]=it;wrap.querySelectorAll("button").forEach((x,j)=>x.classList.toggle("on",options[j]===values[f.key]));update()},options.length>6?"q4":"",f.optionLabels);row.querySelectorAll("button").forEach((x,j)=>x.classList.toggle("on",options[j]===values[f.key]));box.append(row)}
+    rows.push({f,box});w.append(box);
+  });update();
+}
 function renderSetupFields(){
   const d=MACHINES[pickedMachine||"generic"],w=el("stFields");w.innerHTML="";setupVals={};
   el("stLcdWrap").classList.toggle("hide",d.lcdG===false);
   el("stTotalHint").textContent=d.checker?"チェッカーに送るなら開始時も必要（AT込みの累計）":"任意";
+  if(d.setupEditable){editableSetupFields(w,d,setupVals);return}
   d.setup.forEach(f=>{
     const cycleField=d===MACHINES.generic&&f.key==="c3";
     const lbl=mk("div","lbl",cycleField?"":f.label);lbl.style.marginTop="12px";
@@ -3371,6 +3402,7 @@ el("stStart").addEventListener("click",()=>{
   if(badNum(lend)||!lend||lend<=0){e.textContent="レートは整数で入れてください（例：46、52）";e.classList.remove("hide");return}
   {const bad=["stRealG","stLcdG","stMedal","stStock","stTotal","stExp"].map(id=>{const v=int(el(id).value);return {id,v}}).find(x=>badNum(x.v)||(x.v!=null&&x.v<0&&x.id!=="stExp"));
    if(bad){const lb=el(bad.id).previousElementSibling;e.textContent="数字は整数で、0以上にしてください（"+((lb&&lb.textContent)||bad.id).replace(/任意|チェッカーに.*$/,"").trim()+"）";e.classList.remove("hide");return}}
+  {const sd=MACHINES[pickedMachine||"generic"];if(sd.setupEditable)setupVals=visibleSetup(sd,setupVals)}
   {const bad=Object.keys(setupVals).find(k=>badNum(setupVals[k])||(typeof setupVals[k]==="number"&&setupVals[k]<0));if(bad){e.textContent="打ち始めの項目は整数で、0以上にしてください";e.classList.remove("hide");return}}
   if(!pickedMachine){
     const hit=masterMachine({machine:m,mid:pickedMid})?.recDef||Object.keys(MACHINES).find(k=>k!=="generic"&&machineKey({machine:MACHINES[k].name})===machineKey({machine:m}));
