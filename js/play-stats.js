@@ -99,7 +99,36 @@
     }
     return {groups:[...groups.values()],details,next};
   }
-  const api={enabled,defs,defFor,extract,aggregate,czRows,effectiveSetup};
+  function importConfirmed(json,importSource=''){
+    const errors=[],rows=[],keys=['normalG_estimated','cz_awards','normalCZ_awards','normalCZ_success','upperCZ_awards','upperCZ_success','at_awards','calculated_delta_medals','arima_judgment_success','arima_judgment_failure','arima_judgment_failure_inferred'];
+    const totals=Object.fromEntries(keys.map(k=>[k,0]));totals.wins=0;
+    const ids=new Set();
+    if(!Array.isArray(json?.session_data))errors.push('台の一覧がありません');
+    else json.session_data.forEach((r,i)=>{
+      const label=(i+1)+'台目：',before=errors.length;
+      if(!r||typeof r!=='object'){errors.push(label+'記録が読み取れません');return}
+      if(typeof r.sessionId!=='string'||!r.sessionId.trim())errors.push(label+'台の番号がありません');
+      else if(ids.has(r.sessionId))errors.push(label+'台の番号が重複しています');
+      ids.add(r.sessionId);
+      const labels=['通常G','CZ当選','通常CZ当選','通常CZ成功','上位CZ当選','上位CZ成功','AT初当たり','実差枚','有馬成功','有馬失敗','有馬失敗のうち推定'];
+      keys.forEach((key,n)=>{if(!Number.isSafeInteger(r[key])||(key!=='calculated_delta_medals'&&r[key]<0))errors.push(label+labels[n]+'は'+(key==='calculated_delta_medals'?'整数':'0以上の整数')+'にしてください')});
+      if(r.normalCZ_success>r.normalCZ_awards||r.upperCZ_success>r.upperCZ_awards)errors.push(label+'CZの成功数が当選数を超えています');
+      if(r.cz_awards!==r.normalCZ_awards+r.upperCZ_awards)errors.push(label+'CZの合計が合いません');
+      const d=new Date(r.original?.startedAt);
+      if(!r.original?.startedAt||!Number.isFinite(+d))errors.push(label+'日付が読み取れません');
+      if(errors.length!==before)return;
+      const bucket=(count,success)=>({count,success,failure:count-success,unknown:0});
+      rows.push({sessionId:r.sessionId,date:`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`,shop:r.storeNormalized==='店舗未記録'?'':String(r.storeNormalized||''),kind:'slot',normalG:r.normalG_estimated,cz:{'レミニセンス':bucket(r.normalCZ_awards,r.normalCZ_success),'大喰いの利世':bucket(r.upperCZ_awards,r.upperCZ_success)},at:r.at_awards,atCauses:Object.fromEntries(Object.values(defs.tokyoghoul.atCauses).map(k=>[k,0])),ep:0,judge:bucket(r.arima_judgment_success+r.arima_judgment_failure,r.arima_judgment_success),afterJudgeCz:0,medalDiff:r.calculated_delta_medals,estimated:false,corrected:false,inconsistent:false,setup:{},machineId:'tokyoghoul',importSource});
+      for(const key of keys)totals[key]+=r[key];
+      if(r.calculated_delta_medals>0)totals.wins++;
+    });
+    const compared=Object.keys(totals).filter(k=>Object.hasOwn(json?.summary||{},k));
+    totals.summaryMismatches=compared.filter(k=>json.summary[k]!==totals[k]);
+    totals.summaryMatched=compared.length?totals.summaryMismatches.length===0:null;
+    totals.summaryUnchecked=Object.keys(json?.summary||{}).filter(k=>!Object.hasOwn(totals,k));
+    return {rows:errors.length?[]:rows,totals,errors};
+  }
+  const api={enabled,defs,defFor,extract,aggregate,czRows,effectiveSetup,importConfirmed};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
   root.PlayStats=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

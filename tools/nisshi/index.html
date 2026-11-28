@@ -26,7 +26,7 @@ textarea{width:100%;min-height:110px;font:inherit;color:inherit;background:var(-
 <input id="file-import" type="file" accept=".json,application/json" hidden><input id="file-restore" type="file" accept=".json,application/json" hidden>
 <script src="../../js/rec-store.js?v=20261031"></script>
 <script src="../../js/machine-master.js?v=20261127"></script>
-<script src="../../js/play-stats.js?v=20261128"></script>
+<script src="../../js/play-stats.js?v=20261128b"></script>
 <script>
 'use strict';
 // 日誌の旧形式補完と、表示・候補判定の共通規則。元の機種名・店名は変更しない。
@@ -321,7 +321,7 @@ function chart(list,line){
 }
 function analysisTable(list,key,title){const groups=key==='machine'?machineGroups(list):grouped(list,p=>p[key]);return `<h2>${title}</h2><div class="table-wrap"><table><thead><tr><th>${title.replace('別','')}</th><th>台数</th><th>合計円</th><th>1台平均</th><th>想定期待値</th></tr></thead><tbody>${groups.map(([name,rows])=>{const t=totals(rows);return `<tr><td>${key==='machine'&&name!==MINOR?starButton(name):''}<button ${name===MINOR?'data-action="minor"':'data-group="'+key+'" data-value="'+esc(name)+'"'}>${esc(name===MINOR?'その他（'+minorGroups(list).length+'機種）':name||'未記録')}</button></td><td>${t.count}</td><td>${t.knownCount?signed(t.yen):'—'}${t.unknownCount?'<br>未換算 '+t.unknownCount+'件':''}</td><td>${t.knownCount?signed(Math.round(t.yen/t.knownCount)):'—'}</td><td>${t.expectedCount?signed(t.expected):'—'}</td></tr>`}).join('')}</tbody></table></div>`}
 function analysisView(){const f=page.filters||{},list=analysisList(),machines=unique(plays.map(p=>p.machine)).sort(),shops=unique(plays.map(p=>p.shop)).sort();return back()+`<h2>分析</h2><div class="filters"><label>期間（月）<select data-filter="month">${option('','全期間',f.month)}${unique(plays.map(p=>p.date.slice(0,7))).sort().reverse().map(m=>option(m,m,f.month)).join('')}</select></label><label>種別<select data-filter="kind">${option('','全部',f.kind)}${option('slot','スロット',f.kind)}${option('pachinko','パチンコ',f.kind)}</select></label><label class="full">機種を検索<input id="machine-search" type="search" value="${esc(page.query||'')}" placeholder="機種名"></label><label class="full">機種<select id="machine-filter" data-filter="machine">${option('','全部',f.machine)}${machines.filter(m=>m.includes(page.query||'')||m===f.machine).map(m=>option(m,m,f.machine)).join('')}</select></label><label class="full">店<select data-filter="shop">${option('','全部',f.shop)}${shops.filter(Boolean).map(s=>option(s,s,f.shop)).join('')}</select></label></div>${analysisTagFilters(f)}${aimTable(list)}${summary(list)}<div class="row"><button data-chart="bar" aria-pressed="${page.chart!=='line'}">月別の棒</button><button data-chart="line" aria-pressed="${page.chart==='line'}">累積の折れ線</button></div>${chart(list,page.chart==='line')}<p class="muted">合計・1台平均は換算済みの台が対象。1台平均＝合計円 ÷ 換算済み台数。想定期待値は記録のある台のみ合計。</p>${statsAnalysis(list)}${analysisTable(list,'machine','機種別')}${analysisTable(list,'shop','店別')}`}
-function settingsView(){const bytes=n=>Number(n).toLocaleString('ja-JP')+' bytes';return back()+`<h2>設定</h2>${phase2Settings()}<section class="panel"><h3>このブラウザの記録を取り込む</h3>${['rec','ledger','rec-kanokari','mylog','yutime'].map(s=>`<label class="check"><input type="checkbox" name="source" value="${s}" checked>${SOURCE_LABELS[s]}</label>`).join('')}<button id="browser-import">件数を確認</button></section><button class="file" id="choose-import">ファイルから取り込む</button><button class="file" id="export">書き出し</button><button class="file" id="choose-restore">復元</button><section class="panel"><h3>保存容量</h3><p>${storageInfo?bytes(storageInfo.usage||0)+' / '+bytes(storageInfo.quota||0):'取得できません'}</p><p class="muted">容量はこのサイト全体の使用量です。</p><p>永続化：${esc(persistence)}</p></section><h2>取り込みの履歴</h2>${[...imports].sort((a,b)=>b.at.localeCompare(a.at)).map(i=>`<div class="panel"><small>${esc(new Date(i.at).toLocaleString('ja-JP'))}</small><div>${esc((Array.isArray(i.from)?i.from:[i.from||'']).join('・'))}</div>${Object.entries(i.counts||{}).map(([s,c])=>`<div class="muted">${esc(SOURCE_LABELS[s]||s)}：新規 ${zero(c.new)} ／ 更新 ${zero(c.updated)} ／ 変化なし ${zero(c.unchanged)} ／ まとめた元記録 ${zero(c.merged)}</div>`).join('')}</div>`).join('')||'<p class="empty">まだ取り込んでいません。</p>'}`}
+function settingsView(){const bytes=n=>Number(n).toLocaleString('ja-JP')+' bytes';return back()+`<h2>設定</h2>${phase2Settings()}${confirmedSettings()}<section class="panel"><h3>このブラウザの記録を取り込む</h3>${['rec','ledger','rec-kanokari','mylog','yutime'].map(s=>`<label class="check"><input type="checkbox" name="source" value="${s}" checked>${SOURCE_LABELS[s]}</label>`).join('')}<button id="browser-import">件数を確認</button></section><button class="file" id="choose-import">ファイルから取り込む</button><button class="file" id="export">書き出し</button><button class="file" id="choose-restore">復元</button><section class="panel"><h3>保存容量</h3><p>${storageInfo?bytes(storageInfo.usage||0)+' / '+bytes(storageInfo.quota||0):'取得できません'}</p><p class="muted">容量はこのサイト全体の使用量です。</p><p>永続化：${esc(persistence)}</p></section><h2>取り込みの履歴</h2>${[...imports].sort((a,b)=>b.at.localeCompare(a.at)).map(i=>`<div class="panel"><small>${esc(new Date(i.at).toLocaleString('ja-JP'))}</small><div>${esc((Array.isArray(i.from)?i.from:[i.from||'']).join('・'))}</div>${Object.entries(i.counts||{}).map(([s,c])=>`<div class="muted">${esc(SOURCE_LABELS[s]||s)}：新規 ${zero(c.new)} ／ 更新 ${zero(c.updated)} ／ 変化なし ${zero(c.unchanged)} ／ まとめた元記録 ${zero(c.merged)}</div>`).join('')}</div>`).join('')||'<p class="empty">まだ取り込んでいません。</p>'}`}
 function render(){
   let html='';switch(page.name){case 'home':html=homeView();break;case 'history':html=historyView();break;case 'day':{const list=plays.filter(p=>p.date===page.date);html=back()+`<h2>${esc(page.date)}</h2>`+summary(list)+cards(list)+dayExtras(page.date);break}case 'detail':html=detailView();break;case 'analysis':html=analysisView();break;case 'group':{const list=plays.filter(p=>page.ids.includes(p.id));html=back()+`<h2>${esc(page.title||'未記録')}</h2>`+summary(list)+cards(list);break}case 'settings':html=settingsView();break;default:html=phase2View();break}
   $('app').innerHTML=html;prepareNumbers($('app'));
@@ -579,8 +579,11 @@ function statsBreakdown(a,cz,display){
   const kinds=display.cz.map(([key,label])=>{const c=a.cz[key];return {count:c.count,html:`<strong>${esc(label)}</strong><div>${statsValue('kind-'+key,c.count+'回 ／'+statsProbability(a,key))}</div><div>${statsValue('kind-rate-'+key,statsRate(c.success,c.success+c.failure)+' ／'+statsOutcomes(c))}</div>`}});
   const groups=cz.groups.map((r,i)=>({count:r.count,html:`<strong>${esc(r.hit+'／'+r.trig+'／規定G数：'+statsNumber(r.kiteiG))}</strong><div>${statsValue('group-'+i,`当選${r.count}・成功${r.success}・失敗${r.failure}・不明${r.unknown}`)}</div>`}));
   const routes=display.routes.map(key=>({count:a.atCauses[key],html:esc(key)+' '+statsValue('route-'+key,a.atCauses[key]+'回')}));
+  const missing=a.at-Object.values(a.atCauses).reduce((n,v)=>n+v,0);
+  if(missing>0)routes.push({count:missing,html:'経路の記録なし '+statsValue('route-missing',missing+'回')});
   routes.push({count:a.ep,html:'EP '+statsValue('ep',a.ep+'回')});
   let html=statsGroup('CZ種類別',kinds)+statsGroup('CZの契機別',groups)+statsGroup('ATの経路別',routes);
+  if(a.confirmed)html+=`<p class="muted">手集計の台（${a.confirmed}台）は、ATの経路とEPの記録がありません</p>`;
   if(display.judge){const c=a.judge;html+=statsGroup(display.judge.title,[{count:c.count,html:statsValue('judge',c.count+'回 ／'+statsOutcomes(c))+`<div>成功率 ${statsValue('judge-rate',statsRate(c.success,c.success+c.failure))}</div>`},{count:a.afterJudgeCz,html:esc(display.judge.after)+' '+statsValue('after-judge',a.afterJudgeCz+'回')}])}
   return html;
 }
@@ -621,11 +624,40 @@ function statsAnalysis(list){
   });
   const a=PlayStats.aggregate(filtered,def,confirmed),cz=PlayStats.czRows(filtered,def,confirmed);
   const filters=statsFilterView(def,display,list,f),tab=page.statsTab||'overview';
-  return `<section id="tg-stats"><h2>${esc(display.title)}</h2><div class="panel"><p>${statsValue('targets',`対象：自動 ${a.automatic}台 ／確定値 ${a.confirmed}台 ／対象外${a.excluded}件（汎用で記録した台など）`)}</p><div class="stats-conditions">条件：${filters.chips}</div><div class="row spread"><button data-stats-toggle aria-expanded="${!!page.statsFiltersOpen}">絞り込み ${page.statsFiltersOpen?'▲':'▼'}</button><button data-stats-clear="all">すべて解除</button></div></div>${page.statsFiltersOpen?`<div class="stats-filters">${filters.fields}</div>`:''}<div class="stats-tabs">${[['overview','概要'],['detail','詳細'],['history','履歴']].map(([key,label])=>`<button data-stats-tab="${key}" aria-pressed="${tab===key}">${label}</button>`).join('')}</div><div class="stats-content">${tab==='detail'?statsBreakdown(a,cz,display):tab==='history'?statsHistory(cz,display):statsOverview(a,display)}</div><p class="muted">打った台の記録から数えた値です。機種そのものの確率ではありません。</p></section>`;
+  return `<section id="tg-stats"><h2>${esc(display.title)}</h2><div class="panel"><p>${statsValue('targets',`対象：自動 ${a.automatic}台 ／確定値 ${a.confirmed}台 ／対象外${a.excluded}件（汎用で記録した台など）`)}</p><div class="stats-conditions">条件：${filters.chips}</div><div class="row spread"><button data-stats-toggle aria-expanded="${!!page.statsFiltersOpen}">絞り込み ${page.statsFiltersOpen?'▲':'▼'}</button><button data-stats-clear="all">すべて解除</button></div></div>${page.statsFiltersOpen?`<div class="stats-filters">${filters.fields}</div>`:''}<div class="stats-tabs">${[['overview','概要'],['detail','詳細'],['history','履歴']].map(([key,label])=>`<button data-stats-tab="${key}" aria-pressed="${tab===key}">${label}</button>`).join('')}</div><div class="stats-content">${tab==='detail'?statsBreakdown(a,cz,display):tab==='history'?(a.confirmed?`<p class="muted">手集計の台（${a.confirmed}台）は履歴に出ません</p>`:'')+statsHistory(cz,display):statsOverview(a,display)}</div><p class="muted">打った台の記録から数えた値です。機種そのものの確率ではありません。</p></section>`;
 }
+
+let confirmedPending=null,confirmedError='',confirmedRead=0;
+function confirmedSettings(){
+  const rows=Object.values(metaValue('statsConfirmed',{}).tokyoghoul||{}),stamp=metaValue('statsConfirmedImportedAt',''),p=confirmedPending,t=p?.totals,dates=p?.rows.map(r=>r.date).sort();
+  const values=t?[['通常G',t.normalG_estimated],['CZ当選',t.cz_awards],['通常CZ当選',t.normalCZ_awards],['通常CZ成功',t.normalCZ_success],['上位CZ当選',t.upperCZ_awards],['上位CZ成功',t.upperCZ_success],['AT初当たり',t.at_awards],['実差枚',t.calculated_delta_medals],['勝ち台数',t.wins],['有馬成功',t.arima_judgment_success],['有馬失敗',t.arima_judgment_failure],['有馬失敗のうち推定',t.arima_judgment_failure_inferred]]:[];
+  return `<section class="panel" id="confirmed-settings" style="overflow-wrap:anywhere"><h3>東京喰種の手集計を読み込む</h3><input id="confirmed-file" type="file" accept=".json,application/json" hidden><button class="file" id="confirmed-choose">ファイルを選ぶ</button>${rows.length?`<p>読み込み済み：${rows.length}台（${esc(rows[0].importSource||'')}・${stamp?esc(new Date(stamp).toLocaleString('ja-JP')):''}）</p><button id="confirmed-remove">取り消す</button>`:''}${confirmedError?`<p role="alert">${esc(confirmedError)}</p>`:''}${p?`<div id="confirmed-preview"><h3>プレビュー</h3><p>${p.rows.length}台 ／ ${esc(dates[0]||'—')}〜${esc(dates.at(-1)||'—')}</p>${values.map(([k,v])=>`<div>${k}：${statsNumber(v)}</div>`).join('')}<p>${t.summaryMatched===false?'ファイルの合計と違います':t.summaryMatched===true&&!t.summaryUnchecked.length?'ファイルの合計と一致しています':'ファイルの合計をすべて確認できません'}</p><button id="confirmed-save">読み込む</button></div>`:''}</section>`;
+}
+$('app').addEventListener('change',async event=>{
+  if(event.target.id!=='confirmed-file')return;
+  const file=event.target.files?.[0],ticket=++confirmedRead;confirmedPending=null;confirmedError='';if(!file){render();return}
+  try{const result=PlayStats.importConfirmed(JSON.parse(await file.text()),file.name);if(ticket!==confirmedRead)return;if(result.errors.length)confirmedError=result.errors.join(' ／ ');else confirmedPending=result}
+  catch{if(ticket!==confirmedRead)return;confirmedError='ファイルを読み取れませんでした'}
+  render();
+});
+$('app').addEventListener('click',async event=>{
+  const b=event.target.closest('button');if(!b)return;
+  try{
+    if(b.id==='confirmed-choose')$('confirmed-file').click();
+    else if(b.id==='confirmed-save'&&confirmedPending){
+      const pending=confirmedPending;b.disabled=true;
+      await mutate(d=>{const current=d.meta.find(m=>m.key==='statsConfirmed')?.value||{};putMeta(d,'statsConfirmed',{...current,tokyoghoul:Object.fromEntries(pending.rows.map(r=>[r.sessionId,r]))});putMeta(d,'statsConfirmedImportedAt',now())},false);
+      confirmedPending=null;render();
+    }else if(b.id==='confirmed-remove'&&confirm('東京喰種の手集計の読み込みを取り消しますか？')){
+      await mutate(d=>{const current={...(d.meta.find(m=>m.key==='statsConfirmed')?.value||{})};delete current.tokyoghoul;putMeta(d,'statsConfirmed',current);d.meta=d.meta.filter(m=>m.key!=='statsConfirmedImportedAt')},false);
+      confirmedPending=null;confirmedError='';render();
+    }
+  }catch(error){confirmedError='保存できませんでした。'+error.message;render()}
+});
+
 function statsDetail(p){
   const def=PlayStats.defFor(p);if(!def)return '';
-  return `<section id="tg-detail"><h2>この台の集計</h2>${statsSummary(PlayStats.aggregate([p],def))}${p.statsFix?'<p class="muted">日誌で直した項目あり</p>':''}<button data-stats-edit="${esc(p.id)}">前回状況を補足・訂正</button>${p.statsFix?`<button data-stats-reset="${esc(p.id)}">rec の値に戻す</button>`:''}</section>`;
+  return `<section id="tg-detail"><h2>この台の集計</h2>${Object.hasOwn(metaValue('statsConfirmed',{})[def.id]||{},String(p.sourceId||p.raw?.id||p.id))?'<p class="muted">東京喰種の集計では、手集計の値を使っています</p>':''}${statsSummary(PlayStats.aggregate([p],def))}${p.statsFix?'<p class="muted">日誌で直した項目あり</p>':''}<button data-stats-edit="${esc(p.id)}">前回状況を補足・訂正</button>${p.statsFix?`<button data-stats-reset="${esc(p.id)}">rec の値に戻す</button>`:''}</section>`;
 }
 function statsEdit(id){
   const p=rawPlays.find(p=>p.id===id),def=PlayStats.defFor(p),setup=PlayStats.effectiveSetup(p);
