@@ -1,0 +1,526 @@
+{
+  "P1": {
+    "id": "P1",
+    "machine": "L東京喰種",
+    "mid": "s0001",
+    "machineId": "tokyoghoul",
+    "startAt": "2026-11-28T01:00:00Z",
+    "endAt": "2026-11-28T02:00:00Z",
+    "shop": "架空店A",
+    "dai": "999",
+    "lend": 46,
+    "startRealG": 20,
+    "realG": 100,
+    "setup": {
+      "lastHit": "czFail",
+      "prevCzTrig": "レア役",
+      "prevCzRealG": 350,
+      "prevCzLcdG": 450
+    },
+    "events": [
+      {
+        "type": "hitStart",
+        "hit": "レミニセンス",
+        "realG": 100,
+        "lcdG": 100,
+        "trig": "レア役"
+      }
+    ],
+    "money": {
+      "startMedal": 0,
+      "endMedal": 100,
+      "spends": [
+        {
+          "amount": 1000
+        }
+      ],
+      "replays": []
+    }
+  },
+  "P2": {
+    "id": "P2",
+    "machine": "L東京喰種",
+    "mid": "s0001",
+    "machineId": "tokyoghoul",
+    "startAt": "2026-11-28T01:00:00Z",
+    "endAt": "2026-11-28T02:00:00Z",
+    "shop": "架空店A",
+    "dai": "999",
+    "lend": 46,
+    "startRealG": 3,
+    "realG": 135,
+    "setup": {},
+    "events": [
+      {
+        "type": "hitStart",
+        "hit": "レミニセンス",
+        "realG": 110,
+        "lcdG": 110,
+        "trig": "レア役"
+      },
+      {
+        "type": "hitEnd",
+        "hit": "レミニセンス",
+        "result": "失敗",
+        "mode": "normal",
+        "toG": {
+          "realG": 0,
+          "lcdG": 0
+        }
+      }
+    ],
+    "money": {
+      "startMedal": 0,
+      "endMedal": 100,
+      "spends": [
+        {
+          "amount": 1000
+        }
+      ],
+      "replays": []
+    }
+  },
+  "P3": {
+    "id": "P3",
+    "machine": "L東京喰種",
+    "mid": "s0001",
+    "machineId": "tokyoghoul",
+    "startAt": "2026-11-28T01:00:00Z",
+    "endAt": "2026-11-28T02:00:00Z",
+    "shop": "架空店A",
+    "dai": "999",
+    "lend": 46,
+    "startRealG": 145,
+    "realG": 16,
+    "setup": {},
+    "events": [
+      {
+        "type": "hitStart",
+        "hit": "レミニセンス",
+        "realG": 210,
+        "lcdG": 210,
+        "trig": "レア役"
+      },
+      {
+        "type": "hitEnd",
+        "hit": "レミニセンス",
+        "result": "失敗",
+        "mode": "normal",
+        "toG": {
+          "realG": 0,
+          "lcdG": 0
+        }
+      },
+      {
+        "type": "hitStart",
+        "hit": "大喰いの利世",
+        "realG": 32,
+        "lcdG": 32,
+        "trig": "レア役"
+      },
+      {
+        "type": "hitEnd",
+        "hit": "大喰いの利世",
+        "result": "成功",
+        "mode": "normal",
+        "op": "P3-handoff-3"
+      },
+      {
+        "type": "hitStart",
+        "hit": "AT",
+        "realG": 0,
+        "lcdG": 0,
+        "trig": "大喰いの利世",
+        "op": "P3-handoff-3"
+      },
+      {
+        "type": "hitEnd",
+        "hit": "AT",
+        "mode": "normal",
+        "toG": {
+          "realG": 0,
+          "lcdG": 0
+        }
+      },
+      {
+        "type": "hitStart",
+        "hit": "AT",
+        "realG": 34,
+        "lcdG": 34,
+        "trig": "引き戻し"
+      },
+      {
+        "type": "hitEnd",
+        "hit": "AT",
+        "mode": "normal",
+        "toG": {
+          "realG": 0,
+          "lcdG": 0
+        }
+      }
+    ],
+    "money": {
+      "startMedal": 0,
+      "endMedal": 100,
+      "spends": [
+        {
+          "amount": 1000
+        }
+      ],
+      "replays": []
+    }
+  },
+  "P4": {
+    "id": "P4",
+    "machine": "L東京喰種",
+    "mid": "s0001",
+    "machineId": "tokyoghoul",
+    "startAt": "2026-11-28T01:00:00Z",
+    "endAt": "2026-11-28T02:00:00Z",
+    "shop": "架空店A",
+    "dai": "999",
+    "lend": 46,
+    "startRealG": 0,
+    "realG": 130,
+    "setup": {},
+    "events": [
+      {
+        "type": "hitStart",
+        "hit": "AT",
+        "realG": 0,
+        "lcdG": 0,
+        "trig": "レア役"
+      },
+      {
+        "type": "hitEnd",
+        "hit": "AT",
+        "mode": "normal",
+        "op": "P4-handoff-1"
+      },
+      {
+        "type": "hitStart",
+        "hit": "有馬ジャッジメント",
+        "realG": 0,
+        "lcdG": 0,
+        "trig": "レア役",
+        "op": "P4-handoff-1"
+      },
+      {
+        "type": "hitEnd",
+        "hit": "有馬ジャッジメント",
+        "result": "失敗",
+        "mode": "normal",
+        "toG": {
+          "realG": 6,
+          "lcdG": 0
+        }
+      },
+      {
+        "type": "hitStart",
+        "hit": "レミニセンス",
+        "realG": 130,
+        "lcdG": 130,
+        "trig": "規定G数",
+        "afterMark": "有馬失敗後"
+      }
+    ],
+    "money": {
+      "startMedal": 0,
+      "endMedal": 100,
+      "spends": [
+        {
+          "amount": 1000
+        }
+      ],
+      "replays": []
+    }
+  },
+  "P5": {
+    "id": "P5",
+    "machine": "L東京喰種",
+    "mid": "s0001",
+    "machineId": "tokyoghoul",
+    "startAt": "2026-11-28T01:00:00Z",
+    "endAt": "2026-11-28T02:00:00Z",
+    "shop": "架空店A",
+    "dai": "999",
+    "lend": 46,
+    "startRealG": 0,
+    "realG": 0,
+    "setup": {},
+    "events": [
+      {
+        "type": "hitStart",
+        "hit": "エピソードボーナス",
+        "realG": 10,
+        "lcdG": 10,
+        "trig": "レア役"
+      },
+      {
+        "type": "hitEnd",
+        "hit": "エピソードボーナス",
+        "mode": "normal",
+        "op": 1
+      },
+      {
+        "type": "hitStart",
+        "hit": "AT",
+        "realG": 0,
+        "lcdG": 0,
+        "trig": "EP後",
+        "op": 1
+      },
+      {
+        "type": "hitEnd",
+        "hit": "AT",
+        "mode": "normal",
+        "op": "P5-handoff-3"
+      },
+      {
+        "type": "hitStart",
+        "hit": "有馬ジャッジメント",
+        "realG": 0,
+        "lcdG": 0,
+        "trig": "レア役",
+        "op": "P5-handoff-3"
+      },
+      {
+        "type": "hitEnd",
+        "hit": "有馬ジャッジメント",
+        "result": "成功",
+        "mode": "normal",
+        "op": "P5-handoff-5"
+      },
+      {
+        "type": "hitStart",
+        "hit": "CCGの死神",
+        "realG": 0,
+        "lcdG": 0,
+        "trig": "レア役",
+        "op": "P5-handoff-5"
+      },
+      {
+        "type": "hitEnd",
+        "hit": "CCGの死神",
+        "mode": "normal",
+        "op": "P5-handoff-7"
+      },
+      {
+        "type": "hitStart",
+        "hit": "AT",
+        "realG": 0,
+        "lcdG": 0,
+        "trig": "死神後",
+        "op": "P5-handoff-7"
+      }
+    ],
+    "money": {
+      "startMedal": 0,
+      "endMedal": 100,
+      "spends": [
+        {
+          "amount": 1000
+        }
+      ],
+      "replays": []
+    }
+  },
+  "P6": {
+    "id": "P6",
+    "machine": "L東京喰種",
+    "mid": "s0001",
+    "machineId": "tokyoghoul",
+    "startAt": "2026-11-28T01:00:00Z",
+    "endAt": "2026-11-28T02:00:00Z",
+    "shop": "架空店A",
+    "dai": "999",
+    "lend": 46,
+    "startRealG": 3,
+    "realG": 135,
+    "setup": {},
+    "events": [
+      {
+        "type": "hitStart",
+        "hit": "レミニセンス",
+        "realG": 110,
+        "lcdG": 110,
+        "trig": "レア役"
+      },
+      {
+        "type": "hitEnd",
+        "hit": "レミニセンス",
+        "result": "失敗",
+        "mode": "normal"
+      }
+    ],
+    "money": {
+      "startMedal": 0,
+      "endMedal": 100,
+      "spends": [
+        {
+          "amount": 1000
+        }
+      ],
+      "replays": []
+    }
+  },
+  "P7": {
+    "id": "P7",
+    "machine": "L東京喰種",
+    "mid": "s0001",
+    "machineId": "tokyoghoul",
+    "startAt": "2026-11-28T01:00:00Z",
+    "endAt": "2026-11-28T02:00:00Z",
+    "shop": "架空店A",
+    "dai": "999",
+    "lend": 46,
+    "startRealG": 51,
+    "realG": 134,
+    "setup": {},
+    "events": [
+      {
+        "type": "gFix",
+        "realG": 110
+      },
+      {
+        "type": "hitStart",
+        "hit": "レミニセンス",
+        "realG": 134,
+        "lcdG": 134,
+        "trig": "レア役"
+      }
+    ],
+    "money": {
+      "startMedal": 0,
+      "endMedal": 100,
+      "spends": [
+        {
+          "amount": 1000
+        }
+      ],
+      "replays": []
+    }
+  },
+  "P8": {
+    "id": "P8",
+    "machine": "L東京喰種",
+    "mid": "s0001",
+    "machineId": "tokyoghoul",
+    "startAt": "2026-11-28T01:00:00Z",
+    "endAt": "2026-11-28T02:00:00Z",
+    "shop": "架空店A",
+    "dai": "999",
+    "lend": 46,
+    "startRealG": 200,
+    "realG": 100,
+    "setup": {},
+    "events": [
+      {
+        "type": "hitStart",
+        "hit": "レミニセンス",
+        "realG": 100,
+        "lcdG": 100,
+        "trig": "レア役"
+      }
+    ],
+    "money": {
+      "startMedal": 0,
+      "endMedal": 100,
+      "spends": [
+        {
+          "amount": 1000
+        }
+      ],
+      "replays": []
+    }
+  },
+  "P14": {
+    "id": "P14",
+    "machine": "L東京喰種",
+    "mid": "s0001",
+    "machineId": "tokyoghoul",
+    "startAt": "2026-11-28T01:00:00Z",
+    "endAt": "2026-11-28T02:00:00Z",
+    "shop": "架空店A",
+    "dai": "999",
+    "lend": 46,
+    "startRealG": 0,
+    "realG": 120,
+    "setup": {},
+    "events": [
+      {
+        "type": "hitStart",
+        "hit": "レミニセンス",
+        "realG": 500,
+        "lcdG": 550,
+        "trig": "レア役"
+      },
+      {
+        "type": "hitEnd",
+        "hit": "レミニセンス",
+        "result": "失敗",
+        "mode": "normal",
+        "toG": {
+          "realG": 0,
+          "lcdG": 0
+        }
+      },
+      {
+        "type": "hitStart",
+        "hit": "大喰いの利世",
+        "realG": 100,
+        "lcdG": 120,
+        "trig": "規定G数",
+        "kiteiG": 100
+      }
+    ],
+    "money": {
+      "startMedal": 0,
+      "endMedal": 100,
+      "spends": [
+        {
+          "amount": 1000
+        }
+      ],
+      "replays": []
+    }
+  },
+  "P15": {
+    "id": "P15",
+    "machine": "L東京喰種",
+    "mid": "s0001",
+    "machineId": "tokyoghoul",
+    "startAt": "2026-11-28T01:00:00Z",
+    "endAt": "2026-11-28T02:00:00Z",
+    "shop": "架空店A",
+    "dai": "999",
+    "lend": 46,
+    "startRealG": 0,
+    "realG": 30,
+    "setup": {
+      "lastHit": "czFail",
+      "prevCzTrig": "規定G数",
+      "prevCzKiteiG": 200,
+      "prevCzLcdG": 230
+    },
+    "events": [
+      {
+        "type": "hitStart",
+        "hit": "レミニセンス",
+        "realG": 30,
+        "lcdG": 30,
+        "trig": "レア役"
+      }
+    ],
+    "money": {
+      "startMedal": 0,
+      "endMedal": 100,
+      "spends": [
+        {
+          "amount": 1000
+        }
+      ],
+      "replays": []
+    }
+  }
+}
