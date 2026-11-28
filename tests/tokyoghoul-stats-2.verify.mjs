@@ -20,7 +20,7 @@ async function importData(data,restore=false){
 }
 async function commit(){await click('#import-confirm');await wait('!document.querySelector("#preview").open')}
 async function analyze(machine='L東京喰種'){await open();await click('[data-page="analysis"]');await wait('!!document.querySelector("#machine-filter")');await input('#machine-filter',machine)}
-const getSummary=()=>ev('return document.querySelector("#tg-stats table").innerText');
+async function getSummary(browser=h){const parts=[];for(const key of ['overview','detail']){await browser.click('[data-stats-tab="'+key+'"]');await browser.ev('document.querySelectorAll(".stats-zero").forEach(d=>d.open=true)');parts.push(await browser.ev('return document.querySelector(".stats-content").innerText'))}await browser.click('[data-stats-tab="overview"]');return parts.join('\n')}
 async function detail(id='P2'){await open();await click('[data-play="rec:'+id+'"]');await wait('!!document.querySelector("#tg-detail")')}
 async function edit(id='P2'){await detail(id);await click('[data-stats-edit]');await wait('document.querySelector("#edit-sheet").open')}
 async function save(){await click('#edit-sheet button[type=submit]');await wait('!document.querySelector("#edit-sheet").open')}
@@ -46,7 +46,7 @@ try{
     const before=await ev('return rawPlays.find(p=>p.id==="rec:P2").raw');await importData({sessions:[fixtures.P2],entries:[]});await commit();
     assert.deepEqual(await ev('return rawPlays.find(p=>p.id==="rec:P2").statsFix'),{lastHit:'czFail',prevCzTrig:'規定G数',prevCzKiteiG:200});
     assert.deepEqual(await ev('return rawPlays.find(p=>p.id==="rec:P2").raw.setup'),fixtures.P2.setup);assert.deepEqual(await ev('return rawPlays.find(p=>p.id==="rec:P2").raw.events'),before.events);
-    await analyze();assert.match(await ev('return document.querySelector("#tg-stats").innerText'),/着席前/);
+    await analyze();await click('[data-stats-tab="history"]');assert.match(await ev('return document.querySelector("#tg-stats").innerText'),/着席前/);
   });
   await test('B6',async()=>{
     await ev('window.__download=null;window.__create=URL.createObjectURL;URL.createObjectURL=b=>{window.__download=b;return __create(b)}');await click('[data-back]');await click('[data-page="settings"]');await click('#export');await wait('!!window.__download');backupData=await ev('return JSON.parse(await __download.text())');
@@ -56,7 +56,7 @@ try{
       await fresh.open('/empty');const origin=await fresh.ev('return location.origin');await fresh.send('Page.navigate',{url:origin+current});await ready('typeof db!=="undefined"&&!!db&&!!document.querySelector("#app button")');assert.equal(await fresh.ev('return rawPlays.length'),0);
       await fresh.ev(`const i=document.querySelector('#file-restore'),dt=new DataTransfer();dt.items.add(new File([${JSON.stringify(JSON.stringify(backupData))}],'synthetic-backup.json',{type:'application/json'}));i.files=dt.files;i.dispatchEvent(new Event('change'));`);
       await ready('document.querySelector("#preview").open&&!document.querySelector("#import-confirm").disabled');await fresh.click('#import-confirm');await ready('!document.querySelector("#preview").open');
-      await fresh.click('[data-page="analysis"]');await ready('!!document.querySelector("#machine-filter")');await fresh.input('#machine-filter','L東京喰種');assert.equal(await fresh.ev('return document.querySelector("#tg-stats table").innerText'),before);assert.deepEqual(await fresh.ev('return rawPlays.find(p=>p.id==="rec:P2").statsFix'),backupData.plays.find(p=>p.id==='rec:P2').statsFix);assert.deepEqual(await fresh.ev('return __errs'),[]);
+      await fresh.click('[data-page="analysis"]');await ready('!!document.querySelector("#machine-filter")');await fresh.input('#machine-filter','L東京喰種');assert.equal(await getSummary(fresh),before);assert.deepEqual(await fresh.ev('return rawPlays.find(p=>p.id==="rec:P2").statsFix'),backupData.plays.find(p=>p.id==='rec:P2').statsFix);assert.deepEqual(await fresh.ev('return __errs'),[]);
     }finally{await fresh.close()}
   });
   await test('B5',async()=>{await detail();await click('[data-stats-reset]');await wait('!rawPlays.find(p=>p.id==="rec:P2").statsFix');assert.equal(await ev('return document.querySelector("#tg-detail").innerText.includes("日誌で直した項目あり")'),false)});
@@ -68,7 +68,7 @@ try{
       const values=[];for(const url of [old,current]){await open(url);await click('[data-page="analysis"]');for(const [key,value] of Object.entries(filters))await input('[data-filter="'+key+'"]',value);values.push(await ev('const c=document.querySelector("#app").cloneNode(true);c.querySelector("#tg-stats")?.remove();return c.innerHTML'))}assert.equal(values[1],values[0]);comparisons.push({filters,identical:true});
     }fs.writeFileSync(path.join(h.artifacts,'B7.json'),JSON.stringify(comparisons,null,2));
   });
-  await test('B8',async()=>{await analyze();await input('[data-stats-filter="lastHit"]','czFail');await click('[data-stats-filter="prevCzKiteiG_min"]');for(const n of ['2','0','0'])await click('[data-number="'+n+'"]');await click('[data-number="use"]');assert.match(await ev('return document.querySelector("#tg-stats").innerText'),/自動 1台/);assert.match(await getSummary(),/30G/);await input('[data-stats-filter="prevCzKiteiG_min"]','201');assert.match(await ev('return document.querySelector("#tg-stats").innerText'),/自動 0台/)});
+  await test('B8',async()=>{await analyze();await click('[data-stats-toggle]');await input('[data-stats-filter="lastHit"]','czFail');await input('[data-stats-filter="prevCzTrig"]','規定G数');await click('[data-stats-filter="prevCzKiteiG_min"]');for(const n of ['2','0','0'])await click('[data-number="'+n+'"]');await click('[data-number="use"]');assert.match(await ev('return document.querySelector("#tg-stats").innerText'),/自動 1台/);assert.match(await getSummary(),/30G/);await input('[data-stats-filter="prevCzKiteiG_min"]','201');assert.match(await ev('return document.querySelector("#tg-stats").innerText'),/自動 0台/)});
   await test('B9',async()=>{
     const measures=[];for(const width of [360,390]){
       await send('Emulation.setDeviceMetricsOverride',{width,height:844,deviceScaleFactor:1,mobile:true});
