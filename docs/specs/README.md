@@ -26,6 +26,8 @@
 | `tokyoghoul-nisshi-stats-skeleton-v02.md` | 東京喰種 第1号 rec 登録側＋稼働日誌の自動集計の骨格書 v0.2（夢爽裁可 11/28） |
 | `tokyoghoul-stats-1-spec-v01.md` | 東京喰種 第1号 段1（rec 登録側：前回CZの契機・G数、CZ当選の規定G数、通常時に戻ったG数、着席項目の後修正、構造化書き出し）の仕様書 v0.1 |
 | `tokyoghoul-stats-1-instructions-v01.md` | 東京喰種 第1号 段1の実装指示書 v0.1（featureブランチの push まで） |
+| `tokyoghoul-stats-2-spec-v01.md` | 東京喰種 第1号 段2（稼働日誌の集計：js/play-stats.js・分析の「東京喰種の集計」節・台の詳細の集計と前回状況の訂正 statsFix）の仕様書 v0.1 |
+| `tokyoghoul-stats-2-instructions-v01.md` | 東京喰種 第1号 段2の実装指示書 v0.1（featureブランチの push まで） |
 | `rec-common-skeleton-v03.md` | tools/rec 共通改修（機種マスター・店舗の利用順・開始時再プレイ欄の廃止・クレジット電卓）の骨格書 v0.3（夢爽裁可 11/26） |
 | `rec-common-1-spec-v01.md` | tools/rec 共通改修 段1の仕様書 v0.1（開始画面の再プレイ欄の廃止・店舗を最近使った順に並べる） |
 | `rec-common-1-instructions-v01.md` | tools/rec 共通改修 段1の実装指示書 v0.1（テスト版 common-test.html の公開まで） |
