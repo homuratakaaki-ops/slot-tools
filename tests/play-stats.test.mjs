@@ -37,3 +37,19 @@ test('setup fields and trigger options match rec definition',()=>{
   const triggers=vm.runInNewContext('('+source.match(/hitTriggers:(\[[^\n]*\])/)[1]+')');
   assert.deepEqual(JSON.parse(JSON.stringify(setup)),PS.defs.tokyoghoul.setup);assert.deepEqual(JSON.parse(JSON.stringify(triggers)),PS.defs.tokyoghoul.hitTriggers);
 });
+
+const confirmedFixture=JSON.parse(fs.readFileSync(new URL('./fixtures/tokyoghoul-confirmed-synthetic.json',import.meta.url),'utf8'));
+test('T1 confirmed mapping and hand-calculated totals',()=>{
+ const input=structuredClone(confirmedFixture),r=PS.importConfirmed(input,'synthetic.json');assert.deepEqual(input,confirmedFixture);assert.deepEqual(r.errors,[]);assert.equal(r.rows.length,6);
+ assert.deepEqual(r.totals,{...confirmedFixture.summary,summaryMismatches:[],summaryMatched:true,summaryUnchecked:[]});
+ const d=new Date(input.session_data[0].original.startedAt),date=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+ assert.deepEqual(r.rows[0],{sessionId:'synthetic-confirmed-0',date,shop:'架空店・森',kind:'slot',normalG:100,cz:{[R]:{count:2,success:1,failure:1,unknown:0},[Z]:{count:1,success:0,failure:1,unknown:0}},at:2,atCauses:Object.fromEntries(Object.values(PS.defs.tokyoghoul.atCauses).map(k=>[k,0])),ep:0,judge:{count:1,success:1,failure:0,unknown:0},afterJudgeCz:0,medalDiff:90,estimated:false,corrected:false,inconsistent:false,setup:{},machineId:'tokyoghoul',importSource:'synthetic.json'});
+ assert.equal(r.rows[5].shop,'');assert.equal(r.rows[1].medalDiff,-40);assert.doesNotMatch(JSON.stringify(r.rows),/original|annotations|payload|推定/);
+});
+test('T2 invalid confirmed input is atomic',()=>{
+ const mutations=[j=>delete j.session_data,j=>j.session_data.push(j.session_data[0]),j=>j.session_data[0].sessionId=' ',j=>j.session_data[0].normalG_estimated=-1,j=>j.session_data[0].normalCZ_success=3,j=>j.session_data[0].upperCZ_success=2,j=>j.session_data[0].cz_awards=9,j=>j.session_data[0].at_awards=1.5,j=>j.session_data[0].at_awards='2',j=>j.session_data[0].original.startedAt='invalid'];
+ for(const mutate of mutations){const j=structuredClone(confirmedFixture);mutate(j);const r=PS.importConfirmed(j);assert.ok(r.errors.length);assert.deepEqual(r.rows,[])}
+ for(const k of Object.keys(confirmedFixture.summary).filter(k=>k!=='wins')){const j=structuredClone(confirmedFixture);delete j.session_data[0][k];assert.ok(PS.importConfirmed(j).errors.length,k)}
+});
+test('T3 summary mismatch does not discard rows',()=>{const j=structuredClone(confirmedFixture);j.summary.at_awards++;const r=PS.importConfirmed(j);assert.equal(r.rows.length,6);assert.deepEqual(r.errors,[]);assert.equal(r.totals.summaryMatched,false);assert.deepEqual(r.totals.summaryMismatches,['at_awards']);j.summary={unknown_total:5};assert.equal(PS.importConfirmed(j).totals.summaryMatched,null)});
+test('T4 confirmed entries replace matching automatic sessions',()=>{const fixed=PS.importConfirmed(confirmedFixture).rows,duplicate=p('P2');duplicate.sourceId=fixed[0].sessionId;const a=PS.aggregate([duplicate,p('P2')],PS.defs.tokyoghoul,fixed);assert.equal(a.confirmed,6);assert.equal(a.automatic,1);assert.equal(a.normalG,992);assert.equal(a.at,12);assert.equal(a.cz.total.count,19);assert.equal(a.medalTotal,274);assert.equal(a.wins,4)});

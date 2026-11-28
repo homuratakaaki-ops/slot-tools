@@ -1,0 +1,195 @@
+{
+  "summary": {
+    "normalG_estimated": 750,
+    "cz_awards": 18,
+    "normalCZ_awards": 12,
+    "normalCZ_success": 6,
+    "upperCZ_awards": 6,
+    "upperCZ_success": 3,
+    "at_awards": 12,
+    "calculated_delta_medals": 220,
+    "arima_judgment_success": 1,
+    "arima_judgment_failure": 2,
+    "arima_judgment_failure_inferred": 1,
+    "wins": 3
+  },
+  "rules": {
+    "description": "検証専用の架空データ"
+  },
+  "session_data": [
+    {
+      "sessionId": "synthetic-confirmed-0",
+      "storeNormalized": "架空店・森",
+      "normalG_estimated": 100,
+      "cz_awards": 3,
+      "normalCZ_awards": 2,
+      "normalCZ_success": 1,
+      "upperCZ_awards": 1,
+      "upperCZ_success": 0,
+      "at_awards": 2,
+      "calculated_delta_medals": 90,
+      "arima_judgment_success": 1,
+      "arima_judgment_failure": 0,
+      "arima_judgment_failure_inferred": 0,
+      "original": {
+        "startedAt": "2026-10-10T12:00:00+09:00",
+        "payload": {
+          "machineDef": "tokyoghoul",
+          "logs": [
+            {
+              "text": "架空の記録"
+            }
+          ]
+        }
+      },
+      "annotations": [
+        "保存しない架空の注記"
+      ]
+    },
+    {
+      "sessionId": "synthetic-confirmed-1",
+      "storeNormalized": "架空店・月",
+      "normalG_estimated": 110,
+      "cz_awards": 3,
+      "normalCZ_awards": 2,
+      "normalCZ_success": 1,
+      "upperCZ_awards": 1,
+      "upperCZ_success": 1,
+      "at_awards": 2,
+      "calculated_delta_medals": -40,
+      "arima_judgment_success": 0,
+      "arima_judgment_failure": 2,
+      "arima_judgment_failure_inferred": 1,
+      "original": {
+        "startedAt": "2026-10-11T12:00:00+09:00",
+        "payload": {
+          "machineDef": "generic",
+          "logs": [
+            {
+              "text": "架空の記録"
+            }
+          ]
+        }
+      },
+      "annotations": [
+        "保存しない架空の注記"
+      ]
+    },
+    {
+      "sessionId": "synthetic-confirmed-2",
+      "storeNormalized": "架空店・森",
+      "normalG_estimated": 120,
+      "cz_awards": 3,
+      "normalCZ_awards": 2,
+      "normalCZ_success": 1,
+      "upperCZ_awards": 1,
+      "upperCZ_success": 0,
+      "at_awards": 2,
+      "calculated_delta_medals": 0,
+      "arima_judgment_success": 0,
+      "arima_judgment_failure": 0,
+      "arima_judgment_failure_inferred": 0,
+      "original": {
+        "startedAt": "2026-10-12T12:00:00+09:00",
+        "payload": {
+          "machineDef": "generic",
+          "logs": [
+            {
+              "text": "架空の記録"
+            }
+          ]
+        }
+      },
+      "annotations": [
+        "保存しない架空の注記"
+      ]
+    },
+    {
+      "sessionId": "synthetic-confirmed-3",
+      "storeNormalized": "架空店・月",
+      "normalG_estimated": 130,
+      "cz_awards": 3,
+      "normalCZ_awards": 2,
+      "normalCZ_success": 1,
+      "upperCZ_awards": 1,
+      "upperCZ_success": 1,
+      "at_awards": 2,
+      "calculated_delta_medals": 180,
+      "arima_judgment_success": 0,
+      "arima_judgment_failure": 0,
+      "arima_judgment_failure_inferred": 0,
+      "original": {
+        "startedAt": "2026-11-13T12:00:00+09:00",
+        "payload": {
+          "machineDef": "generic",
+          "logs": [
+            {
+              "text": "架空の記録"
+            }
+          ]
+        }
+      },
+      "annotations": [
+        "保存しない架空の注記"
+      ]
+    },
+    {
+      "sessionId": "synthetic-confirmed-4",
+      "storeNormalized": "架空店・森",
+      "normalG_estimated": 140,
+      "cz_awards": 3,
+      "normalCZ_awards": 2,
+      "normalCZ_success": 1,
+      "upperCZ_awards": 1,
+      "upperCZ_success": 0,
+      "at_awards": 2,
+      "calculated_delta_medals": -70,
+      "arima_judgment_success": 0,
+      "arima_judgment_failure": 0,
+      "arima_judgment_failure_inferred": 0,
+      "original": {
+        "startedAt": "2026-11-14T12:00:00+09:00",
+        "payload": {
+          "machineDef": "generic",
+          "logs": [
+            {
+              "text": "架空の記録"
+            }
+          ]
+        }
+      },
+      "annotations": [
+        "保存しない架空の注記"
+      ]
+    },
+    {
+      "sessionId": "synthetic-confirmed-5",
+      "storeNormalized": "店舗未記録",
+      "normalG_estimated": 150,
+      "cz_awards": 3,
+      "normalCZ_awards": 2,
+      "normalCZ_success": 1,
+      "upperCZ_awards": 1,
+      "upperCZ_success": 1,
+      "at_awards": 2,
+      "calculated_delta_medals": 60,
+      "arima_judgment_success": 0,
+      "arima_judgment_failure": 0,
+      "arima_judgment_failure_inferred": 0,
+      "original": {
+        "startedAt": "2026-11-15T12:00:00+09:00",
+        "payload": {
+          "machineDef": "generic",
+          "logs": [
+            {
+              "text": "架空の記録"
+            }
+          ]
+        }
+      },
+      "annotations": [
+        "保存しない架空の注記"
+      ]
+    }
+  ]
+}
