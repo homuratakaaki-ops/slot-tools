@@ -1,0 +1,165 @@
+{
+  "sessions": [
+    {
+      "id": "mwzto800000d5",
+      "machineId": "tokyoghoul",
+      "machine": "L東京喰種",
+      "mid": "s0001",
+      "startAt": "2026-11-28T03:00:00.000Z",
+      "lend": 46,
+      "setup": {
+        "lastHit": "czFail"
+      },
+      "startRealG": 0,
+      "startLcdG": 0,
+      "realG": 0,
+      "lcdG": 0,
+      "c3": 1,
+      "shop": null,
+      "dai": null,
+      "startNote": "前回の当選：CZ失敗",
+      "expected": null,
+      "totalStart": null,
+      "totalEnd": null,
+      "rare": {
+        "cherryW": {
+          "n": 0,
+          "hit": 0,
+          "nMission": 0,
+          "nPending": 0
+        },
+        "cherryS": {
+          "n": 0,
+          "hit": 0,
+          "nMission": 0,
+          "nPending": 0
+        },
+        "melon": {
+          "n": 0,
+          "hit": 0,
+          "nMission": 0,
+          "nPending": 0
+        },
+        "chance": {
+          "n": 0,
+          "hit": 0,
+          "nMission": 0,
+          "nPending": 0
+        },
+        "kakugan": {
+          "n": 0,
+          "hit": 0,
+          "nMission": 0,
+          "nPending": 0
+        },
+        "cherryK": {
+          "n": 0,
+          "hit": 0,
+          "nMission": 0,
+          "nPending": 0
+        }
+      },
+      "zenchou": false,
+      "hit": null,
+      "mode": "normal",
+      "parallel": {},
+      "stage": null,
+      "revive": 0,
+      "melonLeft": null,
+      "melonApprox": false,
+      "rewardHint": null,
+      "modeHint": null,
+      "ticket": false,
+      "judgeWins": 0,
+      "returnHit": null,
+      "pendingReward": null,
+      "melonPhase": "normal",
+      "modeEra": 0,
+      "modeHints": [],
+      "tags": {},
+      "follow": [],
+      "events": [
+        {
+          "id": "mwzto8000013f",
+          "at": "2026-11-28T03:00:00.000Z",
+          "type": "hitStart",
+          "text": "レミニセンス 当選　0G",
+          "realG": 0,
+          "lcdG": 0,
+          "c3": 0,
+          "mode": "cz",
+          "cr": null,
+          "hit": "レミニセンス",
+          "via": "レミニセンス",
+          "trig": null,
+          "where": null,
+          "zenFrom": null,
+          "fromPending": false,
+          "hitSel": {
+            "type": "レミニセンス"
+          },
+          "op": "mwzto800000qa",
+          "snap": {}
+        },
+        {
+          "id": "mwzto800001tq",
+          "at": "2026-11-28T03:00:00.000Z",
+          "type": "hitEnd",
+          "text": "レミニセンス 失敗　CZスルー 1",
+          "realG": 0,
+          "lcdG": 0,
+          "c3": 1,
+          "mode": "normal",
+          "hit": "レミニセンス",
+          "sel": {
+            "result": "失敗"
+          },
+          "result": "失敗",
+          "cr": null,
+          "op": "mwzto800001gk",
+          "snap": {}
+        }
+      ],
+      "_steps": [],
+      "money": {
+        "cash": [],
+        "deposits": [],
+        "spends": [],
+        "stockStart": null,
+        "replays": [],
+        "startMedal": 0,
+        "startReplay": 0,
+        "credit": null,
+        "endMedal": 0,
+        "endReplay": 0
+      },
+      "endAt": "2026-11-28T03:00:00.000Z",
+      "endNote": "ヤメ",
+      "nextMark": null,
+      "edRuns": []
+    }
+  ],
+  "cur": null,
+  "settings": {
+    "lend": 46,
+    "tagList": [
+      "設定示唆",
+      "モード示唆",
+      "当選示唆",
+      "天井・規定G",
+      "その他"
+    ],
+    "tagAuto": {
+      "hint": "設定示唆",
+      "mode": "モード示唆"
+    }
+  },
+  "stores": [],
+  "entries": [],
+  "ledger": {
+    "ver": 1,
+    "events": [],
+    "quarantine": []
+  },
+  "gen": 6
+}
