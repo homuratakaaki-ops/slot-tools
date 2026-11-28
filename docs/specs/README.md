@@ -30,6 +30,8 @@
 | `tokyoghoul-stats-2-instructions-v01.md` | 東京喰種 第1号 段2の実装指示書 v0.1（featureブランチの push まで） |
 | `tokyoghoul-stats-2ui-spec-v01.md` | 東京喰種 第1号 段2-UI（稼働日誌の集計のスマホ表示改善：概要・詳細・履歴の3タブ、絞り込みの折りたたみと条件の帯）の仕様書 v0.1 |
 | `tokyoghoul-stats-2ui-instructions-v01.md` | 東京喰種 第1号 段2-UIの実装指示書 v0.1（featureブランチの push まで） |
+| `tokyoghoul-stats-3-spec-v01.md` | 東京喰種 第1号 段3（旧111件の手集計を meta.statsConfirmed に取り込む：PlayStats.importConfirmed・設定の読み込み画面・集計の表示の補足）の仕様書 v0.1 |
+| `tokyoghoul-stats-3-instructions-v01.md` | 東京喰種 第1号 段3の実装指示書 v0.1（featureブランチの push まで） |
 | `rec-common-skeleton-v03.md` | tools/rec 共通改修（機種マスター・店舗の利用順・開始時再プレイ欄の廃止・クレジット電卓）の骨格書 v0.3（夢爽裁可 11/26） |
 | `rec-common-1-spec-v01.md` | tools/rec 共通改修 段1の仕様書 v0.1（開始画面の再プレイ欄の廃止・店舗を最近使った順に並べる） |
 | `rec-common-1-instructions-v01.md` | tools/rec 共通改修 段1の実装指示書 v0.1（テスト版 common-test.html の公開まで） |
